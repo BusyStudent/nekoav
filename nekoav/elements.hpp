@@ -3,7 +3,12 @@
 #include "defs.hpp"
 
 NEKO_NS_BEGIN
-
+/**
+ * @brief The smallest executable unit of the system
+ * @details This is a interface of the minimum executable unit of the system. 
+ * all code want to run in this system should inherit.
+ * 
+ */
 class Element : public Object {
 public:
     enum State {
@@ -18,7 +23,7 @@ public:
         return mState;
     }
 private:
-    Atomic<State> mState = State::Preparing;
+    Atomic<State> mState { State::Preparing };
 };
 
 class Pad : public Object {

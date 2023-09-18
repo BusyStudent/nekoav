@@ -32,15 +32,16 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <atomic>
 
 NEKO_NS_BEGIN
 
 template <typename T>
-using Arc = std::shared_ptr<T>;
+using Arc = std::shared_ptr<T>; ///< Arc = Atomic refcounter
 template <typename T>
 using Weak = std::weak_ptr<T>;
 template <typename T>
-using Box = std::unique_ptr<T>;
+using Box = std::unique_ptr<T>; ///< 
 template <typename T>
 using Atomic = std::atomic<T>;
 
