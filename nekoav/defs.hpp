@@ -29,8 +29,12 @@
 #define NEKO_API NEKO_IMPORT
 #endif
 
+#define NEKO_CXX17 (__cplusplus >= 201703L)
+#define NEKO_CXX20 (__cplusplus >= 202002L)
+
 #include <cstddef>
 #include <cstdint>
+#include <cassert>
 #include <memory>
 #include <atomic>
 
@@ -45,8 +49,8 @@ using Box = std::unique_ptr<T>; ///<
 template <typename T>
 using Atomic = std::atomic<T>;
 
-enum PixelFormat : int;
-enum SampleFormat : int;
+enum class PixelFormat : int;
+enum class SampleFormat : int;
 
 /**
  * @brief All refcounted object

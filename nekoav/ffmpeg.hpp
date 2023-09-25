@@ -1,6 +1,7 @@
 #pragma once
 
 #include "defs.hpp"
+#include "format.hpp"
 
 extern "C" {
     #include <libavformat/avformat.h>
@@ -15,5 +16,11 @@ struct FFPtr {
 
 };
 
+inline AVPixelFormat ToAVPixelFormat(PixelFormat fmt) {
+    return AVPixelFormat(fmt);
+}
+inline   PixelFormat ToPixelFormat(AVPixelFormat fmt) {
+    return PixelFormat(fmt);
+}
 
 NEKO_NS_END
