@@ -4,6 +4,7 @@
 #define NEKO_NAMESPACE NekoAV
 #endif
 
+#define NEKO_USING(x) using Neko##x = NEKO_NAMESPACE::x
 #define NEKO_NS_BEGIN namespace NEKO_NAMESPACE {
 #define NEKO_NS_END   }
 
@@ -31,6 +32,7 @@
 
 #define NEKO_CXX17 (__cplusplus >= 201703L)
 #define NEKO_CXX20 (__cplusplus >= 202002L)
+#define NEKO_CXX23 (__cplusplus >= 202002L)
 
 #include <cstddef>
 #include <cstdint>
@@ -62,11 +64,19 @@ public:
 
     template <typename T>
     Arc<T> as() {
-        return Arc<T>(shared_from_this());
+        return std::dynamic_pointer_cast<T>(shared_from_this());
     }
     template <typename T>
     Arc<const T> as() const {
-        return Arc<const T>(shared_from_this());
+        return std::dynamic_pointer_cast<const T>(shared_from_this());
+    }
+    template <typename T>
+    Arc<T> unsafeAs() {
+        return std::static_pointer_cast<T>(shared_from_this());
+    }
+    template <typename T>
+    Arc<const T> unsafeAs() const {
+        return std::static_pointer_cast<const T>(shared_from_this());
     }
 protected:
     constexpr Object() = default;

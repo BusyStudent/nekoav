@@ -57,5 +57,8 @@ void Thread::dispatchTask() {
         lock.lock();
     }
 }
+Thread *Thread::currentThread() {
+    return _currentThread;
+}
 
 NEKO_NS_END

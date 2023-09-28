@@ -1,16 +1,17 @@
 #pragma once
 
+#include "resource.hpp"
 #include "defs.hpp"
 
 NEKO_NS_BEGIN
 
-class MediaBuffer : public Object {
+class MediaBuffer : public Resource {
 public:
     virtual void lock() = 0;
     virtual void unlock() = 0;
 };
 
-class MediaFrame : public Object {
+class MediaFrame : public Resource {
 public:
     virtual void lock()   = 0;
     virtual void unlock() = 0;
