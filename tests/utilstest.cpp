@@ -18,6 +18,7 @@ int main() {
     NekoAV::Thread worker;
     worker.postTask([]() {
         NEKO_DEBUG("A from worker");
+        NekoAV::Backtrace();
     });
     worker.postTask([]() {
         NEKO_DEBUG("B from worker");

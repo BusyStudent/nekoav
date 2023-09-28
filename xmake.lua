@@ -4,7 +4,10 @@ set_languages("c++17")
 
 target("nekoav")
     set_kind("shared")
-    add_links("user32")
+
+    if is_plat("windows") then
+        add_links("user32")
+    end
 
     add_files("nekoav/*.cpp")
 target_end()

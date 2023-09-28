@@ -4,6 +4,7 @@
 #include <type_traits>
 #include <typeinfo>
 #include <optional>
+#include <utility>
 #include <variant>
 #include <cstdarg>
 #include <cstdio>
@@ -12,24 +13,44 @@
 #include <tuple>
 #include <array>
 
-// STD Container forward decl
-namespace std {
-    template <typename T, typename Allocator> class vector;
-    template <typename T, typename Allocator> class list;
-    template <typename T, typename Allocator> class deque;
-    template <typename Key, typename Value, typename Compare, typename Allocator> class map;
-    template <typename T> class function;
-}
-
-
-
 #ifdef __GNUC__
-    #define NEKO_STRINGIFY_TYPE_RAW(x) typeid(x).name()
+    #define NEKO_STRINGIFY_TYPE_RAW(x) NEKO_STRINGIFY_TYPEINFO(typeid(x))
+    #define NEKO_FUNCTION __PRETTY_FUNCTION__
     #include <cxxabi.h>
-    // TODO using _cxa_demangle
+    #include <functional>
+    #include <vector>
+    #include <deque>
+    #include <list>
+    #include <map>
+
+    template <typename T, T Value>
+    constexpr auto _Neko_GetEnumName() noexcept {
+        // constexpr auto _Neko_GetEnumName() [with T = MyEnum; T Value = MyValues]
+        // constexpr auto _Neko_GetEnumName() [with T = MyEnum; T Value = (MyEnum)114514]"
+        std::string_view name(__PRETTY_FUNCTION__);
+        size_t eqBegin = name.find_last_of(' ');
+        size_t end = name.find_last_of(']');
+        std::string_view body = name.substr(eqBegin + 1, end - eqBegin - 1);
+        if (body[0] == '(') {
+            // Failed
+            return std::string_view();
+        }
+        return body;
+    }
+    inline std::string NEKO_STRINGIFY_TYPEINFO(const std::type_info &info) {
+        int status;
+        auto str = ::abi::__cxa_demangle(info.name(), nullptr, nullptr, &status);
+        if (str) {
+            std::string ret(str);
+            ::free(str);
+            return ret;
+        }
+        return info.name();
+    }
 #elif defined(_MSC_VER)
     #define NEKO_STRINGIFY_TYPE_RAW(type) NEKO_STRINGIFY_TYPEINFO(typeid(type))
     #define NEKO_ENUM_TO_NAME(enumType)
+    #define NEKO_FUNCTION __FUNCTION__
 
     inline const char *NEKO_STRINGIFY_TYPEINFO(const std::type_info &info) {
         // Skip struct class prefix
@@ -59,6 +80,14 @@ namespace std {
         }
         return body;
     }
+    // STD Container forward decl
+    namespace std {
+        template <typename T, typename Allocator> class vector;
+        template <typename T, typename Allocator> class list;
+        template <typename T, typename Allocator> class deque;
+        template <typename Key, typename Value, typename Compare, typename Allocator> class map;
+        template <typename T> class function;
+    }
 #else
     #define NEKO_STRINGIFY_TYPE_RAW(type) typeid(type).name()
     template <typename T, T Value>
@@ -68,8 +97,10 @@ namespace std {
     }
 #endif
 
-#if defined(_WIN32) && !defined(NEKO_NO_TTY_CHECK)
+#if   defined(_WIN32) && !defined(NEKO_NO_TTY_CHECK)
     #include <Windows.h>
+#elif defined(__linux) && !defined(NEKO_NO_TTY_CHECK)
+    #include <unistd.h>
 #endif
 
 #define NEKO_FORMAT_TYPE_TO(type, str) \
@@ -95,11 +126,11 @@ struct _Neko_TypeFormatter {
 
 #ifndef NEKO_NO_LOG
     #define NEKO_DEBUG(x)                                            \
-        ::_Neko_LogPath(__FILE__, __LINE__, __FUNCTION__);           \
+        ::_Neko_LogPath(__FILE__, __LINE__, NEKO_FUNCTION);          \
         ::fputs(::_Neko_FormatDebug(#x, x).c_str(), stderr);         \
         ::fputc('\n', stderr);
     #define NEKO_LOG(...)                                            \
-        ::_Neko_LogPath(__FILE__, __LINE__, __FUNCTION__);           \
+        ::_Neko_LogPath(__FILE__, __LINE__, NEKO_FUNCTION);          \
         ::fputs(::_Neko_FormatLog(__VA_ARGS__).c_str(), stderr);     \
         ::fputc('\n', stderr);
 #else
@@ -108,7 +139,9 @@ struct _Neko_TypeFormatter {
 #endif
 
 // Add default types chrono
-NEKO_FORMAT_TYPE_TO(std::chrono::system_clock::duration, "std::chrono::system_clock::duration");
+#ifdef _MSC_VER
+    NEKO_FORMAT_TYPE_TO(std::chrono::system_clock::duration, "std::chrono::system_clock::duration");
+#endif
 NEKO_FORMAT_TYPE_TO(std::chrono::system_clock::time_point, "std::chrono::system_clock::time_point");
 NEKO_FORMAT_TYPE_TO(std::chrono::nanoseconds, "std::chrono::nanoseconds");
 NEKO_FORMAT_TYPE_TO(std::chrono::milliseconds, "std::chrono::milliseconds");
@@ -329,7 +362,7 @@ inline std::string _Neko_asprintf(const char *fmt, ...) {
 
 // Number
 template <typename T,
-          typename std::enable_if<std::is_arithmetic<T>::value>::type* = nullptr
+          typename _Cond = std::enable_if_t<std::is_arithmetic_v<T> >
 >
 inline std::string _Neko_ToString(T val) {
     if constexpr (std::is_same_v<T, bool>) {
@@ -339,87 +372,6 @@ inline std::string _Neko_ToString(T val) {
         return "false";
     }
     return std::to_string(val);
-}
-
-// Container
-template <typename T,
-          typename std::enable_if<_Neko_IsIterable<T>::value>::type* = nullptr
->
-inline std::string _Neko_ToString(const T &container) {
-    std::string str;
-    str += "{";
-    for (auto &val : container) {
-        str += _Neko_ToString(val);
-        str += ", ";
-    }
-    str.pop_back();
-    str.pop_back();
-    str += "}";
-    return str;
-}
-template <typename T, size_t N>
-inline std::string _Neko_ToString(const T (&container)[N]) {
-    std::string str;
-    str += "{";
-    for (auto &val : container) {
-        str += _Neko_ToString(val);
-        str += ", ";
-    }
-    str.pop_back();
-    str.pop_back();
-    str += "}";
-    return str;
-}
-
-// Optional
-template <typename T>
-inline std::string _Neko_ToString(const std::optional<T> &optional) {
-    if (optional.has_value()) {
-        return _Neko_ToString(optional.value());
-    }
-    return "nullopt";
-}
-
-// Variant
-template <typename ...Types>
-inline std::string _Neko_ToString(const std::variant<Types...> &variant) {
-    return std::visit([](auto &&val) {
-        return _Neko_ToString(val);
-    }, variant);
-}
-
-// Tuple
-template <typename ...Args>
-inline auto       _Neko_TupleToStringHelper(Args ...args) {
-    std::array<std::string, sizeof...(Args)> arr = {_Neko_ToString(args)...};
-    return arr;
-}
-template <typename ...Types>
-inline std::string _Neko_ToString(const std::tuple<Types...> &tuple) {
-    std::string str;
-    str += "{";
-    auto array = std::apply(_Neko_TupleToStringHelper<Types...>, tuple);
-    for (const auto &val : array) {
-        str += val;
-        str += ", ";
-    }
-
-    str.pop_back();
-    str.pop_back();
-    str += "}";
-    return str;
-}
-
-// Pair
-template <typename First, typename Second>
-inline std::string _Neko_ToString(const std::pair<First, Second> &pair) {
-    std::string str;
-    str += "{";
-    str += _Neko_ToString(pair.first);
-    str += ", ";
-    str += _Neko_ToString(pair.second);
-    str += "}";
-    return str;
 }
 
 // Function
@@ -482,14 +434,98 @@ inline std::string _Neko_ToString(void *ptr) {
     return _Neko_asprintf("%p", ptr);
 }
 
+
+// Optional
+template <typename T>
+inline std::string _Neko_ToString(const std::optional<T> &optional) {
+    if (optional.has_value()) {
+        return _Neko_ToString(optional.value());
+    }
+    return "nullopt";
+}
+
+// Variant
+template <typename ...Types>
+inline std::string _Neko_ToString(const std::variant<Types...> &variant) {
+    return std::visit([](auto &&val) {
+        return _Neko_ToString(val);
+    }, variant);
+}
+
+// Tuple
+template <typename ...Args>
+inline auto       _Neko_TupleToStringHelper(Args ...args) {
+    std::array<std::string, sizeof...(Args)> arr = {_Neko_ToString(std::forward<Args>(args))...};
+    return arr;
+}
+template <typename ...Types>
+inline std::string _Neko_ToString(const std::tuple<Types...> &tuple) {
+    std::string str;
+    str += "{";
+    auto array = std::apply(_Neko_TupleToStringHelper<Types...>, tuple);
+    for (const auto &val : array) {
+        str += val;
+        str += ", ";
+    }
+
+    str.pop_back();
+    str.pop_back();
+    str += "}";
+    return str;
+}
+
+// Pair
+template <typename First, typename Second>
+inline std::string _Neko_ToString(const std::pair<First, Second> &pair) {
+    std::string str;
+    str += "{";
+    str += _Neko_ToString(pair.first);
+    str += ", ";
+    str += _Neko_ToString(pair.second);
+    str += "}";
+    return str;
+}
+
+// Container
+template <typename T,
+          typename _Cond = std::enable_if_t<_Neko_IsIterable<T>::value>
+>
+inline std::string _Neko_ToString(const T &container) {
+    std::string str;
+    str += "{";
+    for (auto &val : container) {
+        str += _Neko_ToString(val);
+        str += ", ";
+    }
+    str.pop_back();
+    str.pop_back();
+    str += "}";
+    return str;
+}
+template <typename T, size_t N>
+inline std::string _Neko_ToString(const T (&container)[N]) {
+    std::string str;
+    str += "{";
+    for (auto &val : container) {
+        str += _Neko_ToString(val);
+        str += ", ";
+    }
+    str.pop_back();
+    str.pop_back();
+    str += "}";
+    return str;
+}
+
 inline bool       _Neko_HasColorTTY() {
-#if defined(_WIN32) && !defined(NEKO_NO_TTY_CHECK)
+#if   defined(_WIN32) && !defined(NEKO_NO_TTY_CHECK)
     static bool value = []() {
         DWORD mode = 0;
         ::GetConsoleMode(::GetStdHandle(STD_ERROR_HANDLE), &mode);
         return mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING;
     }();
     return value;
+#elif defined(__linux) && !defined(NEKO_NO_TTY_CHECK)
+    return ::isatty(::fileno(stdout));
 #else
     return true;
 #endif

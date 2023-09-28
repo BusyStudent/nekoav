@@ -1,3 +1,5 @@
+#include <strings.h>
+#undef NDEBUG
 #ifndef NDEBUG
 
 #define _NEKO_SOURCE
@@ -8,6 +10,13 @@
 #ifdef _WIN32
     #include <DbgEng.h>
     #include <wrl/client.h>
+#elif defined(__linux)
+    #include <cstring>
+    #include <unwind.h>
+    #include <cxxabi.h>
+    #include <unistd.h>
+    #include <dlfcn.h>
+    #include <vector>
 #endif
 
 NEKO_NS_BEGIN
@@ -93,6 +102,47 @@ void Backtrace() {
     }
 
     fprintf(stderr, "---BACKTRACE END---\n");
+#elif defined(__linux)
+    std::vector<void *> callstack;
+    ::_Unwind_Backtrace([](_Unwind_Context *ctxt, void *stack) {
+        auto p = static_cast<std::vector<void *> *>(stack);
+        auto ip = reinterpret_cast<void*>(::_Unwind_GetIP(ctxt));
+        if (ip) {
+            p->push_back(ip);
+        }
+        return _URC_NO_REASON;
+    }, &callstack);
+
+    fprintf(stderr, "\033[31m---BACKTRACE START--- ThreadID '%d' ThreadName '%s'\033[0m\n", ::gettid(), NEKO_GetThreadName());
+    
+    for (size_t n = 0; n < callstack.size(); ++n) {
+        size_t demangleBufferSize = 1024;
+        char demangleBuffer [1024];
+        const char *name = "???";
+        const char *dllname = "???";
+        ::Dl_info info;
+        if (::dladdr(callstack[n], &info) != 0) {
+            if (info.dli_fname) {
+                dllname = info.dli_fname;
+                dllname = rindex(dllname, '/') + 1;
+            }
+            if (info.dli_sname) {
+                name = info.dli_sname;
+                
+                // Try demangle name
+                int status;
+                auto v = ::abi::__cxa_demangle(name, demangleBuffer, &demangleBufferSize, &status);
+                if (v) {
+                    // Demangle OK
+                    name = v;
+                }
+            }
+        }
+        // #%d %s!%s [%p]
+        fprintf(stderr, "#\033[1m%d\033[0m %s!\033[96m%s\033[0m [%p]\n", int(n), dllname, name, callstack[n]);
+    }
+
+    fprintf(stderr, "\033[31m---BACKTRACE END---\033[0m\n");
 #endif
 }
 

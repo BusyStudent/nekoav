@@ -1,5 +1,7 @@
 .vscode
 .xmake
+.cache
+compile_commands.json
 /build
 
 *.o

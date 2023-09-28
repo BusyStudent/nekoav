@@ -59,10 +59,21 @@
         return buf;
     }
 #else
+    #include <pthread.h>
     #include <dlfcn.h>
+    #include <string>
     #define NEKO_LoadLibrary(name) ::dlopen(name, RTLD_LAZY)
     #define NEKO_GetProcAddress(handle, name) ::dlsym(handle, name)
     #define NEKO_FreeLibrary(handle) ::dlclose(handle)
+
+    #define NEKO_SetThreadName(name) ::pthread_setname_np(::pthread_self(), name)
+    #define NEKO_GetThreadName()     ::_Neko_GetThreadName().data()
+
+    inline auto _Neko_GetThreadName() {
+        std::array<char, 32> buf {0};
+        ::pthread_getname_np(::pthread_self(), buf.data(), buf.size());
+        return buf;
+    }
 #endif
 
 #define neko_library_path(path) struct _loader_t {   \
