@@ -462,6 +462,10 @@ inline std::string _Neko_ToString(void *ptr) {
 inline std::string _Neko_ToString(char *ptr) {
     return _Neko_asprintf("%s", ptr);
 }
+template <typename RetT, typename ...Args>
+inline std::string _Neko_ToString(RetT(*func)(Args...)) {
+    return _Neko_asprintf("%p", func);
+}
 template <typename T>
 inline std::string _Neko_ToString(const std::shared_ptr<T> &ptr) {
     return _Neko_ToString(ptr.get());

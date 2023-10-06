@@ -5,6 +5,7 @@
 #include "opencl_map.hpp"
 #include <CL/opencl.h>
 #include <functional>
+#include <cstring>
 #include <cstdio>
 #include <vector>
 #include <string>

@@ -12,7 +12,9 @@ extern "C" {
 NEKO_NS_BEGIN
 
 template <typename T>
-using _AlwaysFalse = std::false_type;
+struct _AlwaysFalse {
+    static constexpr bool value = false;
+};
 
 template <typename T>
 struct FFTraitsBase {

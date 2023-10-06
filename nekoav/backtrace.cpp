@@ -112,33 +112,66 @@ void Backtrace() {
         return _URC_NO_REASON;
     }, &callstack);
 
-    fprintf(stderr, "\033[31m---BACKTRACE START--- ThreadID '%d' ThreadName '%s'\033[0m\n", ::gettid(), NEKO_GetThreadName());
-    
+    fprintf(stderr, "\033[31m---BACKTRACE START--- ThreadID '%d' ThreadName '%s'\033[0m\n", ::getpid(), NEKO_GetThreadName());
+
     for (size_t n = 0; n < callstack.size(); ++n) {
         size_t demangleBufferSize = 1024;
         char demangleBuffer [1024];
+        char lineBuffer [1024] {0};
         const char *name = "???";
         const char *dllname = "???";
+        const char *line = "";
         ::Dl_info info;
         if (::dladdr(callstack[n], &info) != 0) {
             if (info.dli_fname) {
                 dllname = info.dli_fname;
-                dllname = rindex(dllname, '/') + 1;
+                dllname = ::rindex(dllname, '/') + 1;
             }
             if (info.dli_sname) {
                 name = info.dli_sname;
-                
-                // Try demangle name
-                int status;
-                auto v = ::abi::__cxa_demangle(name, demangleBuffer, &demangleBufferSize, &status);
-                if (v) {
-                    // Demangle OK
-                    name = v;
+            }
+
+            auto offset = (char*) callstack[n] - (char*) info.dli_fbase;
+            // Call addr2line get number
+            char *cmd;
+            FILE *proc;
+            ::asprintf(&cmd, "addr2line -a -f --exe=%s +%p", info.dli_fname, (void*) offset);
+            proc = ::popen(cmd, "r");
+            ::free(cmd);
+
+            ::fread(lineBuffer, sizeof(lineBuffer), 1, proc);
+            ::fclose(proc);
+
+            // Remove lastest '\n'
+            lineBuffer[strlen(lineBuffer) - 1] = '\0';
+
+            auto linePtr = ::rindex(lineBuffer, '\n');
+            if (!linePtr) {
+                line = "";
+            }
+            else {
+                *linePtr = '\0';
+                line = linePtr + 1;
+
+                if (!info.dli_sname) {
+                    linePtr = rindex(lineBuffer, '\n');
+                    if (linePtr) {
+                        name = linePtr + 1;
+                    }
                 }
+            }
+
+                            
+            // Try demangle name
+            int status;
+            auto v = ::abi::__cxa_demangle(name, demangleBuffer, &demangleBufferSize, &status);
+            if (v) {
+                // Demangle OK
+                name = v;
             }
         }
         // #%d %s!%s [%p]
-        fprintf(stderr, "#\033[1m%d\033[0m %s!\033[96m%s\033[0m [%p]\n", int(n), dllname, name, callstack[n]);
+        fprintf(stderr, "#\033[1m%d\033[0m %s!\033[96m%s\033[0m [%s]\n", int(n), dllname, name, line);
     }
 
     fprintf(stderr, "\033[31m---BACKTRACE END---\033[0m\n");
