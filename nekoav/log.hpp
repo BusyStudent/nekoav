@@ -7,6 +7,7 @@
 #include <utility>
 #include <variant>
 #include <cstdarg>
+#include <memory>
 #include <cstdio>
 #include <string>
 #include <chrono>
@@ -126,13 +127,19 @@ struct _Neko_TypeFormatter {
 
 #ifndef NEKO_NO_LOG
     #define NEKO_DEBUG(x)                                            \
+        {                                                            \
+        auto _neko_logstr = ::_Neko_FormatDebug(#x, x);              \
         ::_Neko_LogPath(__FILE__, __LINE__, NEKO_FUNCTION);          \
-        ::fputs(::_Neko_FormatDebug(#x, x).c_str(), stderr);         \
-        ::fputc('\n', stderr);
+        ::fputs(_neko_logstr.c_str(), stderr);                       \
+        ::fputc('\n', stderr);                                       \
+        }
     #define NEKO_LOG(...)                                            \
+        {                                                            \
+        auto _neko_logstr = ::_Neko_FormatLog(__VA_ARGS__);          \
         ::_Neko_LogPath(__FILE__, __LINE__, NEKO_FUNCTION);          \
-        ::fputs(::_Neko_FormatLog(__VA_ARGS__).c_str(), stderr);     \
-        ::fputc('\n', stderr);
+        ::fputs(_neko_logstr.c_str(), stderr);                       \
+        ::fputc('\n', stderr);                                       \
+        }
 #else
     #define NEKO_DEBUG(x)
     #define NEKO_LOG(...)
@@ -229,6 +236,24 @@ template <typename T>
 struct _Neko_TypeFormatter<std::optional<T> > {
     static std::string name() {
         return "std::optional<" + NEKO_STRINGIFY_TYPE(T) + ">"; 
+    }
+};
+template <typename T>
+struct _Neko_TypeFormatter<std::shared_ptr<T> > {
+    static std::string name() {
+        return "std::shared_ptr<" + NEKO_STRINGIFY_TYPE(T) + ">"; 
+    }
+};
+template <typename T>
+struct _Neko_TypeFormatter<std::unique_ptr<T> > {
+    static std::string name() {
+        return "std::unique_ptr<" + NEKO_STRINGIFY_TYPE(T) + ">"; 
+    }
+};
+template <typename T>
+struct _Neko_TypeFormatter<std::weak_ptr<T> > {
+    static std::string name() {
+        return "std::weak_ptr<" + NEKO_STRINGIFY_TYPE(T) + ">"; 
     }
 };
 template <typename ...Types>
@@ -330,7 +355,8 @@ constexpr auto     _Neko_GetValidEnumNames(std::index_sequence<N...> seq) noexce
 }
 template <typename T>
 inline std::string _Neko_EnumToString(T en) {
-    for (auto [value, name] : _Neko_GetValidEnumNames<T>(std::make_index_sequence<NEKO_ENUM_SEARCH_DEPTH>())) {
+    constexpr auto map = _Neko_GetValidEnumNames<T>(std::make_index_sequence<NEKO_ENUM_SEARCH_DEPTH>());
+    for (auto [value, name] : map) {
         if (value == en) {
             return std::string(name);
         }
@@ -433,6 +459,18 @@ inline std::string _Neko_ToString(std::chrono::hours s) {
 inline std::string _Neko_ToString(void *ptr) {
     return _Neko_asprintf("%p", ptr);
 }
+inline std::string _Neko_ToString(char *ptr) {
+    return _Neko_asprintf("%s", ptr);
+}
+template <typename T>
+inline std::string _Neko_ToString(const std::shared_ptr<T> &ptr) {
+    return _Neko_ToString(ptr.get());
+}
+template <typename T>
+inline std::string _Neko_ToString(const std::unique_ptr<T> &ptr) {
+    return _Neko_ToString(ptr.get());
+}
+
 
 
 // Optional

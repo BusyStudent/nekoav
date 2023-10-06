@@ -59,8 +59,8 @@ public:
     }
 protected:
     virtual void onStateChange(State newState) = 0;
-    virtual int  processInput(Pad *inputPad, ResourceView resourceView) { return NoImpl; }
-    virtual int  execute() {return NoImpl; }
+    virtual int  onProcessInput(Pad *inputPad, ResourceView resourceView) { return NoImpl; }
+    virtual int  onExecute() {return NoImpl; }
 private:
     Atomic<State> mState { State::Preparing };
     Thread       *mWorkthread { nullptr };

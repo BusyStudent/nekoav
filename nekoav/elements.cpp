@@ -37,7 +37,7 @@ int Pad::write(ResourceView view) {
         Latch latch {1};
         int errcode = Ok;
         nextElement->mWorkthread->postTask([&]() {
-            errcode = nextElement->processInput(next.get(), view);
+            errcode = nextElement->onProcessInput(next.get(), view);
             latch.count_down();
         });
         latch.wait();
@@ -45,7 +45,7 @@ int Pad::write(ResourceView view) {
     }
 
     // Call the next
-    return nextElement->processInput(next.get(), view);
+    return nextElement->onProcessInput(next.get(), view);
 }
 
 

@@ -1,5 +1,3 @@
-#include <strings.h>
-#undef NDEBUG
 #ifndef NDEBUG
 
 #define _NEKO_SOURCE
@@ -11,11 +9,12 @@
     #include <DbgEng.h>
     #include <wrl/client.h>
 #elif defined(__linux)
-    #include <cstring>
+    #include <strings.h>
     #include <unwind.h>
     #include <cxxabi.h>
     #include <unistd.h>
     #include <dlfcn.h>
+    #include <cstring>
     #include <vector>
 #endif
 

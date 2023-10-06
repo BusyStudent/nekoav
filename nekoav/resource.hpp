@@ -23,7 +23,7 @@ public:
     ~ResourceView() = default;
 
     template <typename T>
-    T *as() const {
+    T *viewAs() const {
         return dynamic_cast<T*>(mPtr);
     }
 private:

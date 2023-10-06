@@ -81,8 +81,10 @@
     ~_loader_t() { NEKO_FreeLibrary(handle); }       \
     void *handle;                                    \
 } _library;
+#define neko_import_symbol_static(var, symbol) \
+    static constexpr auto var = ::symbol;
 #define neko_import_symbol(type, var, symbol)  \
     using _pfn_##var = type;                   \
-    _pfn_##var var = (_pfn_##var) NEKO_GetProcAddress(_library.handle, symbol);
+    _pfn_##var var = _pfn_##var(NEKO_GetProcAddress(_library.handle, symbol));
 #define neko_import4(type, name) neko_import_symbol(type, name, #name)
 #define neko_import(func) neko_import_symbol(decltype(::func)*, func, #func)

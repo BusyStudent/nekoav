@@ -1,5 +1,8 @@
 add_rules("mode.debug", "mode.release")
 
+add_requires("opencl-headers", "vulkan-headers")
+add_packages("opencl-headers", "vulkan-headers")
+
 set_languages("c++17")
 
 target("nekoav")
@@ -17,4 +20,11 @@ target("utilstest")
     add_deps("nekoav")
 
     add_files("tests/utilstest.cpp")
+target_end()
+
+target("cltest")
+    set_kind("binary")
+    add_deps("nekoav")
+
+    add_files("tests/cltest.cpp")
 target_end()

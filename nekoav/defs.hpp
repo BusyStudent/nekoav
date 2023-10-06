@@ -32,7 +32,7 @@
 
 #define NEKO_CXX17 (__cplusplus >= 201703L)
 #define NEKO_CXX20 (__cplusplus >= 202002L)
-#define NEKO_CXX23 (__cplusplus >= 202002L)
+#define NEKO_CXX23 (__cplusplus >= 202300L)
 
 #include <cstddef>
 #include <cstdint>
