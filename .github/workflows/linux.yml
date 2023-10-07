@@ -1,4 +1,4 @@
-name: C/C++ CI on Windows
+name: C/C++ CI on Linux
 on:
   push:
     branches: [ "master" ]
