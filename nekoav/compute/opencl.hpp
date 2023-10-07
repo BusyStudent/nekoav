@@ -61,11 +61,19 @@ public:
     ~DynArray() = default;
 
     static DynArray<T> make(size_t n) {
+        if (n == 0) {
+            return DynArray();
+        }
         return DynArray<T>(std::make_unique<T []>(n), n);
     }
 
     void resize(size_t n) {
-        mData = std::make_unique<T []>(n);
+        if (n != 0) {
+            mData = std::make_unique<T []>(n);            
+        }
+        else {
+            mData.reset();
+        }
         mSize = n;
     }
 
@@ -264,18 +272,6 @@ public:
         auto buf = DynArray<cl_device_id>::make(n);
         err = clGetDeviceIDs(platform, type, n, buf.get(), nullptr);
         return buf;
-    }
-    auto isLoaded() const {
-#ifndef NEKOCL_STATIC_IMPORT
-        // Is Functions pointer arrays
-        static_assert(sizeof(Library) % sizeof(void*) == 0, "Is must all pointers");
-        for (size_t n = 0; n < sizeof(Library) / sizeof(void*); ++n) {
-            if (reinterpret_cast<const void *const *>(this)[n] == nullptr) {
-                return false;
-            }
-        }
-#endif
-        return true;
     }
 };
 

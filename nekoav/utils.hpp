@@ -80,7 +80,10 @@
     _loader_t() { handle = NEKO_LoadLibrary(path); } \
     ~_loader_t() { NEKO_FreeLibrary(handle); }       \
     void *handle;                                    \
-} _library;
+} _library;                                          \
+bool isLoaded() const noexcept {                     \
+    return _library.handle != nullptr;               \
+}
 #define neko_import_symbol_static(var, symbol) \
     static constexpr auto var = ::symbol;
 #define neko_import_symbol(type, var, symbol)  \

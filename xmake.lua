@@ -1,12 +1,13 @@
 add_rules("mode.debug", "mode.release")
 
-add_requires("opencl-headers", "vulkan-headers")
+add_requires("opencl-headers", "vulkan-headers", "ffmpeg")
 add_packages("opencl-headers", "vulkan-headers")
 
 set_languages("c++17")
 
 target("nekoav")
     set_kind("shared")
+    add_packages("ffmpeg")
 
     if is_plat("windows") then
         add_links("user32")
