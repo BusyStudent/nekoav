@@ -24,7 +24,19 @@ struct _NoCompeleteFunction {
 #if NEKO_CXX20
 template <typename T = _NoCompeleteFunction>
 using Barrier = std::barrier<T>;
-using Latch = std::latch;
+class Latch final : public std::latch {
+public:
+    using std::latch::latch;
+    bool tryWait() noexcept {
+        return try_wait();
+    }
+    void arriveAndWait(ptrdiff_t count = 1) noexcept {
+        arrive_and_wait(count);
+    }
+    void countDown(ptrdiff_t count = 1) noexcept {
+        count_down(count);
+    }
+};
 #else
 
 class Latch final {
@@ -59,6 +71,15 @@ public:
     }
     bool try_wait() noexcept {
         return mCount.load() == 0;
+    }
+    bool tryWait() noexcept {
+        return try_wait();
+    }
+    void arriveAndWait(ptrdiff_t count = 1) noexcept {
+        arrive_and_wait(count);
+    }
+    void countDown(ptrdiff_t count = 1) noexcept {
+        count_down(count);
     }
 private:
     mutable std::condition_variable mCondition;

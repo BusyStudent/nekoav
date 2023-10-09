@@ -57,6 +57,35 @@ void Thread::dispatchTask() {
         lock.lock();
     }
 }
+void Thread::waitTask(const int *timeoutMS) {
+    std::unique_lock lock(mQueueMutex);
+
+    while (mQueue.empty()) {
+        lock.unlock();
+        std::unique_lock condlock(mConditionMutex);
+        if (timeoutMS != nullptr) {
+            if (mCondition.wait_for(condlock, std::chrono::milliseconds(*timeoutMS)) == std::cv_status::timeout) {
+                return;
+            }
+        }
+        else {
+            mCondition.wait(condlock);
+        }
+        lock.lock();
+    }
+
+    // Do dispatch
+    while (!mQueue.empty()) {
+        auto fn = std::move(mQueue.front());
+        mQueue.pop();
+        lock.unlock();
+
+        // Call task
+        fn();
+
+        lock.lock();
+    }
+}
 Thread *Thread::currentThread() {
     return _currentThread;
 }

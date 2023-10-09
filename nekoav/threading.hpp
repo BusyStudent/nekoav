@@ -21,19 +21,26 @@ public:
     Thread(const Thread &) = delete;
     ~Thread();
 
+    void setName(const char *name);
     /**
      * @brief Poll task from the queue and execute it
      * 
      */
     void dispatchTask();
     /**
-     * @brief Send a task into queue and return
+     * @brief Wait task from the queue and execute it
+     * 
+     * @param timeoutMS 
+     */
+    void waitTask(const int *timeoutMS = 0);
+    /**
+     * @brief Send a task into queue and wait for it finish
      * 
      * @param func the callable function
      */
     void sendTask(std::function<void()> &&func);
     /**
-     * @brief Send a task into queue and wait for it finish
+     * @brief Send a task into queue and return
      * @details It will block the thread
      * 
      * @param func the callable function

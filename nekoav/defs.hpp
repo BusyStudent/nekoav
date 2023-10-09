@@ -54,6 +54,8 @@ using Atomic = std::atomic<T>;
 enum class PixelFormat : int;
 enum class SampleFormat : int;
 
+class Latch;
+
 /**
  * @brief All refcounted object
  * 

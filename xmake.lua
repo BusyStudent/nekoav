@@ -1,6 +1,6 @@
 add_rules("mode.debug", "mode.release")
 
-add_requires("opencl-headers", "vulkan-headers", "ffmpeg")
+add_requires("opencl-headers", "vulkan-headers", "ffmpeg", "gtest")
 add_packages("opencl-headers", "vulkan-headers")
 
 set_languages("c++17")
@@ -28,4 +28,12 @@ target("cltest")
     add_deps("nekoav")
 
     add_files("tests/cltest.cpp")
+target_end()
+
+target("coretest")
+    set_kind("binary")
+    add_deps("nekoav")
+    add_packages("gtest")
+
+    add_files("tests/coretest.cpp")
 target_end()
