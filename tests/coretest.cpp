@@ -1,3 +1,4 @@
+#include <thread>
 #include <gtest/gtest.h>
 #include "../nekoav/elements.hpp"
 #include "../nekoav/log.hpp"
@@ -35,7 +36,7 @@ public:
         }
         return Error::Ok;
     }
-    void stateChanged(State newState) {
+    void stateChanged(State newState) override {
         NEKO_LOG("State changed to {}", newState);
     }
 private:
@@ -51,7 +52,7 @@ public:
         resource.viewAs<TestResource>()->call();
         return Error::Ok;
     }
-    void stateChanged(State newState) {
+    void stateChanged(State newState) override {
         NEKO_LOG("State changed to {}", newState);
     }
 };

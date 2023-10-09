@@ -16,5 +16,9 @@ jobs:
       with:
       # The version to use. Should be a semver range or 'latest'. Or use branch@{branch_name} to select a branch.
         xmake-version: latest
+    - name: Update apt
+      run: sudo apt update -y
+    - name: Install packages
+      run: sudo apt install libavcodec-dev libavformat-dev libavutil-dev libswresample-dev libswscale-dev libavdevice-dev libpostproc-dev -y
     - name: Build release
       run: xmake -y
