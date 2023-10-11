@@ -1,5 +1,6 @@
 #define _NEKO_SOURCE
 #include "property.hpp"
+#include <algorithm>
 
 NEKO_NS_BEGIN
 

@@ -126,7 +126,7 @@ public:
     }
     operator Arc<T>() const noexcept {
         if (mPtr) {
-            return mPtr->unsafeAs<T>();
+            return mPtr->template unsafeAs<T>();
         }
         return Arc<T>();
     }

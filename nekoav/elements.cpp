@@ -2,6 +2,7 @@
 #include "elements.hpp"
 #include "threading.hpp"
 #include "latch.hpp"
+#include <algorithm>
 #include <set>
 
 #ifndef NEKO_NO_EXCEPTIONS
