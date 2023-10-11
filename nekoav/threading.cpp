@@ -18,7 +18,7 @@ Thread::~Thread() {
     mThread.join();
 }
 void Thread::run() {
-    NEKO_SetThreadName("NekoWorkThread");
+    setName("NekoWorkThread");
     _currentThread = this;
     while (true) {
         mIdle = false;
@@ -30,6 +30,30 @@ void Thread::run() {
         std::unique_lock lock(mConditionMutex);
         mCondition.wait(lock);
     }
+}
+void Thread::setName(const char *name) {
+    if (name == nullptr) {
+        name = "NekoWorkThread";
+    }
+    auto handle = mThread.native_handle();
+    _Neko_SetThreadName(handle, name);
+}
+void Thread::setPriority(ThreadPriority p) {
+    auto handle = mThread.native_handle();
+
+#if defined(_WIN32) && !defined(NEKO_MINGW)
+    int priority = THREAD_PRIORITY_NORMAL;
+    switch (p) {
+        case ThreadPriority::Lowest: priority = THREAD_PRIORITY_LOWEST; break;
+        case ThreadPriority::Low: priority = THREAD_PRIORITY_BELOW_NORMAL; break;
+        case ThreadPriority::Normal: priority = THREAD_PRIORITY_NORMAL; break;
+        case ThreadPriority::High: priority = THREAD_PRIORITY_ABOVE_NORMAL; break;
+        case ThreadPriority::Highest: priority = THREAD_PRIORITY_HIGHEST; break;
+        case ThreadPriority::RealTime: priority = THREAD_PRIORITY_TIME_CRITICAL; break;
+    }
+    ::SetThreadPriority(handle, priority);
+#endif
+
 }
 void Thread::postTask(std::function<void()> &&fn) {
     std::lock_guard lock(mQueueMutex);

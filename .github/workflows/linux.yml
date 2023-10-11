@@ -22,3 +22,5 @@ jobs:
       run: sudo apt install libavcodec-dev libavformat-dev libavutil-dev libswresample-dev libswscale-dev libavdevice-dev libpostproc-dev -y
     - name: Build release
       run: xmake -y
+    - name: Run Core Test
+      run: xmake run coretest

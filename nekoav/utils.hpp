@@ -10,8 +10,8 @@
     #define NEKO_GetProcAddress(handle, name) ::GetProcAddress((HMODULE)handle, name)
     #define NEKO_FreeLibrary(handle) ::FreeLibrary((HMODULE)handle)
 
-    #define NEKO_SetThreadName(name) ::_Neko_SetThreadName(name)
-    #define NEKO_GetThreadName()     ::_Neko_GetThreadName().c_str()
+    #define NEKO_SetThreadName(name) ::_Neko_SetThreadName(::GetCurrentThread(), name)
+    #define NEKO_GetThreadName()     ::_Neko_GetThreadName(::GetCurrentThread()).c_str()
 
     inline auto _Neko_Utf16ToUtf8(std::wstring_view uv) {
         std::string buf;
@@ -28,7 +28,7 @@
         return buf;
     }
 
-    inline bool _Neko_SetThreadName(std::string_view uname) {
+    inline bool _Neko_SetThreadName(HANDLE thread, std::string_view uname) {
         static HRESULT (__stdcall *SetThreadDescription)(HANDLE, LPCWSTR) = nullptr;
         if (SetThreadDescription == nullptr) {
             // Try Get it
@@ -38,9 +38,9 @@
         if (SetThreadDescription == nullptr) {
             return false;
         }
-        return SUCCEEDED(SetThreadDescription(::GetCurrentThread(), _Neko_Utf8ToUtf16(uname).c_str()));
+        return SUCCEEDED(SetThreadDescription(thread, _Neko_Utf8ToUtf16(uname).c_str()));
     }
-    inline auto _Neko_GetThreadName() {
+    inline auto _Neko_GetThreadName(HANDLE thread) {
         static HRESULT (__stdcall *GetThreadDescription)(HANDLE, PWSTR *) = nullptr;
         if (GetThreadDescription == nullptr) {
             // Try Get it
@@ -51,7 +51,7 @@
             return std::string();
         }
         wchar_t *name = nullptr;
-        if (FAILED(GetThreadDescription(::GetCurrentThread(), &name))) {
+        if (FAILED(GetThreadDescription(thread, &name))) {
             return std::string();
         }
         auto buf = _Neko_Utf16ToUtf8(name);
@@ -67,14 +67,37 @@
     #define NEKO_FreeLibrary(handle) ::dlclose(handle)
 
     #define NEKO_SetThreadName(name) ::pthread_setname_np(::pthread_self(), name)
-    #define NEKO_GetThreadName()     ::_Neko_GetThreadName().data()
+    #define NEKO_GetThreadName()     ::_Neko_GetThreadName(::pthread_self()).data()
 
-    inline auto _Neko_GetThreadName() {
+    inline auto _Neko_GetThreadName(pthread_t thread) {
         std::array<char, 32> buf {0};
-        ::pthread_getname_np(::pthread_self(), buf.data(), buf.size());
+        ::pthread_getname_np(thread, buf.data(), buf.size());
         return buf;
     }
 #endif
+
+
+inline std::string Neko_asprintf(const char *fmt, ...) {
+    va_list varg;
+    int s;
+    
+    va_start(varg, fmt);
+#ifdef _WIN32
+    s = _vscprintf(fmt, varg);
+#else
+    s = vsnprintf(nullptr, 0, fmt, varg);
+#endif
+    va_end(varg);
+
+    std::string str;
+    str.resize(s);
+
+    va_start(varg, fmt);
+    vsprintf(str.data(), fmt, varg);
+    va_end(varg);
+
+    return str;
+}
 
 #define neko_library_path(path) struct _loader_t {   \
     _loader_t() { handle = NEKO_LoadLibrary(path); } \

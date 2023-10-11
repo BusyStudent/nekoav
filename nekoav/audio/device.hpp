@@ -13,6 +13,7 @@ NEKO_NS_BEGIN
  */
 class AudioDevice {
 public:
+    virtual ~AudioDevice() = default;
     virtual bool open(SampleFormat fmt, int sampleRate, int channels) = 0;
     virtual bool close() = 0;
     virtual bool pause(bool v) = 0;

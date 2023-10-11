@@ -26,6 +26,13 @@ void Element::setState(State state) {
     }
     mState = state;
     stateChanged(state);
+    switch (state) {
+        case State::Stopped : teardown(); break;
+        case State::Prepare : initialize(); break;
+        case State::Running : resume(); break;
+        case State::Paused : pause(); break;
+        default: break;
+    }
 }
 
 
@@ -77,6 +84,7 @@ void Element::waitTask() {
 
 void Element::_threadMain(Latch *latch) {
     // Wait another element ready
+    setState(State::Prepare);
     latch->arrive_and_wait();
     latch = nullptr; //< No needed
 
@@ -85,8 +93,21 @@ void Element::_threadMain(Latch *latch) {
         abort();
     }
 }
+inline bool Element::linkWith(const char *sorceName, View<Element> sink, const char *sinkName) {
+    const auto &sources = outputs();
+    const auto &sinks = sink->inputs();
+    auto siter = std::find_if(sources.begin(), sources.end(), [&](const auto &e) { return e->name() == sorceName; });
+    if (siter == sources.end()) {
+        return false;
+    }
+    auto diter = std::find_if(sinks.begin(), sinks.end(), [&](const auto &e) { return e->name() == sinkName; });
+    if (diter == sinks.end()) {
+        return false;
+    }
+    return (*siter)->connect(*diter);
+}
 
-Error Pad::write(ResourceView view) {
+Error Pad::write(View<Resource> view) {
     auto next = mNext.lock();
     if (!next) {
         // Next is no longer exists
@@ -101,7 +122,7 @@ Error Pad::write(ResourceView view) {
         Latch latch {1};
         Error errcode = Error::Ok;
         nextElement->mWorkthread->postTask([&]() {
-            errcode = nextElement->processInput(next.get(), view);
+            errcode = nextElement->processInput(*next, view);
             latch.count_down();
         });
         latch.wait();
@@ -109,14 +130,22 @@ Error Pad::write(ResourceView view) {
     }
 
     // Call the next
-    return nextElement->processInput(next.get(), view);
+    return nextElement->processInput(*next.get(), view);
 }
 
-Arc<Pad> Pad::NewInput() {
-    return make_shared<Pad>(Input);
+Arc<Pad> Pad::NewInput(const char *name) {
+    auto pad = make_shared<Pad>(Input);
+    if (name) {
+        pad->setName(name);
+    }
+    return pad;
 }
-Arc<Pad> Pad::NewOutput() {
-    return make_shared<Pad>(Output);
+Arc<Pad> Pad::NewOutput(const char *name) {
+    auto pad = make_shared<Pad>(Output);
+    if (name) {
+        pad->setName(name);
+    }
+    return pad;
 }
 
 Graph::Graph() {
@@ -174,11 +203,11 @@ bool Graph::hasCycle() const {
     }
     return false;
 }
-void Graph::_registerInterface(const std::type_info &info, void *ptr) {
+void Graph::_registerInterface(std::type_index info, void *ptr) {
     mInterfaces[info].push_back(ptr);
 }
-void Graph::_unregisterInterface(const std::type_info &info, void *ptr) {
-    auto mpit = mInterfaces.find(std::type_index(info));
+void Graph::_unregisterInterface(std::type_index info, void *ptr) {
+    auto mpit = mInterfaces.find(info);
     if (mpit == mInterfaces.end()) {
         return;
     }
@@ -187,6 +216,17 @@ void Graph::_unregisterInterface(const std::type_info &info, void *ptr) {
     if (iter != vec.end()) {
         vec.erase(iter);
     }
+}
+void Graph::_queryInterface(std::type_index info, void ***arr, size_t *n) {
+    auto mpit = mInterfaces.find(info);
+    if (mpit == mInterfaces.end()) {
+        *arr = nullptr;
+        *n = 0;
+        return;
+    }
+    auto &[_, vec] = *mpit;
+    *arr = vec.data();
+    *n = vec.size();
 }
 
 class PipelineImpl {
@@ -233,6 +273,7 @@ void Pipeline::stop() {
     }
     d->mThreadPool.clear();
     d->mWorkingElements.clear();
+    mGraph->unregisterInterface<Pipeline>(this);
     mState = State::Stopped;
 }
 void Pipeline::pause() {
@@ -262,6 +303,7 @@ void Pipeline::_start() {
 
     // For the map
     assert(mGraph);
+    mGraph->registerInterface<Pipeline>(this);
     for (const auto &elem : *mGraph) {
         if (elem->threadPolicy() == ThreadPolicy::SingleThread) {
             // Require single thread
@@ -270,6 +312,7 @@ void Pipeline::_start() {
         else {
             // Put it to shared thread
             elem->setThread(d->mSharedThread);
+            elem->setState(State::Prepare);
             elem->setState(State::Running);
         }
     }

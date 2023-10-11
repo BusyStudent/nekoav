@@ -1,4 +1,3 @@
-#include "../elements.hpp"
 #include "../defs.hpp"
 
 NEKO_NS_BEGIN
@@ -8,6 +7,6 @@ NEKO_NS_BEGIN
  * 
  * @return ElementFactory* 
  */
-extern NEKO_API ElementFactory *GetFFmpegFactory();
+extern NEKO_API const ElementFactory *GetFFmpegFactory();
 
 NEKO_NS_END

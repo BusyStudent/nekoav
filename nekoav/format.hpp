@@ -54,5 +54,21 @@ inline bool IsSampleFormatPlanar(SampleFormat fmt) {
     return fmt == SampleFormat::U8P || fmt == SampleFormat::S16P || 
           fmt == SampleFormat::S32P || fmt == SampleFormat::FLTP || fmt == SampleFormat::DBLP;
 }
+inline size_t GetBytesPerSample(SampleFormat fmt) {
+    switch (fmt) {
+        case SampleFormat::None: return 0;
+        
+        case SampleFormat::U8: return sizeof(uint8_t);
+        case SampleFormat::S16: return sizeof(int16_t);
+        case SampleFormat::S32: return sizeof(int32_t);
+        case SampleFormat::FLT: return sizeof(float);
+        case SampleFormat::DBL: return sizeof(double);
 
+        case SampleFormat::U8P: return sizeof(uint8_t);
+        case SampleFormat::S16P: return sizeof(int16_t);
+        case SampleFormat::S32P: return sizeof(int32_t);
+        case SampleFormat::FLTP: return sizeof(float);
+        case SampleFormat::DBLP: return sizeof(double);
+    }
+}
 NEKO_NS_END

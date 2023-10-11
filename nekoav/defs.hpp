@@ -30,6 +30,10 @@
 #define NEKO_API NEKO_IMPORT
 #endif
 
+#if defined(_WIN32) && defined(__GNUC__) && !defined(__clang__)
+#define NEKO_MINGW
+#endif
+
 #define NEKO_CXX17 (__cplusplus >= 201703L)
 #define NEKO_CXX20 (__cplusplus >= 202002L)
 #define NEKO_CXX23 (__cplusplus >= 202300L)
@@ -54,7 +58,11 @@ using Atomic = std::atomic<T>;
 enum class PixelFormat : int;
 enum class SampleFormat : int;
 
+class Pad;
 class Latch;
+class Thread;
+class Element;
+class ElementFactory;
 
 /**
  * @brief All refcounted object
@@ -82,6 +90,51 @@ public:
     }
 protected:
     constexpr Object() = default;
+};
+
+/**
+ * @brief Wrapper for RAW Pointer, implict cast from Arc and RAW Pointer
+ * 
+ * @tparam T 
+ */
+template <typename T>
+class View {
+public:
+    View() = default;
+    template <typename U>
+    View(const Arc<U> &ptr) : mPtr(ptr.get()) { }
+    View(T *ptr) : mPtr(ptr) { }
+    View(const View &) = default;
+    ~View() = default;
+
+    T *get() const noexcept {
+        return mPtr;
+    }
+    bool empty() const noexcept {
+        return mPtr == nullptr;
+    }
+    
+    template <typename U>
+    U *viewAs() const {
+        return dynamic_cast<U*>(mPtr);
+    }
+    T *operator ->() const noexcept {
+        return mPtr;
+    }
+    T  &operator *() const noexcept {
+        return *mPtr;
+    }
+    operator Arc<T>() const noexcept {
+        if (mPtr) {
+            return mPtr->unsafeAs<T>();
+        }
+        return Arc<T>();
+    }
+    operator bool() const noexcept {
+        return mPtr != nullptr;
+    }
+protected:
+    T *mPtr = nullptr;
 };
 
 template <typename T, typename ...Args>

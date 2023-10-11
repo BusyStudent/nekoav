@@ -10,25 +10,6 @@ NEKO_NS_BEGIN
  */
 class Resource : public Object { };
 
-/**
- * @brief View of the resource
- * 
- */
-class ResourceView {
-public:
-    template <typename T>
-    ResourceView(const Arc<T> &c) : mPtr(c.get()) { }
-    ResourceView(Resource *ptr) : mPtr(ptr) { }
-    ResourceView(const ResourceView &) = default;
-    ~ResourceView() = default;
-
-    template <typename T>
-    T *viewAs() const {
-        return dynamic_cast<T*>(mPtr);
-    }
-private:
-    Resource *mPtr = nullptr;
-};
-
+using ResourceView = View<Resource>;
 
 NEKO_NS_END

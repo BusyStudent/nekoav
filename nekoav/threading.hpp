@@ -12,6 +12,19 @@
 NEKO_NS_BEGIN
 
 /**
+ * @brief ThreadPriority
+ * 
+ */
+enum class ThreadPriority {
+    Lowest,
+    Low,
+    Normal,
+    High,
+    Highest,
+    RealTime
+};
+
+/**
  * @brief Thread with callback queue
  * 
  */
@@ -21,7 +34,18 @@ public:
     Thread(const Thread &) = delete;
     ~Thread();
 
+    /**
+     * @brief Set the Thread Name
+     * 
+     * @param name 
+     */
     void setName(const char *name);
+    /**
+     * @brief Set the Priority of the thread
+     * 
+     * @param priority 
+     */
+    void setPriority(ThreadPriority priority);
     /**
      * @brief Poll task from the queue and execute it
      * 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "resource.hpp"
-#include "defs.hpp"
+#include "property.hpp"
 #include <typeindex>
 #include <typeinfo>
 #include <string>
@@ -22,14 +22,18 @@ enum class Error {
     Ok = 0,
     NoConnection,
     NoImpl,
+    UnsupportedFormat,
+
+    Unknown,
 };
 enum class State {
     Stopped,
+    Prepare,
     Running,
     Paused,
     Error,
 };
-enum ThreadPolicy {
+enum class ThreadPolicy {
     AnyThread,    //< It can run on any thread
     SingleThread, //< It require a new thread
 };
@@ -43,21 +47,45 @@ enum ThreadPolicy {
  */
 class NEKO_API Element : public Object {
 public:
-
     Element();
     Element(const Element &) = delete;
     ~Element();
 
+    /**
+     * @brief Get the state
+     * 
+     * @return State 
+     */
     State state() const noexcept {
         return mState;
     }
+    /**
+     * @brief Set the State (blocking)
+     * 
+     * @param state 
+     */
     void setState(State state);
+    /**
+     * @brief Set the Thread Policy object
+     * 
+     * @param policy 
+     */
     void setThreadPolicy(ThreadPolicy policy) noexcept {
         mThreadPolicy = policy;
     }
+    /**
+     * @brief Get the thread policy
+     * 
+     * @return ThreadPolicy 
+     */
     ThreadPolicy threadPolicy() const noexcept {
         return mThreadPolicy;
     }
+    /**
+     * @brief Set the Thread object
+     * 
+     * @param thread 
+     */
     void setThread(Thread *thread) noexcept {
         mWorkthread = thread;
     }
@@ -74,6 +102,16 @@ public:
     auto &outputs() const noexcept {
         return mOutputPads;
     }
+    /**
+     * @brief Link the output pad to target pad
+     * 
+     * @param source The output pad name in self
+     * @param sink The dst element 
+     * @param sinkName The target input pad
+     * @return true 
+     * @return false 
+     */
+    bool linkWith(const char *source, View<Element> sink, const char *sinkName);
 protected:
     void addInput(const Arc<Pad> &pad);
     void addOutput(const Arc<Pad> &pad);
@@ -83,14 +121,18 @@ protected:
     void waitTask();
 
     virtual void  stateChanged(State newState) { }
-    virtual Error processInput(Pad *inputPad, ResourceView resourceView) { return Error::NoImpl; }
+    virtual Error processInput(Pad &inputPad, View<Resource> resourceView) { return Error::NoImpl; }
+    virtual Error initialize() { return Error::NoImpl; }
+    virtual Error teardown() { return Error::NoImpl; }
+    virtual Error resume() { return Error::NoImpl; }
+    virtual Error pause() { return Error::NoImpl; }
     virtual Error run() { return Error::NoImpl; }
 private:
     void _threadMain(Latch *initlatch); //< Call from 
 
     Atomic<State> mState { State::Stopped };
     Thread       *mWorkthread { nullptr };
-    ThreadPolicy  mThreadPolicy { AnyThread };
+    ThreadPolicy  mThreadPolicy { ThreadPolicy::AnyThread };
 
     std::vector<Arc<Pad> > mInputPads;
     std::vector<Arc<Pad> > mOutputPads;
@@ -109,10 +151,30 @@ public:
         Output,
     };
 
+    /**
+     * @brief Construct a new Pad object
+     * 
+     * @param type The pad type
+     */
     explicit Pad(Type type) : mType(type) { }
+    /**
+     * @brief Construct a new Pad object is delete
+     * 
+     */
     Pad(const Pad &) = delete;
+    /**
+     * @brief Destroy the Pad
+     * 
+     */
     ~Pad() = default;
 
+    /**
+     * @brief Connect to a new pad
+     * 
+     * @param other 
+     * @return true 
+     * @return false 
+     */
     bool connect(const Arc<Pad> &other) {
         if (mType != Output && other->mType != Input) {
             return false;
@@ -120,24 +182,65 @@ public:
         mNext = other;
         return true;
     }
+    /**
+     * @brief Disconnect the connection
+     * 
+     */
     void disconnect() {
         mNext.reset();
     }
+    /**
+     * @brief Set the Name of the pad
+     * 
+     * @param name 
+     */
     void setName(std::string_view name) {
         mName = name;
     }
+    /**
+     * @brief Set the master of the pad
+     * 
+     * @param element 
+     */
     void setElement(Element *element) {
         mElement = element;
     }
-
-    Error write(ResourceView view);
-    
+    /**
+     * @brief Get the name of the pad
+     * 
+     * @return auto 
+     */
+    auto name() const noexcept {
+        return std::string_view(mName);
+    }
+    /**
+     * @brief Send data to the next element
+     * 
+     * @param view The view of the resource
+     * @return Error 
+     */
+    Error write(View<Resource> view);
+    /**
+     * @brief Get the type of the pad
+     * 
+     * @return Type 
+     */
     Type type() const noexcept {
         return mType;
     }
+    /**
+     * @brief Get the element of the pad
+     * 
+     * @return Element* 
+     */
     Element *element() const noexcept {
         return mElement;
     }
+    /**
+     * @brief Get the connected element of the pad
+     * 
+     * @return Element* 
+     */
     Element *nextElement() const noexcept {
         auto next = mNext.lock();
         if (next) {
@@ -145,16 +248,50 @@ public:
         }
         return nullptr;
     }
+    /**
+     * @brief Get the property map of the pad
+     * 
+     * @return Property& 
+     */
+    Property &properties() noexcept {
+        return mProperties;
+    }
+    /**
+     * @brief Indexing the property map
+     * 
+     * @param name 
+     * @return Property& 
+     */
+    Property &property(std::string_view name) {
+        return mProperties[name];
+    }
 
-    static Arc<Pad> NewInput();
-    static Arc<Pad> NewOutput();
+    /**
+     * @brief Construct a new input pad
+     * 
+     * @param name The pad name (default in nullptr)
+     * @return Arc<Pad> 
+     */
+    static Arc<Pad> NewInput(const char *name = nullptr);
+    /**
+     * @brief Construct a new output pad
+     * 
+     * @param name The pad name (default in nullptr)
+     * @return Arc<Pad> 
+     */
+    static Arc<Pad> NewOutput(const char *name = nullptr);
 private:
+    Property      mProperties {Property::NewMap()};
     Element      *mElement {nullptr}; //< Which element belong
     Weak<Pad>     mNext;
     Type          mType;
     std::string   mName;
 };
 
+/**
+ * @brief Container of the Elemenet
+ * 
+ */
 class NEKO_API Graph  {
 public:
     Graph();
@@ -173,8 +310,14 @@ public:
         _unregisterInterface(typeid(T), ptr);
     }
     template <typename T>
-    void queryInterface() const {
+    auto queryInterface() const {
         void **array;
+        size_t n = 0;
+        _queryInterface(typeid(T), &array, &n);
+        return std::make_pair(
+            reinterpret_cast<T **>(array),
+            n
+        );
     }
 
     auto begin() const {
@@ -184,13 +327,18 @@ public:
         return mElements.end();
     }
 private:
-    void _registerInterface(const std::type_info &info, void *ptr);
-    void _unregisterInterface(const std::type_info &info, void *ptr);
+    void _registerInterface(std::type_index idx, void *ptr);
+    void _unregisterInterface(std::type_index idx, void *ptr);
+    void _queryInterface(std::type_index idx, void ***arr, size_t *n);
     
     std::map<std::type_index, std::vector<void*> > mInterfaces; //< Interfaces set
     std::vector<Arc<Element> >                     mElements; //< Container of the graph
 };
 
+/**
+ * @brief Pipeline is used to run on a Graph
+ * 
+ */
 class NEKO_API Pipeline {
 public:
     Pipeline();
@@ -210,6 +358,10 @@ private:
     Box<PipelineImpl> d; //< Private data
 };
 
+/**
+ * @brief Element creation abstraction
+ * 
+ */
 class ElementFactory {
 public:
     virtual Arc<Element> createElement(const char *name) const = 0;
@@ -222,5 +374,6 @@ protected:
     ElementFactory() = default;
     ~ElementFactory() = default;
 };
+
 
 NEKO_NS_END

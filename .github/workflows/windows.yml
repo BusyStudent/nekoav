@@ -18,3 +18,5 @@ jobs:
         xmake-version: latest
     - name: Build release
       run: xmake -y
+    - name: Run Core Test
+      run: xmake run coretest

@@ -189,6 +189,16 @@ struct _Neko_IsIterable<T, std::void_t<decltype(std::end(std::declval<T>()))> > 
 
 };
 
+// Check a type has to docoument
+template <typename T, typename _Cond = void>
+struct _Neko_HasToDocument : public std::false_type {
+
+};
+template <typename T>
+struct _Neko_HasToDocument<T, std::void_t<decltype(&T::toDocoument)> > : public std::true_type {
+
+};
+
 // STL container
 template <typename Key, typename Value, typename Compare, typename Allocator>
 struct _Neko_TypeFormatter<std::map<Key, Value, Compare, Allocator> > {
@@ -556,6 +566,15 @@ inline std::string _Neko_ToString(const T (&container)[N]) {
     str.pop_back();
     str += "}";
     return str;
+}
+
+// ToDocoument
+template <typename T,
+          typename _Cond = std::enable_if_t<_Neko_HasToDocument<T>::value>,
+          char = 0
+>
+inline std::string _Neko_ToString(const T &obj) {
+    return obj.toDocoument();
 }
 
 inline bool       _Neko_HasColorTTY() {
