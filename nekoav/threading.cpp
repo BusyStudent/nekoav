@@ -36,7 +36,11 @@ void Thread::setName(const char *name) {
         name = "NekoWorkThread";
     }
     auto handle = mThread.native_handle();
+
+#if !defined(NEKO_MINGW)
     _Neko_SetThreadName(handle, name);
+#endif
+
 }
 void Thread::setPriority(ThreadPriority p) {
     auto handle = mThread.native_handle();

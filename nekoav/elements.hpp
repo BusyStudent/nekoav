@@ -329,7 +329,7 @@ public:
 private:
     void _registerInterface(std::type_index idx, void *ptr);
     void _unregisterInterface(std::type_index idx, void *ptr);
-    void _queryInterface(std::type_index idx, void ***arr, size_t *n);
+    void _queryInterface(std::type_index idx, void ***arr, size_t *n) const;
     
     std::map<std::type_index, std::vector<void*> > mInterfaces; //< Interfaces set
     std::vector<Arc<Element> >                     mElements; //< Container of the graph

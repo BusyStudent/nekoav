@@ -94,7 +94,7 @@ void Element::_threadMain(Latch *latch) {
         abort();
     }
 }
-inline bool Element::linkWith(const char *sorceName, View<Element> sink, const char *sinkName) {
+bool Element::linkWith(const char *sorceName, View<Element> sink, const char *sinkName) {
     const auto &sources = outputs();
     const auto &sinks = sink->inputs();
     auto siter = std::find_if(sources.begin(), sources.end(), [&](const auto &e) { return e->name() == sorceName; });
@@ -218,17 +218,17 @@ void Graph::_unregisterInterface(std::type_index info, void *ptr) {
         vec.erase(iter);
     }
 }
-void Graph::_queryInterface(std::type_index info, void ***arr, size_t *n) {
-    auto mpit = mInterfaces.find(info);
-    if (mpit == mInterfaces.end()) {
-        *arr = nullptr;
-        *n = 0;
-        return;
-    }
-    auto &[_, vec] = *mpit;
-    *arr = vec.data();
-    *n = vec.size();
-}
+// void Graph::_queryInterface(std::type_index info, void ***arr, size_t *n) const {
+//     auto mpit = mInterfaces.find(info);
+//     if (mpit == mInterfaces.end()) {
+//         *arr = nullptr;
+//         *n = 0;
+//         return;
+//     }
+//     auto &[_, vec] = *mpit;
+//     *arr = vec.data();
+//     *n = vec.size();
+// }
 
 class PipelineImpl {
 public:

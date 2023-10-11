@@ -74,30 +74,10 @@
         ::pthread_getname_np(thread, buf.data(), buf.size());
         return buf;
     }
+    inline auto _Neko_SetThreadName(pthread_t thread, const char *name) {
+        return ::pthread_setname_np(thread, name);
+    }
 #endif
-
-
-inline std::string Neko_asprintf(const char *fmt, ...) {
-    va_list varg;
-    int s;
-    
-    va_start(varg, fmt);
-#ifdef _WIN32
-    s = _vscprintf(fmt, varg);
-#else
-    s = vsnprintf(nullptr, 0, fmt, varg);
-#endif
-    va_end(varg);
-
-    std::string str;
-    str.resize(s);
-
-    va_start(varg, fmt);
-    vsprintf(str.data(), fmt, varg);
-    va_end(varg);
-
-    return str;
-}
 
 #define neko_library_path(path) struct _loader_t {   \
     _loader_t() { handle = NEKO_LoadLibrary(path); } \
