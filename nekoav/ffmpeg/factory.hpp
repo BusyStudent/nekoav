@@ -7,6 +7,6 @@ NEKO_NS_BEGIN
  * 
  * @return ElementFactory* 
  */
-extern NEKO_API const ElementFactory *GetFFmpegFactory();
+extern NEKO_API ElementFactory *GetFFmpegFactory();
 
 NEKO_NS_END

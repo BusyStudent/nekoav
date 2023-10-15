@@ -20,7 +20,7 @@
 #define NEKO_EXPORT NEKO_ATTRIBUTE(dllexport)
 #define NEKO_IMPORT NEKO_ATTRIBUTE(dllimport)
 #else
-#define NEKO_EXPORT
+#define NEKO_EXPORT NEKO_ATTRIBUTE(visibility("default"))
 #define NEKO_IMPORT
 #endif
 
@@ -32,6 +32,14 @@
 
 #if defined(_WIN32) && defined(__GNUC__) && !defined(__clang__)
 #define NEKO_MINGW
+#endif
+
+#if defined(__GNUC__)
+#define NEKO_CONSTRUCTOR(name) static void name() __attribute__((constructor))
+#else
+#define NEKO_CONSTRUCTOR(name) static void name();             \
+    static NEKO_NAMESPACE::ConstructHelper name##__ctr {name}; \
+    static void name()
 #endif
 
 #define NEKO_CXX17 (__cplusplus >= 201703L)
@@ -59,38 +67,11 @@ enum class PixelFormat : int;
 enum class SampleFormat : int;
 
 class Pad;
+class Bus;
 class Latch;
 class Thread;
 class Element;
 class ElementFactory;
-
-/**
- * @brief All refcounted object
- * 
- */
-class Object : public std::enable_shared_from_this<Object> {
-public:
-    virtual ~Object() = default;
-
-    template <typename T>
-    Arc<T> as() {
-        return std::dynamic_pointer_cast<T>(shared_from_this());
-    }
-    template <typename T>
-    Arc<const T> as() const {
-        return std::dynamic_pointer_cast<const T>(shared_from_this());
-    }
-    template <typename T>
-    Arc<T> unsafeAs() {
-        return std::static_pointer_cast<T>(shared_from_this());
-    }
-    template <typename T>
-    Arc<const T> unsafeAs() const {
-        return std::static_pointer_cast<const T>(shared_from_this());
-    }
-protected:
-    constexpr Object() = default;
-};
 
 /**
  * @brief Wrapper for RAW Pointer, implict cast from Arc and RAW Pointer
@@ -103,6 +84,8 @@ public:
     View() = default;
     template <typename U>
     View(const Arc<U> &ptr) : mPtr(ptr.get()) { }
+    template <typename U>
+    View(const Box<U> &ptr) : mPtr(ptr.get()) { }
     View(T *ptr) : mPtr(ptr) { }
     View(const View &) = default;
     ~View() = default;
@@ -124,17 +107,23 @@ public:
     T  &operator *() const noexcept {
         return *mPtr;
     }
-    operator Arc<T>() const noexcept {
-        if (mPtr) {
-            return mPtr->template unsafeAs<T>();
-        }
-        return Arc<T>();
-    }
     operator bool() const noexcept {
         return mPtr != nullptr;
     }
 protected:
     T *mPtr = nullptr;
+};
+
+/**
+ * @brief Helper for NEKO_CONSTRUCTOR
+ * 
+ * @tparam T 
+ */
+class ConstructHelper {
+public:
+    ConstructHelper(void (*fn)()) {
+        fn();
+    }
 };
 
 template <typename T, typename ...Args>

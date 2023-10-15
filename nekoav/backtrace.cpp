@@ -3,6 +3,7 @@
 #define _NEKO_SOURCE
 #include "backtrace.hpp"
 #include "utils.hpp"
+#include <csignal>
 #include <array>
 
 #ifdef _WIN32
@@ -176,6 +177,25 @@ void Backtrace() {
 
     fprintf(stderr, "\033[31m---BACKTRACE END---\033[0m\n");
 #endif
+}
+
+void InstallCrashHandler() {
+#if defined(_WIN32)
+    ::SetUnhandledExceptionFilter([](_EXCEPTION_POINTERS *exceptionInfo) -> LONG {
+        // Print exception and context
+        auto record = exceptionInfo->ExceptionRecord;
+        fprintf(stderr, "\033[31m WIN32 EXCEPTION : %08X At %p \033[0m\n", int(record->ExceptionCode), record->ExceptionAddress);
+        Backtrace();
+        return EXCEPTION_CONTINUE_SEARCH;
+    });
+#endif
+
+    auto handler = [](int sig) {
+        Backtrace();
+    };
+    ::signal(SIGILL, handler);
+    ::signal(SIGSEGV, handler);
+    ::signal(SIGABRT, handler);
 }
 
 NEKO_NS_END

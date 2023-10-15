@@ -13,6 +13,10 @@ target("nekoav")
         add_links("user32")
     end
 
+    if has_package("ffmpeg") then 
+        add_files("nekoav/ffmpeg/*.cpp")
+    end
+
     add_files("nekoav/*.cpp")
 target_end()
 

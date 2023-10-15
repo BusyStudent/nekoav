@@ -2,6 +2,7 @@
 #include "elements.hpp"
 #include "threading.hpp"
 #include "latch.hpp"
+#include "bus.hpp"
 #include <algorithm>
 #include <set>
 
@@ -16,62 +17,82 @@ Element::Element() {
 
 }
 Element::~Element() {
-    
+    removeAllInputs();
+    removeAllOutputs();
 }
-void Element::setState(State state) {
+Error Element::setState(State state) {
     assert(mWorkthread != nullptr);
     // Check is same thread
     if (Thread::currentThread() != mWorkthread) {
-        mWorkthread->sendTask(std::bind(&Element::setState, this, state));
-        return;
+        Error err;
+        mWorkthread->sendTask([&]() {
+            err = setState(state);
+        });
+        return err;
     }
     mState = state;
     stateChanged(state);
     switch (state) {
-        case State::Stopped : teardown(); break;
-        case State::Prepare : initialize(); break;
-        case State::Running : resume(); break;
-        case State::Paused : pause(); break;
+        case State::Running : return resume();
+        case State::Paused : return pause();
         default: break;
     }
+    return Error::Unknown;
 }
 
 
-void Element::addInput(const Arc<Pad> &pad) {
-    if (!pad) {
-        return;
-    }
-    assert(pad->type() == Pad::Input);
+Pad *Element::addInput(const char *name) {
+    auto pad = new Pad(Pad::Input);
     mInputPads.push_back(pad);
     pad->setElement(this);
+    if (name) {
+        pad->setName(name);
+    }
+    return pad;
 }
-void Element::removeInput(const Arc<Pad> &pad) {
+void Element::removeInput(Pad *pad) {
     if (!pad) {
         return;
     }
     auto it = std::find(mInputPads.begin(), mInputPads.end(), pad);
     if (it != mInputPads.end()) {
         mInputPads.erase(it);
-        pad->setElement(nullptr);
+        // pad->setElement(nullptr);
+        delete pad;
     }
 }
 
-void Element::addOutput(const Arc<Pad> &pad) {
-    if (!pad) {
-        return;
-    }
-    assert(pad->type() == Pad::Output);
+Pad *Element::addOutput(const char *name) {
+    auto pad = new Pad(Pad::Output);
     mOutputPads.push_back(pad);
     pad->setElement(this);
+    if (name) {
+        pad->setName(name);
+    }
+    return pad;
 }
-void Element::removeOutput(const Arc<Pad> &pad) {
+void Element::removeOutput(Pad *pad) {
     if (!pad) {
         return;
     }
     auto it = std::find(mOutputPads.begin(), mOutputPads.end(), pad);
     if (it != mOutputPads.end()) {
         mOutputPads.erase(it);
+        // pad->setElement(nullptr);
+        delete pad;
+    }
+}
+void Element::removeAllInputs() {
+    for (auto &pad : mInputPads) {
         pad->setElement(nullptr);
+        delete pad;
+    }
+    mInputPads.clear();
+}
+void Element::removeAllOutputs() {
+    for (auto &pad : mOutputPads) {
+        pad->setElement(nullptr);
+        delete pad;
     }
 }
 void Element::dispatchTask() {
@@ -86,6 +107,8 @@ void Element::waitTask() {
 void Element::_threadMain(Latch *latch) {
     // Wait another element ready
     setState(State::Prepare);
+    initialize();
+
     latch->arrive_and_wait();
     latch = nullptr; //< No needed
 
@@ -93,6 +116,7 @@ void Element::_threadMain(Latch *latch) {
     if (run() == Error::NoImpl) {
         abort();
     }
+    teardown();
 }
 bool Element::linkWith(const char *sorceName, View<Element> sink, const char *sinkName) {
     const auto &sources = outputs();
@@ -108,14 +132,18 @@ bool Element::linkWith(const char *sorceName, View<Element> sink, const char *si
     return (*siter)->connect(*diter);
 }
 
+void *Element::operator new(size_t size) {
+    return std::malloc(size);
+}
+void  Element::operator delete(void *p) {
+    return std::free(p);
+}
+
 Error Pad::write(View<Resource> view) {
-    auto next = mNext.lock();
-    if (!next) {
-        // Next is no longer exists
-        mNext.reset();
+    if (!mNext) {
         return Error::NoConnection;
     }
-    auto nextElement = next->mElement;
+    auto nextElement = mNext->mElement;
     assert(nextElement);
 
     // Got elements, check threads
@@ -123,7 +151,7 @@ Error Pad::write(View<Resource> view) {
         Latch latch {1};
         Error errcode = Error::Ok;
         nextElement->mWorkthread->postTask([&]() {
-            errcode = nextElement->processInput(*next, view);
+            errcode = nextElement->processInput(*mNext, view);
             latch.count_down();
         });
         latch.wait();
@@ -131,22 +159,7 @@ Error Pad::write(View<Resource> view) {
     }
 
     // Call the next
-    return nextElement->processInput(*next.get(), view);
-}
-
-Arc<Pad> Pad::NewInput(const char *name) {
-    auto pad = make_shared<Pad>(Input);
-    if (name) {
-        pad->setName(name);
-    }
-    return pad;
-}
-Arc<Pad> Pad::NewOutput(const char *name) {
-    auto pad = make_shared<Pad>(Output);
-    if (name) {
-        pad->setName(name);
-    }
-    return pad;
+    return nextElement->processInput(*mNext, view);
 }
 
 Graph::Graph() {
@@ -155,13 +168,14 @@ Graph::Graph() {
 Graph::~Graph() {
     
 }
-void Graph::addElement(const Arc<Element> &element) {
+void Graph::addElement(Element *element) {
     mElements.push_back(element);
 }
-void Graph::removeElement(const Arc<Element> &element) {
+void Graph::removeElement(Element *element) {
     auto it = std::find(mElements.begin(), mElements.end(), element);
     if (it != mElements.end()) {
         mElements.erase(it);
+        delete element;
     }
 }
 bool Graph::hasCycle() const {
@@ -170,7 +184,7 @@ bool Graph::hasCycle() const {
     std::vector<Element* > sourcesElement;
     for (const auto &element : mElements) {
         if (element->inputs().empty()) {
-            sourcesElement.push_back(element.get());
+            sourcesElement.push_back(element);
         }
     }
 
@@ -235,6 +249,7 @@ public:
     std::vector<Thread *>  mThreadPool;
     std::vector<Element *> mWorkingElements; //< Elements require a indenpent thread
     Thread                *mSharedThread {nullptr};
+    Bus                    mBus;
 };
 
 Pipeline::Pipeline() : d(new PipelineImpl) {
@@ -265,6 +280,9 @@ void Pipeline::start() {
     }
 }
 void Pipeline::stop() {
+    if (mState == State::Stopped) {
+        return;
+    }
     for (const auto &elem : *mGraph) {
         elem->setState(State::Stopped);
         elem->setThread(nullptr);
@@ -308,7 +326,7 @@ void Pipeline::_start() {
     for (const auto &elem : *mGraph) {
         if (elem->threadPolicy() == ThreadPolicy::SingleThread) {
             // Require single thread
-            d->mWorkingElements.push_back(elem.get());
+            d->mWorkingElements.push_back(elem);
         }
         else {
             // Put it to shared thread
@@ -336,6 +354,10 @@ void Pipeline::_start() {
     latch.wait();
 
     mState = State::Running;
+}
+
+Bus *Pipeline::bus() {
+    return &d->mBus;
 }
 
 NEKO_NS_END

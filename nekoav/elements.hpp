@@ -6,6 +6,7 @@
 #include <typeinfo>
 #include <string>
 #include <vector>
+#include <list>
 #include <map>
 
 NEKO_NS_BEGIN
@@ -22,8 +23,9 @@ enum class Error {
     Ok = 0,
     NoConnection,
     NoImpl,
+    NoStream,
     UnsupportedFormat,
-
+    InvalidArguments,
     Unknown,
 };
 enum class State {
@@ -45,10 +47,8 @@ enum class ThreadPolicy {
  * all code want to run in this system should inherit.
  * 
  */
-class NEKO_API Element : public Object {
+class NEKO_API Element {
 public:
-    Element();
-    Element(const Element &) = delete;
     ~Element();
 
     /**
@@ -56,29 +56,32 @@ public:
      * 
      * @return State 
      */
-    State state() const noexcept {
-        return mState;
+    auto state() const -> State {
+        return mState.load();
     }
     /**
      * @brief Set the State (blocking)
      * 
      * @param state 
      */
-    void setState(State state);
+    auto setState(State state) -> Error;
     /**
      * @brief Set the Thread Policy object
      * 
      * @param policy 
      */
-    void setThreadPolicy(ThreadPolicy policy) noexcept {
+    auto setThreadPolicy(ThreadPolicy policy) noexcept -> void {
         mThreadPolicy = policy;
+    }
+    auto setBus(Bus *bus) noexcept -> void {
+        mBus = bus;
     }
     /**
      * @brief Get the thread policy
      * 
      * @return ThreadPolicy 
      */
-    ThreadPolicy threadPolicy() const noexcept {
+    auto threadPolicy() const -> ThreadPolicy {
         return mThreadPolicy;
     }
     /**
@@ -86,7 +89,7 @@ public:
      * 
      * @param thread 
      */
-    void setThread(Thread *thread) noexcept {
+    auto setThread(Thread *thread) -> void {
         mWorkthread = thread;
     }
 
@@ -102,6 +105,9 @@ public:
     auto &outputs() const noexcept {
         return mOutputPads;
     }
+    auto  bus() const noexcept {
+        return mBus;
+    }
     /**
      * @brief Link the output pad to target pad
      * 
@@ -111,31 +117,39 @@ public:
      * @return true 
      * @return false 
      */
-    bool linkWith(const char *source, View<Element> sink, const char *sinkName);
+    auto linkWith(const char *source, View<Element> sink, const char *sinkName) -> bool;
+
+    auto operator new(size_t size) -> void *;
+    auto operator delete(void *ptr) -> void;
 protected:
-    void addInput(const Arc<Pad> &pad);
-    void addOutput(const Arc<Pad> &pad);
-    void removeInput(const Arc<Pad> &pad);
-    void removeOutput(const Arc<Pad> &pad);
+    Element();
+
+    auto addInput(const char *name) -> Pad *;
+    auto addOutput(const char *name) -> Pad *;
+    void removeInput(Pad *pad);
+    void removeOutput(Pad *pad);
+    void removeAllInputs();
+    void removeAllOutputs();
     void dispatchTask();
     void waitTask();
 
-    virtual void  stateChanged(State newState) { }
-    virtual Error processInput(Pad &inputPad, View<Resource> resourceView) { return Error::NoImpl; }
-    virtual Error initialize() { return Error::NoImpl; }
-    virtual Error teardown() { return Error::NoImpl; }
-    virtual Error resume() { return Error::NoImpl; }
-    virtual Error pause() { return Error::NoImpl; }
-    virtual Error run() { return Error::NoImpl; }
+    virtual void stateChanged(State newState) { }
+    virtual auto processInput(Pad &inputPad, View<Resource> resourceView) -> Error { return Error::NoImpl; }
+    virtual auto initialize() -> Error { return Error::NoImpl; }
+    virtual auto teardown() -> Error { return Error::NoImpl; }
+    virtual auto resume() -> Error { return Error::NoImpl; }
+    virtual auto pause() -> Error { return Error::NoImpl; }
+    virtual auto run() -> Error { return Error::NoImpl; }
 private:
     void _threadMain(Latch *initlatch); //< Call from 
 
     Atomic<State> mState { State::Stopped };
     Thread       *mWorkthread { nullptr };
     ThreadPolicy  mThreadPolicy { ThreadPolicy::AnyThread };
+    Bus          *mBus { nullptr };
 
-    std::vector<Arc<Pad> > mInputPads;
-    std::vector<Arc<Pad> > mOutputPads;
+    std::vector<Pad *> mInputPads;
+    std::vector<Pad *> mOutputPads;
 friend class Pipeline;
 friend class Pad;
 };
@@ -144,19 +158,12 @@ friend class Pad;
  * @brief The pad of the element, it used to send data to another elements
  * 
  */
-class NEKO_API Pad : public Object {
+class NEKO_API Pad {
 public:
     enum Type {
         Input,
         Output,
     };
-
-    /**
-     * @brief Construct a new Pad object
-     * 
-     * @param type The pad type
-     */
-    explicit Pad(Type type) : mType(type) { }
     /**
      * @brief Construct a new Pad object is delete
      * 
@@ -175,11 +182,11 @@ public:
      * @return true 
      * @return false 
      */
-    bool connect(const Arc<Pad> &other) {
+    auto connect(View<Pad> other) -> bool {
         if (mType != Output && other->mType != Input) {
             return false;
         }
-        mNext = other;
+        mNext = other.get();
         return true;
     }
     /**
@@ -187,7 +194,7 @@ public:
      * 
      */
     void disconnect() {
-        mNext.reset();
+        mNext = nullptr;
     }
     /**
      * @brief Set the Name of the pad
@@ -219,13 +226,13 @@ public:
      * @param view The view of the resource
      * @return Error 
      */
-    Error write(View<Resource> view);
+    auto write(View<Resource> view) -> Error;
     /**
      * @brief Get the type of the pad
      * 
      * @return Type 
      */
-    Type type() const noexcept {
+    auto type() const -> Type {
         return mType;
     }
     /**
@@ -233,7 +240,7 @@ public:
      * 
      * @return Element* 
      */
-    Element *element() const noexcept {
+    auto element() const -> Element * {
         return mElement;
     }
     /**
@@ -241,10 +248,9 @@ public:
      * 
      * @return Element* 
      */
-    Element *nextElement() const noexcept {
-        auto next = mNext.lock();
-        if (next) {
-            return next->element();
+    auto nextElement() const -> Element * {
+        if (mNext) {
+            return mNext->element();
         }
         return nullptr;
     }
@@ -253,7 +259,7 @@ public:
      * 
      * @return Property& 
      */
-    Property &properties() noexcept {
+    auto properties() -> Property & {
         return mProperties;
     }
     /**
@@ -262,30 +268,23 @@ public:
      * @param name 
      * @return Property& 
      */
-    Property &property(std::string_view name) {
+    auto property(std::string_view name) -> Property & {
         return mProperties[name];
     }
-
-    /**
-     * @brief Construct a new input pad
-     * 
-     * @param name The pad name (default in nullptr)
-     * @return Arc<Pad> 
-     */
-    static Arc<Pad> NewInput(const char *name = nullptr);
-    /**
-     * @brief Construct a new output pad
-     * 
-     * @param name The pad name (default in nullptr)
-     * @return Arc<Pad> 
-     */
-    static Arc<Pad> NewOutput(const char *name = nullptr);
 private:
-    Property      mProperties {Property::NewMap()};
+    /**
+     * @brief Construct a new Pad object
+     * 
+     * @param type The pad type
+     */
+    explicit Pad(Type type) : mType(type) { }
+
+    Property      mProperties {Property::newMap()};
     Element      *mElement {nullptr}; //< Which element belong
-    Weak<Pad>     mNext;
+    Pad          *mNext {nullptr};
     Type          mType;
     std::string   mName;
+friend class Element;
 };
 
 /**
@@ -297,9 +296,13 @@ public:
     Graph();
     ~Graph();
 
-    void addElement(const Arc<Element> &element);
-    void removeElement(const Arc<Element> & element);
+    void addElement(Element *element);
+    void removeElement(Element *element);
     bool hasCycle() const;
+
+    void addElement(Box<Element> &&element) {
+        addElement(element.release());
+    }
 
     template <typename T>
     void registerInterface(T *ptr) {
@@ -332,7 +335,7 @@ private:
     void _queryInterface(std::type_index idx, void ***arr, size_t *n) const;
     
     std::map<std::type_index, std::vector<void*> > mInterfaces; //< Interfaces set
-    std::vector<Arc<Element> >                     mElements; //< Container of the graph
+    std::vector<Element *>                         mElements; //< Container of the graph
 };
 
 /**
@@ -346,9 +349,12 @@ public:
     ~Pipeline();
 
     void setGraph(Graph *graph);
+    void setState(State state);
     void start();
     void pause();
     void stop();
+
+    Bus *bus();
 private:
     void _start();
     void _resume();
@@ -364,11 +370,20 @@ private:
  */
 class ElementFactory {
 public:
-    virtual Arc<Element> createElement(const char *name) const = 0;
-    virtual Arc<Element> createElement(const std::type_info &info) const = 0;
+    virtual Box<Element> createElement(const char *name) const = 0;
+    virtual Box<Element> createElement(const std::type_info &info) const = 0;
     template <typename T>
-    inline  Arc<Element> createElement() const {
-        return createElement(typeid(T));
+    inline  Box<T> createElement() const {
+        auto p = createElement(typeid(T));
+        if (!p) {
+            return Box<T>();
+        }
+        auto e = dynamic_cast<T*>(p.get());
+        if (!e) {
+            return Box<T>();
+        }
+        p.release();
+        return Box<T>(e);
     }
 protected:
     ElementFactory() = default;

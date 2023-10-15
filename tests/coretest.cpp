@@ -1,7 +1,9 @@
 #include <thread>
 #include <gtest/gtest.h>
+#include "../nekoav/ffmpeg/factory.hpp"
 #include "../nekoav/elements.hpp"
 #include "../nekoav/property.hpp"
+#include "../nekoav/media.hpp"
 #include "../nekoav/log.hpp"
 
 using namespace std::chrono_literals;
@@ -22,7 +24,6 @@ public:
 class TestElementSource : public Element, public MyInterface {
 public:
     TestElementSource() {
-        addOutput(pad);
         setThreadPolicy(ThreadPolicy::SingleThread);
     }
     void call() override {
@@ -41,12 +42,12 @@ public:
         NEKO_LOG("State changed to {}", newState);
     }
 private:
-    NekoAV::Arc<Pad> pad {Pad::NewOutput("source")};
+    Pad *pad {addOutput("src")};
 };
 class TestElementSink : public Element {
 public:
     TestElementSink() {
-        addInput(Pad::NewInput("sink"));
+        addInput("sink");
     }
     Error processInput(Pad &, View<Resource> resource) override {
         NEKO_DEBUG("Process input");
@@ -68,13 +69,13 @@ TEST(CoreTest, PropertyTest) {
     prop = {};
     ASSERT_EQ(prop.isNull(), true);
 
-    prop = Property::NewMap();
+    prop = Property::newMap();
     ASSERT_EQ(prop.isMap(), true);
     prop["A"] = 1;
-    prop["C"] = Property::NewMap();
+    prop["C"] = Property::newMap();
     prop["C"]["Number"] = 114514;
     prop["C"]["String"] = "Test String";
-    prop["Vec"] = Property::NewList();
+    prop["Vec"] = Property::newList();
     prop["Vec"].push_back(1);
     prop["Vec"].push_back("WTF");
     prop["Vec"].push_back(114514);
@@ -86,16 +87,16 @@ TEST(CoreTest, PropertyTest) {
 }
 
 TEST(CoreTest, Test1) {
-    auto source = make_shared<TestElementSource>();
-    auto sink = make_shared<TestElementSink>();
+    auto source = new TestElementSource();
+    auto sink = new TestElementSink();
     Graph graph;
     graph.addElement(source);
     graph.addElement(sink);
-    graph.registerInterface<MyInterface>(source.get());
+    graph.registerInterface<MyInterface>(source);
 
     ASSERT_EQ(graph.hasCycle(), false);
 
-    if (auto v = source->linkWith("source", sink, "sink"); !v) {
+    if (auto v = source->linkWith("src", sink, "sink"); !v) {
         // Failed 
         ASSERT_EQ(v, true);
     }
@@ -103,6 +104,21 @@ TEST(CoreTest, Test1) {
     Pipeline pipeline;
     pipeline.setGraph(&graph);
     pipeline.start();
+
+    std::this_thread::sleep_for(100ms);
+}
+
+TEST(FFmpegTest, Factory) {
+    auto factory = GetFFmpegFactory();
+    auto demuxer = factory->createElement<Demuxer>();
+    demuxer->setSource(R"(D:/Videos/[BDrip] Isekai Nonbiri Nouka S01 [7³ACG][v2]/Isekai Nonbiri Nouka S01E01-[1080p][BDRIP][x265.FLAC].mkv)");
+
+    Graph graph;
+    graph.addElement(std::move(demuxer));
+
+    Pipeline pipeline;
+    pipeline.setGraph(&graph);
+    // pipeline.start();
 
     std::this_thread::sleep_for(100ms);
 }

@@ -1,12 +1,13 @@
 #pragma once
 
-#include "defs.hpp"
-#include "format.hpp"
+#include "../defs.hpp"
+#include "../format.hpp"
 
 extern "C" {
     #include <libavformat/avformat.h>
     #include <libavcodec/avcodec.h>
     #include <libavutil/avutil.h>
+    #include <libavutil/error.h>
 }
 
 NEKO_NS_BEGIN

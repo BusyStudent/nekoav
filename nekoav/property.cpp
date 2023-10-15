@@ -67,13 +67,19 @@ std::string Property::toString() const {
 bool Property::toBool() const {
     return std::get<bool>(mValue);
 }
+auto Property::toList() const -> const List & {
+    return std::get<List>(mValue);
+}
+auto Property::toMap() const -> const Map & {
+    return std::get<Map>(mValue);
+}
 
-Property Property::NewList() {
+Property Property::newList() {
     Property prop;
     prop.mValue = List();
     return prop;
 }
-Property Property::NewMap() {
+Property Property::newMap() {
     Property prop;
     prop.mValue = Map();
     return prop;

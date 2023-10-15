@@ -76,8 +76,8 @@ public:
         return !compare(prop);
     }
 
-    static Property NewList();
-    static Property NewMap();
+    static Property newList();
+    static Property newMap();
 private:
     std::variant<
         std::monostate,

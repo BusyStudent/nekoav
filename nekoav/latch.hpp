@@ -5,6 +5,7 @@
 #include "defs.hpp"
 
 #if NEKO_CXX20
+    #include <semaphore>
     #include <barrier>
     #include <latch>
 #else
