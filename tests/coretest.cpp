@@ -33,13 +33,21 @@ public:
         while (state() != State::Stopped) {
             // waitTask();
             std::this_thread::sleep_for(10ms);
-            pad->write(make_shared<TestResource>());
+            pad->send(make_shared<TestResource>());
             dispatchTask();
         }
         return Error::Ok;
     }
     void stateChanged(State newState) override {
         NEKO_LOG("State changed to {}", newState);
+    }
+    Error init() override {
+        NEKO_DEBUG("Init");
+        return Error::Ok;
+    }
+    Error teardown() override {
+        NEKO_DEBUG("Teardown");
+        return Error::Ok;
     }
 private:
     Pad *pad {addOutput("src")};
@@ -56,6 +64,14 @@ public:
     }
     void stateChanged(State newState) override {
         NEKO_LOG("State changed to {}", newState);
+    }
+    Error init() override {
+        NEKO_DEBUG("Init");
+        return Error::Ok;
+    }
+    Error teardown() override {
+        NEKO_DEBUG("Teardown");
+        return Error::Ok;
     }
 };
 
@@ -84,6 +100,18 @@ TEST(CoreTest, PropertyTest) {
     NEKO_DEBUG(prop);
     ASSERT_EQ(prop == prop.clone(), true);
     ASSERT_EQ(prop.containsKey("A"), true);
+
+    enum class AEnum {
+        VA
+    };
+    enum BEnum {
+        VB
+    };
+
+    prop = AEnum::VA;
+    ASSERT_EQ(prop.toEnum<AEnum>(), AEnum::VA);
+    prop = BEnum::VB;
+    ASSERT_EQ(prop.toEnum<BEnum>(), BEnum::VB);
 }
 
 TEST(CoreTest, Test1) {
@@ -112,13 +140,16 @@ TEST(FFmpegTest, Factory) {
     auto factory = GetFFmpegFactory();
     auto demuxer = factory->createElement<Demuxer>();
     demuxer->setSource(R"(D:/Videos/[BDrip] Isekai Nonbiri Nouka S01 [7³ACG][v2]/Isekai Nonbiri Nouka S01E01-[1080p][BDRIP][x265.FLAC].mkv)");
+    demuxer->setLoadedCallback([d = demuxer.get()]() {
+        NEKO_DEBUG("Loaded");
+    });
 
     Graph graph;
     graph.addElement(std::move(demuxer));
 
     Pipeline pipeline;
     pipeline.setGraph(&graph);
-    // pipeline.start();
+    pipeline.start();
 
     std::this_thread::sleep_for(100ms);
 }

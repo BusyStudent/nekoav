@@ -35,7 +35,7 @@
 #endif
 
 #if defined(__GNUC__)
-#define NEKO_CONSTRUCTOR(name) static void name() __attribute__((constructor))
+#define NEKO_CONSTRUCTOR(name) static void __attribute__((constructor)) name() 
 #else
 #define NEKO_CONSTRUCTOR(name) static void name();             \
     static NEKO_NAMESPACE::ConstructHelper name##__ctr {name}; \
@@ -63,8 +63,11 @@ using Box = std::unique_ptr<T>; ///<
 template <typename T>
 using Atomic = std::atomic<T>;
 
+using microseconds = int64_t;
+
 enum class PixelFormat : int;
 enum class SampleFormat : int;
+enum class Error : int;
 
 class Pad;
 class Bus;
@@ -129,6 +132,12 @@ public:
 template <typename T, typename ...Args>
 Arc<T> make_shared(Args &&...args) {
     return std::make_shared<T>(std::forward<Args>(args)...);
+}
+
+// Memory Allocate
+namespace libc {
+    extern NEKO_API void *malloc(size_t n);
+    extern NEKO_API void  free(void *ptr);
 }
 
 NEKO_NS_END

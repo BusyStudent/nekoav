@@ -1,9 +1,21 @@
 add_rules("mode.debug", "mode.release")
 
-add_requires("opencl-headers", "vulkan-headers", "ffmpeg", "gtest")
-add_packages("opencl-headers", "vulkan-headers")
+add_requires("opencl-headers", "vulkan-headers", "ffmpeg", "gtest", "miniaudio")
+add_packages("opencl-headers", "vulkan-headers", "miniaudio")
 
 set_languages("c++17")
+
+-- Configureable Option
+option("qt_test")
+   set_default(false)
+   set_showmenu(true)
+option_end()
+
+if is_plat("windows") then 
+    add_cxxflags("cl::/utf-8")
+    add_cxxflags("cl::/Zc:__cplusplus")
+    add_cxxflags("cl::/permissive-")
+end
 
 target("nekoav")
     set_kind("shared")
@@ -15,6 +27,10 @@ target("nekoav")
 
     if has_package("ffmpeg") then 
         add_files("nekoav/ffmpeg/*.cpp")
+    end
+
+    if has_package("miniaudio") then
+        add_files("nekoav/audio/miniaudio.cpp")
     end
 
     add_files("nekoav/*.cpp")
@@ -41,3 +57,16 @@ target("coretest")
 
     add_files("tests/coretest.cpp")
 target_end()
+
+
+-- Gui Test
+if has_config("qt_test") then 
+    target("qtest")
+        add_rules("qt.widgetapp")
+        add_deps("nekoav")
+        add_packages("ffmpeg")
+
+        add_frameworks("QtCore", "QtGui")
+        add_files("tests/qtest.cpp")
+    target_end()
+end

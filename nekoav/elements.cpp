@@ -20,24 +20,54 @@ Element::~Element() {
     removeAllInputs();
     removeAllOutputs();
 }
-Error Element::setState(State state) {
+void Element::setState(State state) {
     assert(mWorkthread != nullptr);
     // Check is same thread
     if (Thread::currentThread() != mWorkthread) {
         Error err;
-        mWorkthread->sendTask([&]() {
-            err = setState(state);
-        });
-        return err;
+        mWorkthread->postTask(std::bind(&Element::setState, this, state));
+        return;
+    }
+    if (mState == state) {
+        return;
     }
     mState = state;
     stateChanged(state);
+
+    Error err = Error::Ok;
     switch (state) {
-        case State::Running : return resume();
-        case State::Paused : return pause();
+        case State::Ready: { 
+            err = init(); 
+            mIsInitialized = true;
+            break;
+        }
+        case State::Running: { 
+            if (mThreadPolicy == ThreadPolicy::SingleThread && !mIsThreadRunning) {
+                // Require a single thread, and it doesnot start
+                mWorkthread->postTask(std::bind(&Element::_run, this));
+            }
+            else {
+                err = resume();
+            }
+            break;
+        }
+        case State::Paused: { 
+            err = pause(); 
+            break;
+        }
+        case State::Stopped: { 
+            if (mThreadPolicy == ThreadPolicy::AnyThread) {
+                // Any thread teardown at now
+                // or teardown at _run
+                err = teardown(); 
+            }
+            break;
+        }
         default: break;
     }
-    return Error::Unknown;
+    if (err != Error::Ok) {
+        bus()->postMessage(ErrorMessage::make(err, this));
+    }
 }
 
 
@@ -94,6 +124,7 @@ void Element::removeAllOutputs() {
         pad->setElement(nullptr);
         delete pad;
     }
+    mOutputPads.clear();
 }
 void Element::dispatchTask() {
     assert(Thread::currentThread() == mWorkthread);
@@ -104,21 +135,21 @@ void Element::waitTask() {
     mWorkthread->waitTask();
 }
 
-void Element::_threadMain(Latch *latch) {
-    // Wait another element ready
-    setState(State::Prepare);
-    initialize();
+void Element::_run() {
+    mIsThreadRunning = true;
+    auto err = run();
+    mIsThreadRunning = false;
 
-    latch->arrive_and_wait();
-    latch = nullptr; //< No needed
-
-    setState(State::Running);
-    if (run() == Error::NoImpl) {
+    if (err == Error::NoImpl) {
         abort();
     }
-    teardown();
+    teardown(); //< destroy current event
+    if (err != Error::Ok) {
+        bus()->postMessage(ErrorMessage::make(err, this));
+    }
 }
-bool Element::linkWith(const char *sorceName, View<Element> sink, const char *sinkName) {
+
+bool Element::linkWith(std::string_view sorceName, View<Element> sink, std::string_view sinkName) {
     const auto &sources = outputs();
     const auto &sinks = sink->inputs();
     auto siter = std::find_if(sources.begin(), sources.end(), [&](const auto &e) { return e->name() == sorceName; });
@@ -129,22 +160,19 @@ bool Element::linkWith(const char *sorceName, View<Element> sink, const char *si
     if (diter == sinks.end()) {
         return false;
     }
-    return (*siter)->connect(*diter);
+    return (*siter)->link(*diter);
 }
 
-void *Element::operator new(size_t size) {
-    return std::malloc(size);
-}
-void  Element::operator delete(void *p) {
-    return std::free(p);
-}
-
-Error Pad::write(View<Resource> view) {
+Error Pad::send(View<Resource> view) {
     if (!mNext) {
         return Error::NoConnection;
     }
     auto nextElement = mNext->mElement;
     assert(nextElement);
+
+    if (nextElement->mState == State::Stopped) {
+        return Error::NoConnection;
+    }
 
     // Got elements, check threads
     if (Thread::currentThread() != nextElement->mWorkthread) {
@@ -169,6 +197,10 @@ Graph::~Graph() {
     
 }
 void Graph::addElement(Element *element) {
+    if (!element) {
+        return;
+    }
+    element->setGraph(this);
     mElements.push_back(element);
 }
 void Graph::removeElement(Element *element) {
@@ -219,41 +251,44 @@ bool Graph::hasCycle() const {
     return false;
 }
 void Graph::_registerInterface(std::type_index info, void *ptr) {
-    mInterfaces[info].push_back(ptr);
+    std::lock_guard locker(mMutex);
+    mInterfaces[info] = ptr;
 }
 void Graph::_unregisterInterface(std::type_index info, void *ptr) {
+    std::lock_guard locker(mMutex);
     auto mpit = mInterfaces.find(info);
     if (mpit == mInterfaces.end()) {
         return;
     }
-    auto &[_, vec] = *mpit;
-    auto iter = std::find(vec.begin(), vec.end(), ptr);
-    if (iter != vec.end()) {
-        vec.erase(iter);
-    }
+    mInterfaces.erase(mpit);
 }
-// void Graph::_queryInterface(std::type_index info, void ***arr, size_t *n) const {
-//     auto mpit = mInterfaces.find(info);
-//     if (mpit == mInterfaces.end()) {
-//         *arr = nullptr;
-//         *n = 0;
-//         return;
-//     }
-//     auto &[_, vec] = *mpit;
-//     *arr = vec.data();
-//     *n = vec.size();
-// }
+void *Graph::_queryInterface(std::type_index info) const {
+    std::lock_guard locker(mMutex);
+    auto mpit = mInterfaces.find(info);
+    if (mpit == mInterfaces.end()) {
+        return nullptr;
+    }
+    return mpit->second;
+}
 
 class PipelineImpl {
 public:
     std::vector<Thread *>  mThreadPool;
-    std::vector<Element *> mWorkingElements; //< Elements require a indenpent thread
     Thread                *mSharedThread {nullptr};
+    Thread                *mPipelineThread {nullptr}; //< Pipelines thread
     Bus                    mBus;
 };
 
 Pipeline::Pipeline() : d(new PipelineImpl) {
-
+    d->mBus.addWatcher([this](const Message &msg, bool &){
+        if (msg.sender() == this) {
+            return;
+        }
+        if (msg.type() == Message::ErrorOccurred) {
+            // We should stop
+            
+        }
+    });
 }
 Pipeline::~Pipeline() {
     stop();
@@ -261,6 +296,14 @@ Pipeline::~Pipeline() {
 
 void Pipeline::setGraph(Graph *graph) {
     mGraph = graph;
+}
+
+void Pipeline::setState(State state) {
+    switch (state) {
+        case State::Stopped: return stop();
+        case State::Running: return start();
+        case State::Paused: return pause();
+    }
 }
 
 void Pipeline::start() {
@@ -285,13 +328,11 @@ void Pipeline::stop() {
     }
     for (const auto &elem : *mGraph) {
         elem->setState(State::Stopped);
-        elem->setThread(nullptr);
     }
     for (const auto &thrd : d->mThreadPool) {
         delete thrd;
     }
     d->mThreadPool.clear();
-    d->mWorkingElements.clear();
     mGraph->unregisterInterface<Pipeline>(this);
     mState = State::Stopped;
 }
@@ -323,35 +364,28 @@ void Pipeline::_start() {
     // For the map
     assert(mGraph);
     mGraph->registerInterface<Pipeline>(this);
+
     for (const auto &elem : *mGraph) {
+        Thread *thread = nullptr;
+
         if (elem->threadPolicy() == ThreadPolicy::SingleThread) {
             // Require single thread
-            d->mWorkingElements.push_back(elem);
+            thread = new Thread();
+            d->mThreadPool.push_back(thread);            
         }
         else {
             // Put it to shared thread
-            elem->setThread(d->mSharedThread);
-            elem->setState(State::Prepare);
-            elem->setState(State::Running);
+            thread = d->mSharedThread;
         }
+        elem->setThread(thread);
+        elem->setBus(bus());
+
+        elem->setState(State::Ready);
     }
 
-    // Allocate numof thread
-    size_t numWorkingElements = d->mWorkingElements.size();
-    assert(numWorkingElements);
-
-    Latch latch {ptrdiff_t(numWorkingElements)}; //< Wait for all ready
-
-    for (size_t n = 0; n < numWorkingElements; n++) {
-        auto thrd = new Thread();
-        d->mThreadPool.push_back(thrd);
-        d->mWorkingElements[n]->setThread(thrd);
-
-        // Call main 
-        thrd->postTask(std::bind(&Element::_threadMain, d->mWorkingElements[n], &latch));
+    for (const auto &elem : *mGraph) {
+        elem->setState(State::Running);
     }
-
-    latch.wait();
 
     mState = State::Running;
 }

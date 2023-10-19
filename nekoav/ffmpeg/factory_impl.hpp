@@ -21,10 +21,13 @@
 NEKO_NS_BEGIN
 
 
-class FFElementFactory : public ElementFactory {
+class FFElementFactory final : public ElementFactory {
 public:
     Box<Element> createElement(const char *name) const override {
-        // Unsupported
+        auto iter = mMap.find(name);
+        if (iter != mMap.end()) {
+            return iter->second();
+        }
         return nullptr;
     }
     Box<Element> createElement(const std::type_info &info) const override {
@@ -33,12 +36,7 @@ public:
 #else
         auto name = info.name();
 #endif
-        // Unsupported
-        auto iter = mMap.find(name);
-        if (iter != mMap.end()) {
-            return iter->second();
-        }
-        return nullptr;
+        return createElement(name);
     }
     void registerElement(const std::type_info &info, Box<Element> (*func)()) {
 #if     defined(_MSC_VER)

@@ -8,6 +8,8 @@ extern "C" {
     #include <libavcodec/avcodec.h>
     #include <libavutil/avutil.h>
     #include <libavutil/error.h>
+    #include <libswscale/swscale.h>
+    #include <libswresample/swresample.h>
 }
 
 NEKO_NS_BEGIN
@@ -46,6 +48,28 @@ struct FFTraits<AVCodecContext> {
     void doRef(AVCodecContext *ctxt) = delete;
 };
 
+template <>
+struct FFTraits<AVPacket> {
+    void doDeref(AVPacket *&p) {
+        av_packet_free(&p);
+    }
+    void doRef(AVPacket *p) = delete;
+    auto doClone(AVPacket *&p) -> AVPacket * {
+        return av_packet_clone(p);
+    }
+};
+
+template <>
+struct FFTraits<AVFrame> {
+    void doDeref(AVFrame *&p) {
+        av_frame_free(&p);
+    }
+    void doRef(AVFrame *p) = delete;
+    auto doClone(AVFrame *&p) -> AVFrame * {
+        return av_frame_clone(p);
+    }
+};
+
 template <typename T, typename Traits = FFTraits<T> >
 class FFPtr : protected Traits {
 public:
@@ -55,6 +79,10 @@ public:
     }
     FFPtr(const FFPtr &another) : mPtr(another.mPtr) {
         Traits::doRef(mPtr);
+    }
+    FFPtr(FFPtr &&another) {
+        mPtr = another.mPtr;
+        another.mPtr = nullptr;
     }
     ~FFPtr() {
         Traits::doDeref(mPtr);

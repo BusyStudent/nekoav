@@ -13,6 +13,7 @@
 #include <chrono>
 #include <tuple>
 #include <array>
+#include <mutex>
 
 #ifdef __GNUC__
     #define NEKO_STRINGIFY_TYPE_RAW(x) NEKO_STRINGIFY_TYPEINFO(typeid(x))
@@ -129,6 +130,7 @@ struct _Neko_TypeFormatter {
     #define NEKO_DEBUG(x)                                            \
         {                                                            \
         auto _neko_logstr = ::_Neko_FormatDebug(#x, x);              \
+        std::lock_guard _logmtx(::_Neko_GetLogMutex());              \
         ::_Neko_LogPath(__FILE__, __LINE__, NEKO_FUNCTION);          \
         ::fputs(_neko_logstr.c_str(), stderr);                       \
         ::fputc('\n', stderr);                                       \
@@ -136,6 +138,7 @@ struct _Neko_TypeFormatter {
     #define NEKO_LOG(...)                                            \
         {                                                            \
         auto _neko_logstr = ::_Neko_FormatLog(__VA_ARGS__);          \
+        std::lock_guard _logmtx(::_Neko_GetLogMutex());              \
         ::_Neko_LogPath(__FILE__, __LINE__, NEKO_FUNCTION);          \
         ::fputs(_neko_logstr.c_str(), stderr);                       \
         ::fputc('\n', stderr);                                       \
@@ -661,4 +664,9 @@ inline void       _Neko_LogPath(const char *file, int line, const char *func) {
         fmt = "\033[90m[%s:%d (%s)]\033[0m ";
     }
     ::fprintf(stderr, fmt, file, line, func);
+}
+
+inline std::mutex &_Neko_GetLogMutex() {
+    static std::mutex m;
+    return m;
 }

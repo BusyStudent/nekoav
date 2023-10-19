@@ -35,6 +35,12 @@ public:
               char = 0
     >
     Property(T value) : Property(static_cast<double>(value)) { }
+    template <typename T,
+              typename _Cond = std::enable_if_t<std::is_enum_v<T> >,
+              char = 0,
+              char = 0
+    >
+    Property(T value) : Property(static_cast<int64_t>(value)) { }
     Property(const char *value) : Property(std::string_view(value)) { }
 
     std::string toDocoument() const;
@@ -44,6 +50,11 @@ public:
     int64_t     toInt() const;
     const List &toList() const;
     const Map  &toMap() const;
+
+    template <typename T>
+    T           toEnum() const {
+        return static_cast<T>(toInt());
+    }
 
     Property    clone() const {
         return Property(*this);
@@ -56,6 +67,9 @@ public:
     bool        isNull() const;
     bool        isList() const;
     bool        isMap() const;
+    bool        isEnum() const {
+        return isInt();
+    }
 
     bool        compare(const Property &) const;
     bool        contains(const Property &) const;

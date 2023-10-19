@@ -6,6 +6,7 @@
 #include <typeinfo>
 #include <string>
 #include <vector>
+#include <mutex>
 #include <list>
 #include <map>
 
@@ -19,20 +20,27 @@ class Thread;
 class Graph;
 class Pad;
 
-enum class Error {
-    Ok = 0,
-    NoConnection,
-    NoImpl,
-    NoStream,
-    UnsupportedFormat,
+enum class Error : int {
+    Ok = 0,              //< No Error
+    NoConnection,        //< Pad is unlinked
+    NoImpl,              //< User doesnot impl it
+    NoStream,            //< No Media Strean founded
+    NoCodec,             //< Mo Media Codec founded
+    UnsupportedFormat,   //< Unsupported media format
+    UnsupportedResource, //< Unsupported Resource type 
     InvalidArguments,
+    InvalidTopology,
+    InvalidState,
+    OutOfMemory,
+
     Unknown,
+    NumberOfErrors, //< Numbers of Error code
 };
 enum class State {
-    Stopped,
-    Prepare,
-    Running,
-    Paused,
+    Stopped,  //< Default state
+    Ready,    //< Init Compeleted
+    Paused,   //< Paused
+    Running,  //< Data is streaming
     Error,
 };
 enum class ThreadPolicy {
@@ -60,11 +68,11 @@ public:
         return mState.load();
     }
     /**
-     * @brief Set the State (blocking)
+     * @brief Set the State
      * 
      * @param state 
      */
-    auto setState(State state) -> Error;
+    auto setState(State state) -> void;
     /**
      * @brief Set the Thread Policy object
      * 
@@ -92,6 +100,9 @@ public:
     auto setThread(Thread *thread) -> void {
         mWorkthread = thread;
     }
+    auto setGraph(Graph *graph) -> void {
+        mGraph = graph;
+    }
 
     auto &inputs() noexcept {
         return mInputPads;
@@ -105,6 +116,9 @@ public:
     auto &outputs() const noexcept {
         return mOutputPads;
     }
+    auto  graph() const noexcept {
+        return mGraph;
+    }
     auto  bus() const noexcept {
         return mBus;
     }
@@ -117,10 +131,21 @@ public:
      * @return true 
      * @return false 
      */
-    auto linkWith(const char *source, View<Element> sink, const char *sinkName) -> bool;
+    [[nodiscard]]
+    auto linkWith(std::string_view source, View<Element> sink, std::string_view sinkName) -> bool;
+    /**
+     * @brief Get debug output string
+     * 
+     * @return std::string 
+     */
+    auto toDocoument() const -> std::string;
 
-    auto operator new(size_t size) -> void *;
-    auto operator delete(void *ptr) -> void;
+    auto operator new(size_t size) -> void * {
+        return libc::malloc(size);
+    }
+    auto operator delete(void *ptr) -> void {
+        return libc::free(ptr);
+    }
 protected:
     Element();
 
@@ -135,22 +160,25 @@ protected:
 
     virtual void stateChanged(State newState) { }
     virtual auto processInput(Pad &inputPad, View<Resource> resourceView) -> Error { return Error::NoImpl; }
-    virtual auto initialize() -> Error { return Error::NoImpl; }
     virtual auto teardown() -> Error { return Error::NoImpl; }
+    virtual auto init() -> Error { return Error::NoImpl; }
     virtual auto resume() -> Error { return Error::NoImpl; }
     virtual auto pause() -> Error { return Error::NoImpl; }
     virtual auto run() -> Error { return Error::NoImpl; }
 private:
-    void _threadMain(Latch *initlatch); //< Call from 
+    void _run();
 
     Atomic<State> mState { State::Stopped };
+    Atomic<bool>  mIsInitialized { false };
+    Atomic<bool>  mIsThreadRunning { false }; //< Is running at thread
     Thread       *mWorkthread { nullptr };
     ThreadPolicy  mThreadPolicy { ThreadPolicy::AnyThread };
+    Graph        *mGraph { nullptr };
     Bus          *mBus { nullptr };
+    
 
     std::vector<Pad *> mInputPads;
     std::vector<Pad *> mOutputPads;
-friend class Pipeline;
 friend class Pad;
 };
 
@@ -182,7 +210,7 @@ public:
      * @return true 
      * @return false 
      */
-    auto connect(View<Pad> other) -> bool {
+    auto link(View<Pad> other) -> bool {
         if (mType != Output && other->mType != Input) {
             return false;
         }
@@ -193,8 +221,11 @@ public:
      * @brief Disconnect the connection
      * 
      */
-    void disconnect() {
+    void unlink() {
         mNext = nullptr;
+    }
+    bool isLinked() const {
+        return mNext != nullptr;
     }
     /**
      * @brief Set the Name of the pad
@@ -226,7 +257,7 @@ public:
      * @param view The view of the resource
      * @return Error 
      */
-    auto write(View<Resource> view) -> Error;
+    auto send(View<Resource> view) -> Error;
     /**
      * @brief Get the type of the pad
      * 
@@ -254,6 +285,9 @@ public:
         }
         return nullptr;
     }
+    auto next() const -> Pad * {
+        return mNext;
+    }
     /**
      * @brief Get the property map of the pad
      * 
@@ -270,6 +304,13 @@ public:
      */
     auto property(std::string_view name) -> Property & {
         return mProperties[name];
+    }
+
+    auto operator new(size_t size) -> void * {
+        return libc::malloc(size);
+    }
+    auto operator delete(void *ptr) -> void {
+        return libc::free(ptr);
     }
 private:
     /**
@@ -288,7 +329,7 @@ friend class Element;
 };
 
 /**
- * @brief Container of the Elemenet
+ * @brief Container of the Elemenet and Global Interface
  * 
  */
 class NEKO_API Graph  {
@@ -313,14 +354,8 @@ public:
         _unregisterInterface(typeid(T), ptr);
     }
     template <typename T>
-    auto queryInterface() const {
-        void **array;
-        size_t n = 0;
-        _queryInterface(typeid(T), &array, &n);
-        return std::make_pair(
-            reinterpret_cast<T **>(array),
-            n
-        );
+    auto queryInterface() const -> T * {
+        return static_cast<T *>(_queryInterface(typeid(T)));
     }
 
     auto begin() const {
@@ -329,13 +364,17 @@ public:
     auto end() const {
         return mElements.end();
     }
+    auto size() const noexcept {
+        return mElements.size();
+    }
 private:
     void _registerInterface(std::type_index idx, void *ptr);
     void _unregisterInterface(std::type_index idx, void *ptr);
-    void _queryInterface(std::type_index idx, void ***arr, size_t *n) const;
+    void *_queryInterface(std::type_index idx) const;
     
-    std::map<std::type_index, std::vector<void*> > mInterfaces; //< Interfaces set
-    std::vector<Element *>                         mElements; //< Container of the graph
+    std::map<std::type_index, void *> mInterfaces; //< Interfaces set
+    std::vector<Element *>            mElements; //< Container of the graph
+    mutable std::mutex                mMutex; //< Mutex for Graph
 };
 
 /**
