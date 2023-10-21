@@ -136,24 +136,6 @@ TEST(CoreTest, Test1) {
     std::this_thread::sleep_for(100ms);
 }
 
-TEST(FFmpegTest, Factory) {
-    auto factory = GetFFmpegFactory();
-    auto demuxer = factory->createElement<Demuxer>();
-    demuxer->setSource(R"(D:/Videos/[BDrip] Isekai Nonbiri Nouka S01 [7³ACG][v2]/Isekai Nonbiri Nouka S01E01-[1080p][BDRIP][x265.FLAC].mkv)");
-    demuxer->setLoadedCallback([d = demuxer.get()]() {
-        NEKO_DEBUG("Loaded");
-    });
-
-    Graph graph;
-    graph.addElement(std::move(demuxer));
-
-    Pipeline pipeline;
-    pipeline.setGraph(&graph);
-    pipeline.start();
-
-    std::this_thread::sleep_for(100ms);
-}
-
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

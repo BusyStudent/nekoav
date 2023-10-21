@@ -11,6 +11,11 @@
 #include "../nekoav/backtrace.hpp"
 #include "../nekoav/format.hpp"
 #include "../nekoav/media.hpp"
+#include "../nekoav/log.hpp"
+
+#ifdef _MSC_VER
+    #pragma comment(linker, "/subsystem:console")
+#endif
 
 using namespace NekoAV;
 
@@ -18,8 +23,8 @@ class ImageSink : public MediaElement {
 public:
     ImageSink(QLabel *label) : mLabel(label) {
         auto pad = addInput("sink");
-        pad->property("pixfmts") = Property::newList();
-        pad->property("pixfmts").push_back(PixelFormat::RGBA);
+        pad->property(MediaProperty::PixelFormatList) = Property::newList();
+        pad->property(MediaProperty::PixelFormatList).push_back(PixelFormat::RGBA);
     }
     Error processInput(Pad&, ResourceView view) override {
         QMetaObject::invokeMethod(mLabel, [this, object = view->shared_from_this<MediaFrame>()]() {
@@ -28,7 +33,7 @@ public:
             if (!mediaFrame) {
                 return;
             }
-            if (mediaFrame->pixfmt() != PixelFormat::RGBA) {
+            if (mediaFrame->pixelFormat() != PixelFormat::RGBA) {
                 return;
             }
             int width = mediaFrame->width();
@@ -82,9 +87,11 @@ int main(int argc, char **argv) {
     auto sink = new ImageSink(ltb);
 
     demuxer->setLoadedCallback([&]() {
+        NEKO_DEBUG(*demuxer);
         for (auto pad : demuxer->outputs()) {
-            if (pad->name().find("video") == 0) {
-                demuxer->linkWith(pad->name().data(), decoder, "sink");
+            if (pad->isVideo()) {
+                demuxer->linkWith(pad->name(), decoder, "sink");
+                return;
             }
         }
     });

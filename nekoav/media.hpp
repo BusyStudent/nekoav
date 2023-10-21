@@ -4,14 +4,88 @@
 #include "resource.hpp"
 #include <functional>
 #include <chrono>
+#include <span>
 
 NEKO_NS_BEGIN
 
 inline namespace _abiv1 {
 
+/**
+ * @brief Add extra method for Property
+ * 
+ */
+class MediaProperty final : public Property {
+public:
+    static constexpr const char *PixelFormatList = "pixelFormatList";
+    static constexpr const char *PixelFormat = "pixelFormat";
+    static constexpr const char *Width = "width";
+    static constexpr const char *Height = "height";
+    static constexpr const char *Channels = "channels";
+    static constexpr const char *SampleRate = "sampleRate";
+    static constexpr const char *SampleFormat = "sampleFormat";
+    static constexpr const char *Duration = "duration";
+
+private:
+    MediaProperty() = delete;
+};
+
+/**
+ * @brief Add extra method for Pad
+ * 
+ */
+class MediaPad final : public Pad {
+public:
+    auto isVideo() const -> bool {
+        return name().starts_with("video");
+    }
+    auto isAudio() const -> bool {
+        return name().starts_with("audio");
+    }
+    auto isSubtitle() const -> bool {
+        return name().starts_with("subtitle");
+    }
+    int  videoIndex() const {
+        int idx = -1;
+        ::sscanf(name().data(), "video%d", &idx);
+        return idx;
+    }
+    int  audioIndex() const {
+        int idx = -1;
+        ::sscanf(name().data(), "audio%d", &idx);
+        return idx;
+    }
+    int  subtitleIndex() const {
+        int idx = -1;
+        ::sscanf(name().data(), "subtitle%d", &idx);
+        return idx;
+    }
+private:
+    MediaPad() = delete;
+};
+
+
 class MediaElement : public Element {
 public:
-
+    auto inputs() -> std::span<MediaPad*> {
+        auto &vec = Element::inputs();
+        return {
+            reinterpret_cast<MediaPad**>(vec.data()),
+            vec.size()
+        };
+    }
+    auto outputs() -> std::span<MediaPad*> {
+        auto &vec = Element::outputs();
+        return {
+            reinterpret_cast<MediaPad**>(vec.data()),
+            vec.size()
+        };
+    }
+    auto findInput(std::string_view name) -> MediaPad * {
+        return static_cast<MediaPad*>(Element::findInput(name));
+    };
+    auto findOutput(std::string_view name) -> MediaPad * {
+        return static_cast<MediaPad*>(Element::findOutput(name));
+    };
 };
 
 /**
@@ -48,7 +122,7 @@ public:
     inline  auto channels() const -> int { return query(Query::Channels); }
     inline  auto sampleRate() const -> int { return query(Query::SampleRate); }
     inline  auto sampleFormat() const -> SampleFormat { return SampleFormat(format()); }
-    inline  auto pixfmt() const -> PixelFormat { return PixelFormat(format()); }
+    inline  auto pixelFormat() const -> PixelFormat { return PixelFormat(format()); }
 };
 
 class MediaPacket : public Resource {
@@ -113,12 +187,28 @@ public:
 
 };
 
+/**
+ * @brief Cache Resource, and start a new thread
+ * 
+ */
+class MediaQueue : public MediaElement {
+public:
+    virtual void setCapicity(size_t size) = 0;
+    virtual auto size() const -> size_t = 0;
+};
+
 class AudioConverter : public MediaElement {
 public:
-
+    virtual void setSampleFormat(SampleFormat fmt) = 0;
 };
 class VideoConverter : public MediaElement {
 public:
+    /**
+     * @brief Force the converter to convert video to {fmt}, passthrough is disabled
+     * 
+     * @param fmt 
+     */
+    virtual void setPixelFormat(PixelFormat fmt) = 0;
 
 };
 
@@ -128,7 +218,7 @@ public:
 };
 class VideoPresenter : public MediaElement {
 public:
-
+    
 };
 /**
  * @brief Present Video to a hwnd
@@ -137,6 +227,18 @@ public:
 class HwndPresenter : public MediaElement {
 public:
     virtual void setHwnd(void *hwnd) = 0;
+};
+
+class AppSink       : public MediaElement {
+public:
+    virtual bool wait(Arc<Resource> *v, int timeout = -1) = 0;
+    virtual auto size() const -> size_t = 0;
+};
+
+class AppSource     : public MediaElement {
+public:
+    virtual auto push(const Arc<Resource> &res) -> Error = 0;
+    virtual auto size() const -> size_t = 0;
 };
 
 /**
@@ -186,6 +288,9 @@ private:
 
 extern auto NEKO_API CreateAudioPresenter() -> Box<AudioPresenter>;
 extern auto NEKO_API CreateVideoPresenter() -> Box<VideoPresenter>;
+extern auto NEKO_API CreateMediaQueue() -> Box<MediaQueue>;
+extern auto NEKO_API CreateAppSource() -> Box<AppSource>;
+extern auto NEKO_API CreateAppSink() -> Box<AppSink>;
 
 }
 NEKO_NS_END

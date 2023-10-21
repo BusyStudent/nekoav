@@ -1,7 +1,6 @@
 #define _NEKO_SOURCE
 #include "threading.hpp"
 #include "utils.hpp"
-#include "latch.hpp"
 #include <mutex>
 
 NEKO_NS_BEGIN
@@ -65,7 +64,7 @@ void Thread::postTask(std::function<void()> &&fn) {
     mCondition.notify_one();
 }
 void Thread::sendTask(std::function<void()> &&fn) {
-    Latch latch {1};
+    std::latch latch {1};
     postTask([&]() {
         fn();
         latch.count_down();

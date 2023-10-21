@@ -22,6 +22,13 @@ public:
     auto shared_from_this() -> Arc<T> {
         return std::static_pointer_cast<T>(shared_from_this());
     }
+    
+    void *operator new(size_t size) {
+        return libc::malloc(size);
+    }
+    void operator delete(void *ptr) {
+        return libc::free(ptr);
+    }
 protected:
     Resource() = default;
 };

@@ -1,9 +1,12 @@
 #define _NEKO_SOURCE
 #include "elements.hpp"
 #include "threading.hpp"
-#include "latch.hpp"
+#include "utils.hpp"
 #include "bus.hpp"
+#include "log.hpp"
 #include <algorithm>
+#include <format>
+#include <ranges>
 #include <set>
 
 #ifndef NEKO_NO_EXCEPTIONS
@@ -20,15 +23,17 @@ Element::~Element() {
     removeAllInputs();
     removeAllOutputs();
 }
-void Element::setState(State state) {
+void Element::setState(State state, std::latch *syncLatch) {
     assert(mWorkthread != nullptr);
     // Check is same thread
     if (Thread::currentThread() != mWorkthread) {
-        Error err;
-        mWorkthread->postTask(std::bind(&Element::setState, this, state));
+        mWorkthread->postTask(std::bind(&Element::setState, this, state, syncLatch));
         return;
     }
     if (mState == state) {
+        if (syncLatch) {
+            syncLatch->count_down();
+        }
         return;
     }
     mState = state;
@@ -65,11 +70,32 @@ void Element::setState(State state) {
         }
         default: break;
     }
-    if (err != Error::Ok) {
+    if (err != Error::Ok && err != Error::NoImpl) {
+        mState = State::Error;
         bus()->postMessage(ErrorMessage::make(err, this));
+    }
+
+    NEKO_LOG("Element {} state changed to {}", typeid(*this), mState.load());
+
+    if (syncLatch) {
+        syncLatch->count_down();
     }
 }
 
+Pad *Element::findInput(std::string_view name) const {
+    auto iter = std::find_if(mInputPads.begin(), mInputPads.end(), [&](Pad *pad) { return pad->name() == name; });
+    if (iter != mInputPads.end()) {
+        return *iter;
+    }
+    return nullptr;
+}
+Pad *Element::findOutput(std::string_view name) const {
+    auto iter = std::find_if(mOutputPads.begin(), mOutputPads.end(), [&](Pad *pad) { return pad->name() == name; });
+    if (iter != mOutputPads.end()) {
+        return *iter;
+    }
+    return nullptr;
+}
 
 Pad *Element::addInput(const char *name) {
     auto pad = new Pad(Pad::Input);
@@ -149,18 +175,47 @@ void Element::_run() {
     }
 }
 
-bool Element::linkWith(std::string_view sorceName, View<Element> sink, std::string_view sinkName) {
-    const auto &sources = outputs();
-    const auto &sinks = sink->inputs();
-    auto siter = std::find_if(sources.begin(), sources.end(), [&](const auto &e) { return e->name() == sorceName; });
-    if (siter == sources.end()) {
+bool Element::linkWith(std::string_view sourceName, View<Element> sink, std::string_view sinkName) {
+    auto src = findOutput(sourceName);
+    auto sk = sink->findInput(sinkName);
+    if (!src || !sk) {
         return false;
     }
-    auto diter = std::find_if(sinks.begin(), sinks.end(), [&](const auto &e) { return e->name() == sinkName; });
-    if (diter == sinks.end()) {
-        return false;
+    return src->link(sk);
+}
+
+auto Element::toDocoument() const -> std::string {
+    std::string ret;
+    
+    // Format state name
+    std::string_view stateName;
+    switch (mState.load()) {
+        case State::Error: stateName = "Error"; break;
+        case State::Ready: stateName = "Ready"; break;
+        case State::Running: stateName = "Running"; break;
+        case State::Paused: stateName = "Paused"; break;
+        case State::Stopped: stateName = "Stopped"; break;
     }
-    return (*siter)->link(*diter);
+    auto formatPads = [](std::string &ret, Pad *pad) {
+        std::format_to(std::back_inserter(ret), "  Pad: {}\n", pad->name());
+        std::format_to(std::back_inserter(ret), "  Linked: {}\n", pad->isLinked());
+        std::format_to(std::back_inserter(ret), "  Properties: \n");
+        for (const auto &[key, value] : pad->properties()) {
+            std::format_to(std::back_inserter(ret), "    {}: {}, \n", key, value.toDocoument());
+        }
+    };
+
+    std::format_to(std::back_inserter(ret), "State: {}\n", stateName);
+    std::format_to(std::back_inserter(ret), "Inputs: {}\n", mInputPads.size());
+    for (const auto &pad : mInputPads) {
+        formatPads(ret, pad);
+    }
+    std::format_to(std::back_inserter(ret), "Outputs {}\n", mOutputPads.size());
+    for (const auto &pad : mOutputPads) {
+        formatPads(ret, pad);
+    }
+
+    return ret;
 }
 
 Error Pad::send(View<Resource> view) {
@@ -170,13 +225,13 @@ Error Pad::send(View<Resource> view) {
     auto nextElement = mNext->mElement;
     assert(nextElement);
 
-    if (nextElement->mState == State::Stopped) {
+    if (nextElement->mState == State::Stopped || nextElement->mState == State::Error) {
         return Error::NoConnection;
     }
 
     // Got elements, check threads
     if (Thread::currentThread() != nextElement->mWorkthread) {
-        Latch latch {1};
+        std::latch latch {1};
         Error errcode = Error::Ok;
         nextElement->mWorkthread->postTask([&]() {
             errcode = nextElement->processInput(*mNext, view);
@@ -200,10 +255,15 @@ void Graph::addElement(Element *element) {
     if (!element) {
         return;
     }
+    std::lock_guard locker(mMutex);
     element->setGraph(this);
     mElements.push_back(element);
 }
 void Graph::removeElement(Element *element) {
+    if (!element) {
+        return;
+    }
+    std::lock_guard locker(mMutex);
     auto it = std::find(mElements.begin(), mElements.end(), element);
     if (it != mElements.end()) {
         mElements.erase(it);
@@ -212,6 +272,7 @@ void Graph::removeElement(Element *element) {
 }
 bool Graph::hasCycle() const {
    // we will visit a source element only once
+    std::lock_guard locker(mMutex);
     std::set<Element* > visited;
     std::vector<Element* > sourcesElement;
     for (const auto &element : mElements) {
@@ -275,20 +336,14 @@ class PipelineImpl {
 public:
     std::vector<Thread *>  mThreadPool;
     Thread                *mSharedThread {nullptr};
-    Thread                *mPipelineThread {nullptr}; //< Pipelines thread
-    Bus                    mBus;
+    Bus                    mElementBus; //< From Element to Pipeline
+    Bus                    mBus; //< From Pipeline to User
+
+    std::thread            mThread; //< Thread for pipeline
 };
 
 Pipeline::Pipeline() : d(new PipelineImpl) {
-    d->mBus.addWatcher([this](const Message &msg, bool &){
-        if (msg.sender() == this) {
-            return;
-        }
-        if (msg.type() == Message::ErrorOccurred) {
-            // We should stop
-            
-        }
-    });
+
 }
 Pipeline::~Pipeline() {
     stop();
@@ -300,94 +355,169 @@ void Pipeline::setGraph(Graph *graph) {
 
 void Pipeline::setState(State state) {
     switch (state) {
-        case State::Stopped: return stop();
-        case State::Running: return start();
-        case State::Paused: return pause();
+        case State::Stopped: {
+            if (mState != State::Stopped) {
+                mState = State::Stopped;
+                _wakeup();
+                if (d->mThread.joinable()) {
+                    d->mThread.join();
+                }
+                for (auto th : d->mThreadPool) {
+                    delete th;
+                }
+                d->mThreadPool.clear();
+                d->mSharedThread = nullptr;
+            }
+            return;
+        }
+        case State::Running: {
+            if (mState == State::Stopped) {
+                setState(State::Ready); //< First Init
+            }
+            if (mState == State::Ready) {
+                setState(State::Paused);
+            }
+            if (mState == State::Paused) {
+                mState = State::Running;
+                _wakeup();
+            }
+            return;
+        }
+        case State::Paused: {
+            if (mState == State::Running || mState == State::Ready) {
+                // Can switch
+                mState = State::Paused;
+                _wakeup();
+            }
+            return;
+        }
+        case State::Ready: {
+            if (mState != State::Stopped) {
+                return;
+            }
+            _prepare(); // Prepare it
+            return;
+        }
     }
 }
 
-void Pipeline::start() {
-    switch (mState) {
-        case State::Running: return;
-        case State::Error: return;
-        case State::Paused: {
-            // Restore
-            _resume();
-            break;
-        }
-        case State::Stopped: {
-            // Starting new 
-            _start();
-            break;
-        }
-    }
-}
-void Pipeline::stop() {
-    if (mState == State::Stopped) {
+void Pipeline::_main(std::latch &latch) {
+    NEKO_SetThreadName("NekoPipeline");
+    NEKO_DEBUG("Init env");
+    // Init here
+    // 1. For all elements get require threads
+    _doInit();
+
+    // Done
+    mState = State::Ready;
+    latch.count_down();
+
+    if (mGraph->hasCycle()) {
+        // Error
+        _raiseError(Error::InvalidTopology);
         return;
     }
-    for (const auto &elem : *mGraph) {
-        elem->setState(State::Stopped);
-    }
-    for (const auto &thrd : d->mThreadPool) {
-        delete thrd;
-    }
-    d->mThreadPool.clear();
-    mGraph->unregisterInterface<Pipeline>(this);
-    mState = State::Stopped;
-}
-void Pipeline::pause() {
-    if (mState == State::Running) {
-        for (const auto &elem : *mGraph) {
-            elem->setState(State::Paused);
+
+    // Pull Message
+    while (true) {
+        Arc<Message> message;
+        d->mElementBus.waitMessage(&message);
+        if (message->type() == Message::ErrorOccurred) {
+            // Enter Error
+            _raiseError(static_cast<ErrorMessage*>(message.get())->error());
+            return;
         }
-        mState = State::Paused;
+        else if (message->type() == Message::PipelineWakeup) {
+            // 
+            switch (mState) {
+                case State::Paused: _broadcastState(State::Paused); break;
+                case State::Running: _broadcastState(State::Running); break;
+                case State::Stopped: _broadcastState(State::Stopped); return; //< End it
+            }
+        }
+        else {
+            d->mBus.postMessage(message);
+        }
     }
 }
 
-void Pipeline::_resume() {
-    if (mState == State::Paused) {
-        for (const auto &elem : *mGraph) {
-            elem->setState(State::Running);
-        }
-        mState = State::Running;
-    }
-}
+void Pipeline::_doInit() {
+    // 1. For all elements get require threads
+    auto threadElementsView = *mGraph | std::views::filter(
+        [](auto elem) { return elem->threadPolicy() == ThreadPolicy::SingleThread; }
+    );
+    auto threadElement = std::vector(threadElementsView.begin(), threadElementsView.end());
 
-void Pipeline::_start() {
-    // New state
+    auto walkAndSet = [this](auto &&self, Element *currentElement, Thread *thread) {
+        if (currentElement->threadPolicy() == ThreadPolicy::SingleThread) {
+            return; //< Stop on this
+        }
+        if (currentElement->thread() == d->mSharedThread) {
+            // Got it, has no workers
+            NEKO_LOG("Set Element {} to thread {}", currentElement, thread);
+            currentElement->setThread(thread);
+        }
+        if (currentElement->thread() != thread) {
+            // Alreay walked by another element
+            return;
+        }
+
+        for (const auto &pad : currentElement->outputs()) {
+            if (pad->nextElement()) {
+                self(self, pad->nextElement(), thread);
+            }
+        }
+    };
 
     // Make a global shared thread
     d->mSharedThread = new Thread;
     d->mThreadPool.push_back(d->mSharedThread);
 
-    // For the map
-    assert(mGraph);
-    mGraph->registerInterface<Pipeline>(this);
-
-    for (const auto &elem : *mGraph) {
-        Thread *thread = nullptr;
-
-        if (elem->threadPolicy() == ThreadPolicy::SingleThread) {
-            // Require single thread
-            thread = new Thread();
-            d->mThreadPool.push_back(thread);            
-        }
-        else {
-            // Put it to shared thread
-            thread = d->mSharedThread;
-        }
-        elem->setThread(thread);
-        elem->setBus(bus());
-
-        elem->setState(State::Ready);
+    // Prepare an shared thread for all
+    for (auto element : *mGraph) {
+        element->setThread(d->mSharedThread);
+        element->setBus(&d->mElementBus);
     }
 
-    for (const auto &elem : *mGraph) {
-        elem->setState(State::Running);
+    // Allocate thread for Thread Element and below
+    for (auto element : threadElement) {
+        Thread *thread = new Thread;
+        d->mThreadPool.push_back(thread);
+        element->setThread(thread);
+
+        NEKO_LOG("Alloc thread {}", thread);
+        NEKO_LOG("Set Element {} to thread {}", element, thread);
+
+        // Set Thread below
+        walkAndSet(walkAndSet, element, thread);
     }
 
-    mState = State::Running;
+    // Begin init elements
+    _broadcastState(State::Ready);
+}
+void Pipeline::_raiseError(Error err) {
+    mState = State::Error;
+    d->mBus.postMessage(ErrorMessage::make(err, this));
+    // Shutdown all
+    _broadcastState(State::Stopped);
+}
+
+void Pipeline::_prepare() {
+    // Start pipeline thread
+    std::latch latch {1};
+    d->mThread = std::thread(&Pipeline::_main, this, std::ref(latch));
+    latch.wait();
+}
+void Pipeline::_broadcastState(State state) {
+    std::latch syncLatch {ptrdiff_t(mGraph->size())};
+    for (auto element : *mGraph) {
+        element->setState(state, &syncLatch);
+    }
+    syncLatch.wait();
+}
+void Pipeline::_wakeup() {
+    auto msg = make_shared<Message>(Message::PipelineWakeup, this);
+    d->mElementBus.postMessage(msg);
 }
 
 Bus *Pipeline::bus() {

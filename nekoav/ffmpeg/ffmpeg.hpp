@@ -124,4 +124,11 @@ inline   PixelFormat ToPixelFormat(AVPixelFormat fmt) {
     return PixelFormat(fmt);
 }
 
+inline AVSampleFormat ToAVSampleFormat(SampleFormat fmt) {
+    return AVSampleFormat(fmt);
+}
+inline SampleFormat ToSampleFormat(AVSampleFormat fmt) {
+    return SampleFormat(fmt);
+}
+
 NEKO_NS_END

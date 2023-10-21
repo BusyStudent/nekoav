@@ -1,8 +1,12 @@
 #define _NEKO_SOURCE
 #include "media.hpp"
+#include "queue.hpp"
 #include <chrono>
+#include <queue>
 
 NEKO_NS_BEGIN
+
+namespace _abiv1 {
 
 namespace chrono = std::chrono;
 
@@ -105,6 +109,66 @@ void MediaPipeline::removeClock(MediaClock *clock) {
 auto MediaPipeline::masterClock() const -> MediaClock * {
     std::lock_guard locker(mClockMutex);
     return mMasterClock;
+}
+
+class AppSourceImpl final : public AppSource {
+public:
+    AppSourceImpl() {
+        setThreadPolicy(ThreadPolicy::SingleThread);
+        mSourcePad = addOutput("src");
+    }
+    Error run() override {
+        Arc<Resource> resource;
+        while (state() != State::Stopped) {
+            if (mQueue.wait(&resource, 10)) {
+                // Got data
+                mSourcePad->send(resource);
+            }
+        }
+        return Error::Ok;
+    }
+    Error push(const Arc<Resource> &res) override {
+        if (state() == State::Stopped) {
+            return Error::InvalidState;
+        }
+        mQueue.push(res);
+    }
+    size_t size() const override {
+        return mQueue.size();
+    }
+private:
+    BlockingQueue<Arc<Resource> > mQueue;
+    Pad                          *mSourcePad = nullptr;
+};
+class AppSinkImpl final : public AppSink {
+public:
+    AppSinkImpl() {
+        mSinkPad = addInput("sink");
+    }
+    Error processInput(Pad &, ResourceView resourceView) {
+        mQueue.push(resourceView->shared_from_this());
+        return Error::Ok;
+    }
+    size_t size() const override {
+        return mQueue.size();
+    }
+    bool wait(Arc<Resource> *res, int timeout) override {
+        return mQueue.wait(res, timeout);
+    }
+private:
+    BlockingQueue<Arc<Resource> > mQueue;
+    Pad                          *mSinkPad = nullptr;
+};
+
+auto CreateAppSource() -> Box<AppSource> {
+    return std::make_unique<AppSourceImpl>();
+}
+auto CreateAppSink() -> Box<AppSink> {
+    return std::make_unique<AppSinkImpl>();
+}
+
+
+
 }
 
 NEKO_NS_END

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "defs.hpp"
+#include "resource.hpp"
 #include <condition_variable>
 #include <functional>
 #include <vector>
@@ -10,12 +11,15 @@
 
 NEKO_NS_BEGIN
 
-class Message : public std::enable_shared_from_this<Message> {
+class Message : public Resource {
 public:
     enum Type {
         None,
-        StateChanged,
-        ErrorOccurred,
+        StateChanged,  //< Some element state changed
+        ErrorOccurred, //< Error occurred, require pipeline stop
+
+        PipelineWakeup, //< Wakeup Pipeline, internal use only
+        User = 10086   //< User Begin
     };
     
     explicit Message(Type type, void *sender) : mType(type), mSender(sender) { }
@@ -28,11 +32,8 @@ public:
         return mSender;
     }
 
-    void *operator new(size_t size) {
-        return libc::malloc(size);
-    }
-    void operator delete(void *ptr) {
-        return libc::free(ptr);
+    Arc<Message> shared_from_this() {
+        return Resource::shared_from_this<Message>();
     }
 private:
     Type  mType = None;
@@ -42,6 +43,11 @@ class ErrorMessage : public Message {
 public:
     static Arc<ErrorMessage> make(Error err, Element *element) {
         auto msg = make_shared<ErrorMessage>(element);
+        msg->mError = err;
+        return msg;
+    }
+    static Arc<ErrorMessage> make(Error err, Pipeline *pipeline) {
+        auto msg = make_shared<ErrorMessage>(pipeline);
         msg->mError = err;
         return msg;
     }

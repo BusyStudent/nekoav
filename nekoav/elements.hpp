@@ -36,6 +36,12 @@ enum class Error : int {
     Unknown,
     NumberOfErrors, //< Numbers of Error code
 };
+/**
+ * @brief State of Element / Pipeline
+ * 
+ * @details from Stopped -> Ready -> Paused <-> Running -> Stopped
+ * 
+ */
 enum class State {
     Stopped,  //< Default state
     Ready,    //< Init Compeleted
@@ -71,8 +77,9 @@ public:
      * @brief Set the State
      * 
      * @param state 
+     * @param syncLatch
      */
-    auto setState(State state) -> void;
+    auto setState(State state, std::latch *syncLatch = nullptr) -> void;
     /**
      * @brief Set the Thread Policy object
      * 
@@ -116,12 +123,29 @@ public:
     auto &outputs() const noexcept {
         return mOutputPads;
     }
+    auto  thread() const noexcept {
+        return mWorkthread;
+    }
     auto  graph() const noexcept {
         return mGraph;
     }
     auto  bus() const noexcept {
         return mBus;
     }
+    /**
+     * @brief Find a input pad by name
+     * 
+     * @param name 
+     * @return Pad* 
+     */
+    auto findInput(std::string_view name) const -> Pad *;
+    /**
+     * @brief Find a output pad by name
+     * 
+     * @param name 
+     * @return Pad* 
+     */
+    auto findOutput(std::string_view name) const -> Pad *;
     /**
      * @brief Link the output pad to target pad
      * 
@@ -293,7 +317,7 @@ public:
      * 
      * @return Property& 
      */
-    auto properties() -> Property & {
+    auto properties() -> PropertyMap & {
         return mProperties;
     }
     /**
@@ -303,7 +327,7 @@ public:
      * @return Property& 
      */
     auto property(std::string_view name) -> Property & {
-        return mProperties[name];
+        return mProperties[std::string(name)];
     }
 
     auto operator new(size_t size) -> void * {
@@ -320,7 +344,7 @@ private:
      */
     explicit Pad(Type type) : mType(type) { }
 
-    Property      mProperties {Property::newMap()};
+    PropertyMap   mProperties;
     Element      *mElement {nullptr}; //< Which element belong
     Pad          *mNext {nullptr};
     Type          mType;
@@ -389,14 +413,24 @@ public:
 
     void setGraph(Graph *graph);
     void setState(State state);
-    void start();
-    void pause();
-    void stop();
 
+    void start() {
+        setState(State::Running);
+    }
+    void stop() {
+        setState(State::Stopped);
+    }
+    void pause() {
+        setState(State::Paused);
+    }
     Bus *bus();
 private:
-    void _start();
-    void _resume();
+    void _main(std::latch &);
+    void _prepare();
+    void _doInit();
+    void _raiseError(Error err);
+    void _broadcastState(State state); //< Set All element state, blocking
+    void _wakeup();
 
     Graph        *mGraph { nullptr };
     Atomic<State> mState { State::Stopped };

@@ -3,7 +3,7 @@ add_rules("mode.debug", "mode.release")
 add_requires("opencl-headers", "vulkan-headers", "ffmpeg", "gtest", "miniaudio")
 add_packages("opencl-headers", "vulkan-headers", "miniaudio")
 
-set_languages("c++17")
+set_languages("c++20")
 
 -- Configureable Option
 option("qt_test")
@@ -19,6 +19,7 @@ end
 
 target("nekoav")
     set_kind("shared")
+    set_languages("c++20")
     add_packages("ffmpeg")
 
     if is_plat("windows") then

@@ -234,17 +234,18 @@ protected:
 
             // Public datas
             if (type == AVMEDIA_TYPE_VIDEO) {
-                prop["width"] = stream->codecpar->width;
-                prop["height"] = stream->codecpar->height;
-                prop["pixfmt"] = ToPixelFormat(AVPixelFormat(stream->codecpar->format));
+                prop[MediaProperty::Width] = stream->codecpar->width;
+                prop[MediaProperty::Height] = stream->codecpar->height;
+                prop[MediaProperty::PixelFormat] = ToPixelFormat(AVPixelFormat(stream->codecpar->format));
             }
             else if (type == AVMEDIA_TYPE_AUDIO) {
-                prop["sampleRate"] = stream->codecpar->sample_rate;
-                prop["channels"] = stream->codecpar->channels;
+                prop[MediaProperty::SampleRate] = stream->codecpar->sample_rate;
+                prop[MediaProperty::Channels] = stream->codecpar->channels;
+                prop[MediaProperty::SampleFormat] = ToSampleFormat(AVSampleFormat(stream->codecpar->format));
             }
 
             if (stream->duration != AV_NOPTS_VALUE) {
-                prop["duration"] = double(stream->duration) * av_q2d(stream->time_base);
+                prop[MediaProperty::Duration] = double(stream->duration) * av_q2d(stream->time_base);
             }
 
             // Map stream id to pad
@@ -372,6 +373,9 @@ public:
         mSinkPad = addInput("sink");
         mSourcePad = addOutput("src");
     }
+    void setPixelFormat(PixelFormat format) override {
+        mTargetFormat = format;
+    }
     Error init() override {
         return Error::Ok;
     }
@@ -422,17 +426,27 @@ public:
         return mSourcePad->send(FFFrame::make(dstFrame).get());
     }
     Error initContext(AVFrame *f) {
-        auto &pixfmt = mSourcePad->next()->property("pixfmts");
-        if (pixfmt.isNull()) {
-            return Error::InvalidTopology;
-        }
         AVPixelFormat fmt;
-        for (const auto &v : pixfmt.toList()) {
-            fmt = ToAVPixelFormat(v.toEnum<PixelFormat>());
-            if (fmt == AVPixelFormat(f->format)) {
+        if (mTargetFormat == PixelFormat::None) {
+            // Try get info by pad
+            auto &pixfmt = mSourcePad->next()->property(MediaProperty::PixelFormatList);
+            if (pixfmt.isNull()) {
+                // Unsupport, Just Passthrough
+                // return Error::InvalidTopology;
                 mPassThrough = true;
                 return Error::Ok;
             }
+            for (const auto &v : pixfmt.toList()) {
+                fmt = ToAVPixelFormat(v.toEnum<PixelFormat>());
+                if (fmt == AVPixelFormat(f->format)) {
+                    mPassThrough = true;
+                    return Error::Ok;
+                }
+            }
+        }
+        else {
+            // Already has target format
+            fmt = ToAVPixelFormat(mTargetFormat);
         }
 
         // Prepare sws conetxt
@@ -456,9 +470,11 @@ public:
     }
 private:
     SwsContext *mCtxt = nullptr;
+    AVFrame    *mSwFrame = nullptr; //< Used when hardware format
     Pad        *mSinkPad = nullptr;
     Pad        *mSourcePad = nullptr;
     bool        mPassThrough = false;
+    PixelFormat mTargetFormat = PixelFormat::None; //< If not None, force
 };
 
 /**

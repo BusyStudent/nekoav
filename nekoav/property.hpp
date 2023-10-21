@@ -15,7 +15,7 @@ NEKO_NS_BEGIN
 class NEKO_API Property {
 public:
     using List = std::vector<Property>;
-    using Map  = std::map<std::string, Property>;
+    using Map  = std::map<std::string, Property, std::less<> >;
 
     Property();
     Property(int64_t value);
@@ -103,5 +103,8 @@ private:
         Map
     > mValue;
 };
+
+using PropertyMap = Property::Map;
+using PropertyList = Property::List;
 
 NEKO_NS_END

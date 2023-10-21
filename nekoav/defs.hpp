@@ -51,6 +51,7 @@
 #include <cassert>
 #include <memory>
 #include <atomic>
+#include <latch>
 
 NEKO_NS_BEGIN
 
@@ -71,10 +72,10 @@ enum class Error : int;
 
 class Pad;
 class Bus;
-class Latch;
 class Thread;
 class Element;
 class ElementFactory;
+class Pipeline;
 
 /**
  * @brief Wrapper for RAW Pointer, implict cast from Arc and RAW Pointer
