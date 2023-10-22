@@ -280,44 +280,58 @@ void Graph::removeElement(Element *element) {
 bool Graph::hasCycle() const {
    // we will visit a source element only once
     std::lock_guard locker(mMutex);
-    std::set<Element* > visited;
-    std::vector<Element* > sourcesElement;
-    for (const auto &element : mElements) {
-        if (element->inputs().empty()) {
-            sourcesElement.push_back(element);
-        }
-    }
-
-    std::function<bool(Element *)> dfs = 
-        [&dfs, &visited](Element *curElement) -> bool 
-    {
-        if (visited.find(curElement) != visited.end()) {
-            return false;
-        }
-        visited.insert(curElement);
-
-        for (const auto &pad : curElement->outputs()) {
-            auto next = pad->nextElement();
-            if (!next) {
-                // Not connection
-                continue;
-            }
-            if (dfs(next)) {
-                // Detected
-                return true;
-            }
-        }
+    auto size = topologicalSort().size();
+    if (size == mElements.size()) {
         return false;
-    };
-
-    while (!sourcesElement.empty()) {
-        if (dfs(sourcesElement.back())) {
-            return true;
-        }
-        sourcesElement.pop_back();
     }
-    return false;
+    return true;
 }
+
+std::vector<Element *> Graph::topologicalSort() const {
+    std::map<Element*, int> inDeg;
+
+    // Init all element in map
+    for (const auto &element : mElements) {
+        inDeg[element] = 0;
+    }
+    // Count the in-degree of each node
+    for (const auto &element : mElements) {
+        for (const auto &pad : element->outputs()){
+            if (pad->nextElement() != nullptr) {
+                inDeg[pad->nextElement()] ++;
+            }
+        }
+    }
+    // Push all nodes with indegree 0 to the queue
+    std::vector<Element* > sourcesElement;
+    for (const auto [key, value] : inDeg) {
+        if (value == 0) {
+            sourcesElement.push_back(key);
+        }
+    }
+    // Traverse the queue and delete in-degree points
+    int index = 0;
+    while (index < sourcesElement.size()) {
+        for (const auto &pad : sourcesElement[index]->outputs()) {
+            auto next = pad->nextElement();
+            if (next != nullptr) {
+                inDeg[next] --;
+                if (inDeg[next] == 0) {
+                    // Push node when indegree == 0
+                    sourcesElement.push_back(next);
+                }
+            }
+        }
+        index ++;
+    }
+    // Topological sorting is completed if and only if the number of topological sorting nodes is equal to the number of source nodes.
+    if (sourcesElement.size() == mElements.size()) {
+        NEKO_LOG("{}", sourcesElement);
+        return sourcesElement;
+    }
+    return std::vector<Element *>();
+}
+
 void Graph::_registerInterface(std::type_index info, void *ptr) {
     std::lock_guard locker(mMutex);
     mInterfaces[info] = ptr;

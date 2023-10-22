@@ -142,6 +142,39 @@ TEST(CoreTest, Test1) {
     std::this_thread::sleep_for(100ms);
 }
 
+TEST(CoreTest, Test2) {
+    auto source = new TestElementSource();
+    auto queue = CreateMediaQueue().release();
+    auto queue2 = CreateMediaQueue().release();
+    auto queue3 = CreateMediaQueue().release();
+
+    Graph graph;
+    graph.addElement(source);
+    graph.addElement(queue);
+    graph.addElement(queue2);
+    graph.addElement(queue3);
+    graph.registerInterface<MyInterface>(source);
+
+    if (auto v = source->linkWith("src", queue, "sink"); !v) {
+        // Failed 
+        ASSERT_EQ(v, true);
+    }
+    if (auto v = queue->linkWith("src", queue2, "sink"); !v) {
+        // Failed 
+        ASSERT_EQ(v, true);
+    }
+    if (auto v = queue2->linkWith("src", queue3, "sink")) {
+        ASSERT_EQ(v, true);
+    }
+    if (auto v = queue3->linkWith("src", queue, "sink")) {
+        ASSERT_EQ(v, true);
+    }
+
+    ASSERT_EQ(graph.hasCycle(), true);
+
+    std::this_thread::sleep_for(100ms);
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

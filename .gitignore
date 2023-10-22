@@ -2,6 +2,7 @@
 .xmake
 .cache
 compile_commands.json
+*.pseudocode.*
 /build
 
 *.o

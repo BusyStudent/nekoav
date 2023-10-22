@@ -78,6 +78,17 @@ public:
      * 
      * @param state 
      * @param syncLatch
+     * 
+     * @code {.c++}
+     * std::latch syncLatch(1);
+     * setState(state, syncLatch);
+     * syncLatch.wait();
+     * @endcode
+     * 
+     * @note
+     * setState(state, isWait, timeout)
+     * changeStateAndWait(state, timeout)
+     * 
      */
     auto setState(State state, std::latch *syncLatch = nullptr) -> void;
     /**
@@ -446,6 +457,12 @@ public:
      * @return false 
      */
     bool hasCycle() const;
+    /**
+     * @brief Generate node topological sorting
+     * 
+     * @return std::vector<Element *> 
+     */
+    auto topologicalSort() const -> std::vector<Element *>;
 
     /**
      * @brief Add a new element into Graph, ownship transfered to Graph
