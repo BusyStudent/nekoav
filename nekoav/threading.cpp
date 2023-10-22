@@ -84,14 +84,14 @@ void Thread::dispatchTask() {
         lock.lock();
     }
 }
-void Thread::waitTask(const int *timeoutMS) {
+void Thread::waitTask(int timeoutMS) {
     std::unique_lock lock(mQueueMutex);
 
     while (mQueue.empty()) {
         lock.unlock();
         std::unique_lock condlock(mConditionMutex);
-        if (timeoutMS != nullptr) {
-            if (mCondition.wait_for(condlock, std::chrono::milliseconds(*timeoutMS)) == std::cv_status::timeout) {
+        if (timeoutMS != -1) {
+            if (mCondition.wait_for(condlock, std::chrono::milliseconds(timeoutMS)) == std::cv_status::timeout) {
                 return;
             }
         }

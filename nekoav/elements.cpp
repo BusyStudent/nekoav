@@ -5,9 +5,12 @@
 #include "bus.hpp"
 #include "log.hpp"
 #include <algorithm>
-#include <format>
 #include <ranges>
 #include <set>
+
+#ifdef __cpp_lib_format
+    #include <format>
+#endif
 
 #ifndef NEKO_NO_EXCEPTIONS
     #include <exception>
@@ -156,9 +159,9 @@ void Element::dispatchTask() {
     assert(Thread::currentThread() == mWorkthread);
     mWorkthread->dispatchTask();
 }
-void Element::waitTask() {
+void Element::waitTask(int timeout) {
     assert(Thread::currentThread() == mWorkthread);
-    mWorkthread->waitTask();
+    mWorkthread->waitTask(timeout);
 }
 
 void Element::_run() {
@@ -187,6 +190,7 @@ bool Element::linkWith(std::string_view sourceName, View<Element> sink, std::str
 auto Element::toDocoument() const -> std::string {
     std::string ret;
     
+#ifdef __cpp_lib_format
     // Format state name
     std::string_view stateName;
     switch (mState.load()) {
@@ -214,6 +218,7 @@ auto Element::toDocoument() const -> std::string {
     for (const auto &pad : mOutputPads) {
         formatPads(ret, pad);
     }
+#endif
 
     return ret;
 }
@@ -249,7 +254,9 @@ Graph::Graph() {
 
 }
 Graph::~Graph() {
-    
+    for (auto v : mElements) {
+        delete v;
+    }
 }
 void Graph::addElement(Element *element) {
     if (!element) {

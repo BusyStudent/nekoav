@@ -193,7 +193,7 @@ public:
  */
 class MediaQueue : public MediaElement {
 public:
-    virtual void setCapicity(size_t size) = 0;
+    virtual void setCapacity(size_t size) = 0;
     virtual auto size() const -> size_t = 0;
 };
 
@@ -219,14 +219,6 @@ public:
 class VideoPresenter : public MediaElement {
 public:
     
-};
-/**
- * @brief Present Video to a hwnd
- * 
- */
-class HwndPresenter : public MediaElement {
-public:
-    virtual void setHwnd(void *hwnd) = 0;
 };
 
 class AppSink       : public MediaElement {

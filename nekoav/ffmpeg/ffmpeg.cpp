@@ -301,6 +301,7 @@ public:
     Error teardown() override {
         avcodec_free_context(&mCtxt);
         av_frame_free(&mFrame);
+        mHardwareFmt = AV_PIX_FMT_NONE;
         return Error::Ok;
     }
     Error init() override {
@@ -318,21 +319,8 @@ public:
             return Error::Ok;
         }
         if (!mCtxt) {
-            auto codecpar = fmtctxt->streams[packet->stream_index]->codecpar;
-            auto codec = avcodec_find_decoder(codecpar->codec_id);
-            mCtxt = avcodec_alloc_context3(codec);
-            if (!mCtxt) {
-                return Error::OutOfMemory;
-            }
-            int ret = avcodec_parameters_to_context(mCtxt, codecpar);
-            if (ret < 0) {
-                avcodec_free_context(&mCtxt);
-                return Error::Unknown; //< TODO : Add more detailed error
-            }
-            ret = avcodec_open2(mCtxt, mCtxt->codec, nullptr);
-            if (ret < 0) {
-                avcodec_free_context(&mCtxt);
-                return Error::Unknown; //< TODO : Add more detailed error
+            if (auto err = initCodecContext(fmtctxt->streams[packet->stream_index]); err != Error::Ok) {
+                return err;
             }
         }
 
@@ -361,11 +349,107 @@ public:
         }
         return Error::Ok;
     }
+    Error initCodecContext(AVStream *stream) {
+        if (initHardwareCodecContext(stream) == Error::Ok) {
+            return Error::Ok;
+        }
+
+        auto codecpar = stream->codecpar;
+        auto codec = avcodec_find_decoder(codecpar->codec_id);
+        mCtxt = avcodec_alloc_context3(codec);
+        if (!mCtxt) {
+            return Error::OutOfMemory;
+        }
+        int ret = avcodec_parameters_to_context(mCtxt, codecpar);
+        if (ret < 0) {
+            avcodec_free_context(&mCtxt);
+            return Error::Unknown; //< TODO : Add more detailed error
+        }
+        ret = avcodec_open2(mCtxt, mCtxt->codec, nullptr);
+        if (ret < 0) {
+            avcodec_free_context(&mCtxt);
+            return Error::Unknown; //< TODO : Add more detailed error
+        }
+        return Error::Ok;
+    }
+    Error initHardwareCodecContext(AVStream *stream) {
+        auto codecpar = stream->codecpar;
+        auto codec = avcodec_find_decoder(codecpar->codec_id);
+        mCtxt = avcodec_alloc_context3(codec);
+        if (!mCtxt) {
+            return Error::OutOfMemory;
+        }
+        int ret = avcodec_parameters_to_context(mCtxt, codecpar);
+        if (ret < 0) {
+            avcodec_free_context(&mCtxt);
+            return Error::Unknown; //< TODO : Add more detailed error
+        }
+
+        // Query hardware here
+        const AVCodecHWConfig *conf = nullptr;
+        for (int i = 0; ; i++) {
+            conf = avcodec_get_hw_config(codec, i);
+            if (!conf) {
+                // Fail
+                avcodec_free_context(&mCtxt);
+                return Error::Unknown;
+            }
+
+            if (!(conf->methods & AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX)) {
+                continue;
+            }
+            // Got
+            auto hardwareType = conf->device_type;
+            mHardwareFmt = conf->pix_fmt;
+
+            // Override HW get format
+            mCtxt->opaque = this;
+            mCtxt->get_format = [](struct AVCodecContext *s, const enum AVPixelFormat * fmt) {
+                auto self = static_cast<FFDecoder*>(s->opaque);
+                auto p = fmt;
+                while (*p != AV_PIX_FMT_NONE) {
+                    if (*p == self->mHardwareFmt) {
+                        return self->mHardwareFmt;
+                    }
+                    if (*(p + 1) == AV_PIX_FMT_NONE) {
+                        // Fallback
+                        return *p;
+                    }
+                    p ++;
+                }
+                ::abort();
+                return AV_PIX_FMT_NONE;
+            };
+
+            
+            // Try init hw
+            AVBufferRef *hardwareDeviceCtxt = nullptr;
+            if (av_hwdevice_ctx_create(&hardwareDeviceCtxt, hardwareType, nullptr, nullptr, 0) < 0) {
+                // Failed
+                continue;
+            }
+            // hardwareCtxt->hw_device_ctx = av_buffer_ref(hardwareDeviceCtxt);
+            mCtxt->hw_device_ctx = hardwareDeviceCtxt;
+
+            // Init codec
+            if (avcodec_open2(mCtxt, codec, nullptr) < 0) {
+                continue;
+            }
+
+            // Done
+            return Error::Ok;
+        }
+
+        // Fail
+        avcodec_free_context(&mCtxt);
+        return Error::Unknown;
+    }
 private:
     AVCodecContext *mCtxt = nullptr;
     Pad            *mSinkPad = nullptr;
     Pad            *mSourcePad = nullptr;
     AVFrame        *mFrame = nullptr; //< Cached frame
+    AVPixelFormat   mHardwareFmt = AV_PIX_FMT_NONE;
 };
 class FFVideoConverter final : public VideoConverter {
 public:
@@ -381,7 +465,9 @@ public:
     }
     Error teardown() override {
         sws_freeContext(mCtxt);
+        av_frame_free(&mSwFrame);
         mPassThrough = false;
+        mCopyback = false;
         mCtxt = nullptr;
         return Error::Ok;
     }
@@ -403,11 +489,21 @@ public:
             return Error::Ok;
         }
 
+        auto srcFrame = frame->get();
+        if (mCopyback) {
+            assert(mSwFrame);
+            int ret = av_hwframe_transfer_data(mSwFrame, srcFrame, 0);
+            if (ret < 0) {
+                // Failed to transfer
+                return Error::Unknown;
+            }
+            srcFrame = mSwFrame;
+        }
+
         // TODO Finish it
 
         // Alloc frame and data
         auto dstFrame = av_frame_alloc();
-        auto srcFrame = frame->get();
         auto ret = av_image_alloc(
             dstFrame->data,
             dstFrame->linesize,
@@ -426,7 +522,7 @@ public:
         return mSourcePad->send(FFFrame::make(dstFrame).get());
     }
     Error initContext(AVFrame *f) {
-        AVPixelFormat fmt;
+        AVPixelFormat fmt = AV_PIX_FMT_RGBA;
         if (mTargetFormat == PixelFormat::None) {
             // Try get info by pad
             auto &pixfmt = mSourcePad->next()->property(MediaProperty::PixelFormatList);
@@ -449,8 +545,18 @@ public:
             fmt = ToAVPixelFormat(mTargetFormat);
         }
 
+        // Check need copyback
+        if (IsHardwareAVPixelFormat(AVPixelFormat(f->format))) {
+            mSwFrame = av_frame_alloc();
+            int ret = av_hwframe_transfer_data(mSwFrame, f, 0);
+            if (ret < 0) {
+                return Error::Unknown;
+            }
+            mCopyback = true;
+            f = mSwFrame;
+        }
+
         // Prepare sws conetxt
-        // TODO Finish it
         mCtxt = sws_getContext(
             f->width,
             f->height,
@@ -474,6 +580,7 @@ private:
     Pad        *mSinkPad = nullptr;
     Pad        *mSourcePad = nullptr;
     bool        mPassThrough = false;
+    bool        mCopyback = false;
     PixelFormat mTargetFormat = PixelFormat::None; //< If not None, force
 };
 
@@ -603,6 +710,11 @@ NEKO_CONSTRUCTOR(ffregister) {
 
     factory->registerElement<FFVideoConverter>("VideoConverter");
     factory->registerElement<VideoConverter, FFVideoConverter>();
+
+    // Register bultins
+    factory->registerElement<MediaQueue, CreateMediaQueue>();
+    factory->registerElement<AppSource, CreateAppSource>();
+    factory->registerElement<AppSink, CreateAppSink>();
 }
 
 NEKO_NS_END

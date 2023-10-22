@@ -117,17 +117,23 @@ TEST(CoreTest, PropertyTest) {
 TEST(CoreTest, Test1) {
     auto source = new TestElementSource();
     auto sink = new TestElementSink();
+    auto queue = CreateMediaQueue().release();
     Graph graph;
     graph.addElement(source);
     graph.addElement(sink);
+    graph.addElement(queue);
     graph.registerInterface<MyInterface>(source);
 
-    ASSERT_EQ(graph.hasCycle(), false);
-
-    if (auto v = source->linkWith("src", sink, "sink"); !v) {
+    if (auto v = source->linkWith("src", queue, "sink"); !v) {
         // Failed 
         ASSERT_EQ(v, true);
     }
+    if (auto v = queue->linkWith("src", sink, "sink"); !v) {
+        // Failed 
+        ASSERT_EQ(v, true);
+    }
+
+    ASSERT_EQ(graph.hasCycle(), false);
 
     Pipeline pipeline;
     pipeline.setGraph(&graph);

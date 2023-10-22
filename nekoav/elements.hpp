@@ -158,6 +158,17 @@ public:
     [[nodiscard]]
     auto linkWith(std::string_view source, View<Element> sink, std::string_view sinkName) -> bool;
     /**
+     * @brief Link the output pad to target pad with default pad name
+     * 
+     * @param sink The sink element name
+     * @return true 
+     * @return false 
+     */
+    [[nodiscard]]
+    auto linkWith(View<Element> sink) -> bool {
+        return linkWith("src", sink, "sink");
+    }
+    /**
      * @brief Get debug output string
      * 
      * @return std::string 
@@ -173,15 +184,69 @@ public:
 protected:
     Element();
 
+    /**
+     * @brief Create a input pad into it
+     * 
+     * @param name 
+     * @return Pad* 
+     */
     auto addInput(const char *name) -> Pad *;
+    /**
+     * @brief Create a output pad and add
+     * 
+     * @param name 
+     * @return Pad* 
+     */
     auto addOutput(const char *name) -> Pad *;
+    /**
+     * @brief Remove the input pad, this pad will be removed and deleted
+     * 
+     * @param pad 
+     */
     void removeInput(Pad *pad);
+    /**
+     * @brief Remove the output pad, this pad will be removed and deleted
+     * 
+     * @param pad 
+     */
     void removeOutput(Pad *pad);
+    /**
+     * @brief Remove all input pads
+     * 
+     */
     void removeAllInputs();
+    /**
+     * @brief Remove all output pads
+     * 
+     */
     void removeAllOutputs();
+    /**
+     * @brief Pull and execute task in task queue
+     * 
+     * @code {.cpp}
+     *  Error run() override {
+     *    if (state() != State::Stopped) {
+     *      dispatchTask();
+     *      Your code here
+     *    }
+     *  }
+     * @endcode
+     * 
+     * 
+     */
     void dispatchTask();
-    void waitTask();
+    /**
+     * @brief Pull and execute task in task queue with timeout
+     * 
+     * @param timeout Timeout (-1 in INF)
+     */
+    void waitTask(int timeout = -1);
 
+    /**
+     * @brief Callback notify you state was changed to newState
+     * 
+     * @param newState 
+     */
     virtual void stateChanged(State newState) { }
     virtual auto processInput(Pad &inputPad, View<Resource> resourceView) -> Error { return Error::NoImpl; }
     virtual auto teardown() -> Error { return Error::NoImpl; }
@@ -359,24 +424,64 @@ friend class Element;
 class NEKO_API Graph  {
 public:
     Graph();
+    Graph(const Graph &) = delete;
     ~Graph();
 
+    /**
+     * @brief Add a new element into Graph, ownship transfered to Graph
+     * 
+     * @param element 
+     */
     void addElement(Element *element);
+    /**
+     * @brief Remove a element in Graph, it will be deleted 
+     * 
+     * @param element 
+     */
     void removeElement(Element *element);
+    /**
+     * @brief Check the graph has circle
+     * 
+     * @return true 
+     * @return false 
+     */
     bool hasCycle() const;
 
+    /**
+     * @brief Add a new element into Graph, ownship transfered to Graph
+     * 
+     * @param element Box<> &&
+     */
     void addElement(Box<Element> &&element) {
         addElement(element.release());
     }
-
+    
+    /**
+     * @brief Register a interface into the Graph
+     * 
+     * @tparam T The interface type
+     * @param ptr 
+     */
     template <typename T>
     void registerInterface(T *ptr) {
         _registerInterface(typeid(T), ptr);
     }
+    /**
+     * @brief Unregister a interface into the Graph
+     * 
+     * @tparam T 
+     * @param ptr 
+     */
     template <typename T>
     void unregisterInterface(T *ptr) {
         _unregisterInterface(typeid(T), ptr);
     }
+    /**
+     * @brief Try to Get the registered interface in Queue
+     * 
+     * @tparam T The interface type
+     * @return T* 
+     */
     template <typename T>
     auto queryInterface() const -> T * {
         return static_cast<T *>(_queryInterface(typeid(T)));
@@ -411,7 +516,18 @@ public:
     Pipeline(const Pipeline &) = delete;
     ~Pipeline();
 
+    /**
+     * @brief Set the Graph to run
+     * @note This method doesnot take the ownship of the Graph, it just borrow
+     * 
+     * @param graph The graph ptr
+     */
     void setGraph(Graph *graph);
+    /**
+     * @brief Change the pipeline state
+     * 
+     * @param state 
+     */
     void setState(State state);
 
     void start() {

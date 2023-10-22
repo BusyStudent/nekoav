@@ -134,6 +134,7 @@ struct _Neko_TypeFormatter {
         ::_Neko_LogPath(__FILE__, __LINE__, NEKO_FUNCTION);          \
         ::fputs(_neko_logstr.c_str(), stderr);                       \
         ::fputc('\n', stderr);                                       \
+        ::fflush(stderr);                                            \
         }
     #define NEKO_LOG(...)                                            \
         {                                                            \
@@ -142,6 +143,7 @@ struct _Neko_TypeFormatter {
         ::_Neko_LogPath(__FILE__, __LINE__, NEKO_FUNCTION);          \
         ::fputs(_neko_logstr.c_str(), stderr);                       \
         ::fputc('\n', stderr);                                       \
+        ::fflush(stderr);                                            \
         }
 #else
     #define NEKO_DEBUG(x)

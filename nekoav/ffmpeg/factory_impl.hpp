@@ -5,21 +5,8 @@
 #include <typeindex>
 #include <map>
 
-#define NEKO_FF_REGISTER(interftype, type)      \
-    NEKO_CONSTRUCTOR(__##type##__reg) {         \
-        static_cast<FFElementFactory*>(         \
-            GetFFmpegFactory()                  \
-        )->registerElement<interftype, type>(); \
-    }
-#define NEKO_FF_REGISTER_NAME(name, type)       \
-    NEKO_CONSTRUCTOR(__##type##__regn) {        \
-        static_cast<FFElementFactory*>(         \
-            GetFFmpegFactory()                  \
-        )->registerElement<type>(name);         \
-    }
 
 NEKO_NS_BEGIN
-
 
 class FFElementFactory final : public ElementFactory {
 public:
@@ -49,9 +36,16 @@ public:
     void registerElement(std::string_view name, Box<Element> (*func)()) {
         mMap[name] = func;
     }
+    template <typename InterfaceType, Box<InterfaceType> (*FN)()>
+    void registerElement() {
+        registerElement(typeid(InterfaceType), []() -> Box<Element> {
+            return FN();
+        });
+    }
 
     template <typename InterfaceType, typename Type>
     void registerElement() {
+        static_assert(std::is_base_of_v<InterfaceType, Type>);
         registerElement(typeid(InterfaceType), make<Type>);
     }
     template <typename Type>

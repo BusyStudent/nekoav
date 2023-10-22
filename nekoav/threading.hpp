@@ -56,7 +56,7 @@ public:
      * 
      * @param timeoutMS 
      */
-    void waitTask(const int *timeoutMS = 0);
+    void waitTask(int timeoutMS = -1);
     /**
      * @brief Send a task into queue and wait for it finish
      * 

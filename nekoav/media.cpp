@@ -111,6 +111,49 @@ auto MediaPipeline::masterClock() const -> MediaClock * {
     return mMasterClock;
 }
 
+class MediaQueueImpl final : public MediaQueue {
+public:
+    MediaQueueImpl() {
+        setThreadPolicy(ThreadPolicy::SingleThread);
+        mSinkPad = addInput("sink");
+        mSourcePad = addOutput("src");
+    }
+    Error run() override {
+        while (state() != State::Stopped) {
+            waitTask(1);
+            sendData();
+        }
+        return Error::Ok;
+    }
+    Error processInput(Pad &, ResourceView resource) override {
+        // We should return as soon as possible
+        while (mQueue.size() > mCapacity) {
+            sendData();
+        }
+        mQueue.push(resource->shared_from_this());
+        return Error::Ok;
+    }
+    Error sendData() {
+        if (!mQueue.empty()) {
+            auto data = std::move(mQueue.front());
+            mQueue.pop();
+            return mSourcePad->send(data);
+        }
+        return Error::Ok;
+    }
+    void setCapacity(size_t n) override {
+        mCapacity = n;
+    }
+    size_t size() const override {
+        return mQueue.size();
+    }
+private:
+    std::queue<Arc<Resource> > mQueue;
+    Pad                       *mSourcePad = nullptr;
+    Pad                       *mSinkPad = nullptr;
+    size_t                     mCapacity = 1000;
+};
+
 class AppSourceImpl final : public AppSource {
 public:
     AppSourceImpl() {
@@ -132,6 +175,7 @@ public:
             return Error::InvalidState;
         }
         mQueue.push(res);
+        return Error::Ok;
     }
     size_t size() const override {
         return mQueue.size();
@@ -165,6 +209,9 @@ auto CreateAppSource() -> Box<AppSource> {
 }
 auto CreateAppSink() -> Box<AppSink> {
     return std::make_unique<AppSinkImpl>();
+}
+auto CreateMediaQueue() -> Box<MediaQueue> {
+    return std::make_unique<MediaQueueImpl>();
 }
 
 
