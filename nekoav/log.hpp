@@ -101,6 +101,8 @@
 
 #if   defined(_WIN32) && !defined(NEKO_NO_TTY_CHECK)
     #include <Windows.h>
+    #undef min
+    #undef max
 #elif defined(__linux) && !defined(NEKO_NO_TTY_CHECK)
     #include <unistd.h>
 #endif

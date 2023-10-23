@@ -23,6 +23,7 @@ public:
     static constexpr const char *Channels = "channels";
     static constexpr const char *SampleRate = "sampleRate";
     static constexpr const char *SampleFormat = "sampleFormat";
+    static constexpr const char *SampleFormatList = "sampleFormatList";
     static constexpr const char *Duration = "duration";
 
 private:
@@ -112,8 +113,9 @@ public:
     enum Query : int {
         Width,
         Height,
-        Channels,
+        Channels, 
         SampleRate,
+        SampleCount,  //< Number of samples, per channel
     };
     virtual auto query(Query q) const -> int = 0;
 
@@ -121,6 +123,7 @@ public:
     inline  auto height() const -> int { return query(Query::Height); }
     inline  auto channels() const -> int { return query(Query::Channels); }
     inline  auto sampleRate() const -> int { return query(Query::SampleRate); }
+    inline  auto sampleCount() const -> int { return query(Query::SampleCount); }
     inline  auto sampleFormat() const -> SampleFormat { return SampleFormat(format()); }
     inline  auto pixelFormat() const -> PixelFormat { return PixelFormat(format()); }
 };

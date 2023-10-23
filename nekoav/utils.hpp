@@ -5,6 +5,8 @@
 #ifdef _WIN32
     #include <Windows.h>
     #include <string>
+    #undef min
+    #undef max
 
     #define NEKO_LoadLibrary(name) ::LoadLibraryA(name)
     #define NEKO_GetProcAddress(handle, name) ::GetProcAddress((HMODULE)handle, name)
@@ -79,6 +81,7 @@
     }
 #endif
 
+// DLL Loader here
 #define neko_library_path(path) struct _loader_t {   \
     _loader_t() { handle = NEKO_LoadLibrary(path); } \
     ~_loader_t() { NEKO_FreeLibrary(handle); }       \
@@ -86,6 +89,9 @@
 } _library;                                          \
 bool isLoaded() const noexcept {                     \
     return _library.handle != nullptr;               \
+}                                                    \
+void *libraryHandle() const noexcept {               \
+    return _library.handle;                          \
 }
 #define neko_import_symbol_static(var, symbol) \
     static constexpr auto var = ::symbol;

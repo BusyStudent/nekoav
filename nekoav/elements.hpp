@@ -463,7 +463,12 @@ public:
      * @return std::vector<Element *> 
      */
     auto topologicalSort() const -> std::vector<Element *>;
-
+    /**
+     * @brief Get the debug info of the graph
+     * 
+     * @return std::string 
+     */
+    auto toDocoument() const -> std::string;
     /**
      * @brief Add a new element into Graph, ownship transfered to Graph
      * 
@@ -471,6 +476,14 @@ public:
      */
     void addElement(Box<Element> &&element) {
         addElement(element.release());
+    }
+
+    template <typename ...Args>
+    void addElements(Args &&...args) {
+        Element *array [] = { args... };
+        for (auto element : array) {
+            addElement(element);
+        }
     }
     
     /**

@@ -14,7 +14,7 @@
     #define NEKO_OPENCL_DLL_PATH "OpenCL.dll"
     #include <CL/cl_d3d11.h>
 #elif __linux__
-    #define NEKO_OPENCL_DLL_PATH "libOpenCL.so"
+    #define NEKO_OPENCL_DLL_PATH "libOpenCL.so.1"
 #else
     #error "Unsupported platform"
 #endif

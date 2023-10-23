@@ -1,6 +1,7 @@
 #define _NEKO_SOURCE
 #include "factory_impl.hpp"
 #include "ffmpeg.hpp"
+#include "../log.hpp"
 #include "../media.hpp"
 #include "../audio/device.hpp"
 #include <queue>
@@ -9,6 +10,7 @@
 
 extern "C" {
     #include <libavutil/imgutils.h>
+    #include <libswscale/version.h>
 }
 
 NEKO_NS_BEGIN
@@ -17,7 +19,7 @@ namespace {
 
 class FFFrame final : public MediaFrame {
 public:
-    explicit FFFrame(AVFrame* frame) : mFrame(frame) {
+    explicit FFFrame(AVFrame* frame, AVRational t) : mFrame(frame), mTimebase(t) {
 
     }
     ~FFFrame() {
@@ -40,10 +42,13 @@ public:
         return mFrame->format;
     }
     double timestamp() const override {
-        return mFrame->pts * av_q2d(mFrame->time_base);
+        // Because AVFrame's time_base is currently unused, so we have to carray it by ourself
+        // return mFrame->pts * av_q2d(mFrame->time_base);
+        return mFrame->pts * av_q2d(mTimebase);
     }
     double duration() const override {
-        return mFrame->pkt_duration * av_q2d(mFrame->time_base);
+        // return mFrame->pkt_duration * av_q2d(mFrame->time_base);
+        return mFrame->pkt_duration * av_q2d(mTimebase);
     }
     bool isKeyFrame() const override {
         return mFrame->key_frame;
@@ -66,18 +71,23 @@ public:
         switch (q) {
             case Query::Channels: return mFrame->channels;
             case Query::SampleRate: return mFrame->sample_rate;
+            case Query::SampleCount: return mFrame->nb_samples;
             case Query::Height: return mFrame->height;
             case Query::Width: return mFrame->width;
             default: return 0;
         }
     }
+    AVRational timebase() const noexcept {
+        return mTimebase;
+    }
 
-    static auto make(AVFrame *f) {
-        return make_shared<FFFrame>(f);
+    static auto make(AVFrame *f, AVRational timebase) {
+        return make_shared<FFFrame>(f, timebase);
     }
 private:
     std::mutex     mMutex;
     FFPtr<AVFrame> mFrame;
+    AVRational     mTimebase {0, 1};
 };
 
 template <typename T>
@@ -288,7 +298,7 @@ private:
     int              mAudioStreamIndex = -1;
     int              mSubtitleStreamIndex = -1;
 };
-class FFDecoder : public Decoder {
+class FFDecoder final : public Decoder {
 public:
     FFDecoder() {
         mSinkPad = addInput("sink");
@@ -314,12 +324,13 @@ public:
         }
         auto fmtctxt = res->formatContext;
         auto packet = res->get();
+        auto stream = fmtctxt->streams[packet->stream_index];
         if (!packet) {
             avcodec_flush_buffers(mCtxt);
             return Error::Ok;
         }
         if (!mCtxt) {
-            if (auto err = initCodecContext(fmtctxt->streams[packet->stream_index]); err != Error::Ok) {
+            if (auto err = initCodecContext(stream); err != Error::Ok) {
                 return err;
             }
         }
@@ -341,7 +352,7 @@ public:
                 return Error::Unknown;
             }
 
-            auto resource = FFFrame::make(mFrame);
+            auto resource = FFFrame::make(mFrame, stream->time_base);
             mFrame = nullptr; //< Move ownship
             if (mSourcePad) {
                 mSourcePad->send(resource.get());
@@ -466,7 +477,7 @@ public:
     Error teardown() override {
         sws_freeContext(mCtxt);
         av_frame_free(&mSwFrame);
-        mPassThrough = false;
+        mPassthrough = false;
         mCopyback = false;
         mCtxt = nullptr;
         return Error::Ok;
@@ -479,12 +490,12 @@ public:
         if (!mSourcePad->isLinked()) {
             return Error::NoConnection;
         }
-        if (!mCtxt && !mPassThrough) {
+        if (!mCtxt && !mPassthrough) {
             if (auto err = initContext(frame->get()); err != Error::Ok) {
                 return err;
             }
         }
-        if (mPassThrough) {
+        if (mPassthrough) {
             mSourcePad->send(resourceView);
             return Error::Ok;
         }
@@ -515,11 +526,13 @@ public:
         if (ret < 0) {
             return Error::OutOfMemory;
         }
-        ret = sws_scale_frame(mCtxt, dstFrame, srcFrame);
+        ret = sws_scale_frame(mCtxt, dstFrame, srcFrame);        
         if (ret < 0) {
+            av_frame_free(&dstFrame);
             return Error::OutOfMemory;
         }
-        return mSourcePad->send(FFFrame::make(dstFrame).get());
+        av_frame_copy_props(dstFrame, srcFrame);
+        return mSourcePad->send(FFFrame::make(dstFrame, frame->timebase()).get());
     }
     Error initContext(AVFrame *f) {
         AVPixelFormat fmt = AV_PIX_FMT_RGBA;
@@ -529,13 +542,13 @@ public:
             if (pixfmt.isNull()) {
                 // Unsupport, Just Passthrough
                 // return Error::InvalidTopology;
-                mPassThrough = true;
+                mPassthrough = true;
                 return Error::Ok;
             }
             for (const auto &v : pixfmt.toList()) {
                 fmt = ToAVPixelFormat(v.toEnum<PixelFormat>());
                 if (fmt == AVPixelFormat(f->format)) {
-                    mPassThrough = true;
+                    mPassthrough = true;
                     return Error::Ok;
                 }
             }
@@ -579,19 +592,123 @@ private:
     AVFrame    *mSwFrame = nullptr; //< Used when hardware format
     Pad        *mSinkPad = nullptr;
     Pad        *mSourcePad = nullptr;
-    bool        mPassThrough = false;
+    bool        mPassthrough = false;
     bool        mCopyback = false;
     PixelFormat mTargetFormat = PixelFormat::None; //< If not None, force
 };
+class FFAudioConverter final : public AudioConverter {
+public:
+    FFAudioConverter() {
+        mSinkPad = addInput("sink");
+        mSourcePad = addOutput("src");
+    }
+    Error init() override {
+        return Error::Ok;
+    }
+    Error teardown() override {
+        swr_free(&mCtxt);
+        mPassthrough = false;
+        mSwrFormat = AV_SAMPLE_FMT_NONE;
+        return Error::Ok;
+    }
+    Error processInput(Pad &, ResourceView resourceView) override {
+        auto frame = resourceView.viewAs<FFFrame>();
+        if (!frame) {
+            return Error::UnsupportedResource;
+        }
+        if (!mSourcePad->isLinked()) {
+            return Error::NoConnection;
+        }
+        if (!mCtxt && !mPassthrough) {
+            if (auto err = initContext(frame->get()); err != Error::Ok) {
+                return err;
+            }
+        }
+        if (mPassthrough) {
+            mSourcePad->send(resourceView);
+            return Error::Ok;
+        }
 
+        // Alloc frame and data
+        auto dstFrame = av_frame_alloc();
+        dstFrame->format = mSwrFormat;
+        dstFrame->channel_layout = frame->get()->channel_layout;
+        dstFrame->sample_rate = frame->get()->sample_rate;
+
+        auto ret = swr_convert_frame(mCtxt, dstFrame, frame->get());
+        if (ret < 0) {
+            av_frame_free(&dstFrame);
+            return Error::UnsupportedFormat;
+        }
+
+        // Copy metadata
+        av_frame_copy_props(dstFrame, frame->get());
+
+        return mSourcePad->send(FFFrame::make(dstFrame, frame->timebase()).get());
+    }
+    Error initContext(AVFrame *frame) {
+        AVSampleFormat fmt;
+        auto &spfmt = mSourcePad->next()->property(MediaProperty::SampleFormatList);
+        if (spfmt.isNull()) {
+            mPassthrough = true;
+            return Error::Ok;
+        }
+        for (const auto &v : spfmt.toList()) {
+            fmt = ToAVSampleFormat(v.toEnum<SampleFormat>());
+            if (fmt == AVSampleFormat(frame->format)) {
+                mPassthrough = true;
+                return Error::Ok;
+            }
+        }
+
+        // Make a convert context
+        mCtxt = swr_alloc_set_opts(
+            nullptr,
+            frame->channel_layout,
+            fmt,
+            frame->sample_rate,
+            frame->channel_layout,
+            AVSampleFormat(frame->format),
+            frame->sample_rate,
+            0,
+            nullptr
+        );
+
+        if (!mCtxt) {
+            return Error::OutOfMemory;
+        }
+        if (swr_init(mCtxt) < 0) {
+            return Error::Unknown;
+        }
+        mSwrFormat = fmt;
+        return Error::Ok;
+    }
+    void setSampleFormat(SampleFormat fmt) override {
+
+    }
+private:
+    AVSampleFormat mSwrFormat = AV_SAMPLE_FMT_NONE;
+    bool        mPassthrough = false;
+    SwrContext *mCtxt = nullptr;
+    Pad        *mSinkPad = nullptr;
+    Pad        *mSourcePad = nullptr;
+};
 /**
  * @brief Present for ffmpeg audio
  * 
  */
-class FFAudioPresenter : public AudioPresenter, MediaClock {
+class FFAudioPresenter final : public AudioPresenter, MediaClock {
 public:
     FFAudioPresenter() {
-        addInput("sink");
+        auto pad = addInput("sink");
+        auto list = Property::newList();
+
+        list.push_back(SampleFormat::U8);
+        list.push_back(SampleFormat::S16);
+        list.push_back(SampleFormat::S32);
+        list.push_back(SampleFormat::FLT);
+
+        pad->property(MediaProperty::SampleFormatList) = std::move(list);
     }
     ~FFAudioPresenter() {
 
@@ -599,7 +716,9 @@ public:
 
     Error init() override {
         mDevice = CreateAudioDevice();
-        // mDevice->setCallback(std::bind(&FFAudioPresenter::audioCallback, this));
+        mDevice->setCallback([this](void *buf, int len) {
+            audioCallback(buf, len);
+        });
 
         mController = graph()->queryInterface<MediaController>();
         if (mController) {
@@ -623,7 +742,7 @@ public:
         if (!mOpened) {
             // Try open it
             mOpened = mDevice->open(frame->sampleFormat(), frame->sampleRate(), frame->channels());
-            if (mOpened) {
+            if (!mOpened) {
                 return Error::UnsupportedFormat;
             }
             // Start it
@@ -633,6 +752,7 @@ public:
         // Is Opened, write to queue
         std::lock_guard lock(mMutex);
         mFrames.push(frame->shared_from_this<MediaFrame>());
+        return Error::Ok;
     }
 
     double position() const override {
@@ -641,7 +761,8 @@ public:
     Type type() const override {
         return Audio;
     }
-    void audioCallback(uint8_t *buf, int len) {
+    void audioCallback(void *_buf, int len) {
+        auto buf = reinterpret_cast<uint8_t*>(_buf);
         while (len > 0) {
             // No current frame
             if (!mCurrentFrame) {
@@ -657,7 +778,10 @@ public:
                 mPosition = mCurrentFrame->timestamp();
             }
             void *frameData = mCurrentFrame->data(0);
-            int frameLen = mCurrentFrame->linesize(0);
+            // int frameLen = mCurrentFrame->linesize(0);
+            int frameLen = mCurrentFrame->sampleCount() * 
+                           mCurrentFrame->channels() * 
+                           GetBytesPerSample(mCurrentFrame->sampleFormat());
             int bytes = std::min(len, frameLen - mCurrentFramePosition);
             memcpy(buf, (uint8_t*) frameData + mCurrentFramePosition, bytes);
 
@@ -671,6 +795,7 @@ public:
 #else
             mPosition  = mPosition + mCurrentFrame->duration() * bytes / frameLen;
 #endif
+            NEKO_DEBUG(mPosition.load());
 
             if (mCurrentFramePosition == frameLen) {
                 mCurrentFrame.reset();
@@ -678,6 +803,7 @@ public:
             }
         }
         if (len > 0) {
+            NEKO_DEBUG("No Audio data!!!!");
             ::memset(buf, 0, len);
         }
     }
@@ -710,6 +836,12 @@ NEKO_CONSTRUCTOR(ffregister) {
 
     factory->registerElement<FFVideoConverter>("VideoConverter");
     factory->registerElement<VideoConverter, FFVideoConverter>();
+
+    factory->registerElement<FFAudioConverter>("AudioConverter");
+    factory->registerElement<AudioConverter, FFAudioConverter>();
+
+    factory->registerElement<FFAudioPresenter>("AudioPresenter");
+    factory->registerElement<AudioPresenter, FFAudioPresenter>();
 
     // Register bultins
     factory->registerElement<MediaQueue, CreateMediaQueue>();

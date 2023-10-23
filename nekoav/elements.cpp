@@ -209,6 +209,7 @@ auto Element::toDocoument() const -> std::string {
         }
     };
 
+    std::format_to(std::back_inserter(ret), "Thread: {:#010x}\n", uintptr_t(mWorkthread));
     std::format_to(std::back_inserter(ret), "State: {}\n", stateName);
     std::format_to(std::back_inserter(ret), "Inputs: {}\n", mInputPads.size());
     for (const auto &pad : mInputPads) {
@@ -287,7 +288,7 @@ bool Graph::hasCycle() const {
     return true;
 }
 
-std::vector<Element *> Graph::topologicalSort() const {
+auto Graph::topologicalSort() const -> std::vector<Element *> {
     std::map<Element*, int> inDeg;
 
     // Init all element in map
@@ -330,6 +331,27 @@ std::vector<Element *> Graph::topologicalSort() const {
         return sourcesElement;
     }
     return std::vector<Element *>();
+}
+auto Graph::toDocoument() const -> std::string {
+    auto sorted = topologicalSort();
+    if (sorted.empty()) {
+        return std::string();
+    }
+
+    std::string ret;
+#ifdef __cpp_lib_format
+    std::format_to(std::back_inserter(ret), "Graph Elements count {}\n", sorted.size());
+    for (const auto elem : sorted) {
+        std::format_to(std::back_inserter(ret), "Element impl type {}\n", typeid(*elem).name());
+        for (auto view : std::views::split(elem->toDocoument(), '\n')) {
+            ret += "  ";
+            ret += std::string_view(view.begin(), view.end());
+            ret += '\n';
+        }
+    }
+#endif
+
+    return ret;
 }
 
 void Graph::_registerInterface(std::type_index info, void *ptr) {

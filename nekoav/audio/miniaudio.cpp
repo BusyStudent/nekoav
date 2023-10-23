@@ -44,6 +44,7 @@ public:
         config.playback.format = fmt;
         config.playback.channels = channels;
         config.sampleRate = rate;
+        config.pUserData = this;
         config.dataCallback = [](ma_device* device, void* output, const void* input, ma_uint32 frameCount) {
             MiniAudioDevice* self = static_cast<MiniAudioDevice*>(device->pUserData);
             self->invoke(output, ma_get_bytes_per_frame(device->playback.format, device->playback.channels) * frameCount);
@@ -69,10 +70,10 @@ public:
             return false;
         }
         if (v) {
-            return ma_device_start(&mDevice) == MA_SUCCESS;
+            return ma_device_stop(&mDevice) == MA_SUCCESS;
         }
         else {
-            return ma_device_stop(&mDevice) == MA_SUCCESS;
+            return ma_device_start(&mDevice) == MA_SUCCESS;
         }
     }
     bool isPaused() const override {

@@ -7,6 +7,7 @@
 #include <QFileDialog>
 #include <QTextEdit>
 #include <QLabel>
+#include <iostream>
 #include "../nekoav/ffmpeg/factory.hpp"
 #include "../nekoav/backtrace.hpp"
 #include "../nekoav/format.hpp"
@@ -82,27 +83,49 @@ int main(int argc, char **argv) {
     // Init Graph
     auto factory = GetFFmpegFactory();
     auto demuxer = factory->createElement<Demuxer>().release();
-    auto decoder = factory->createElement<Decoder>().release();
-    auto converter = factory->createElement<VideoConverter>().release();
+
+    auto adecoder = factory->createElement<Decoder>().release();
+    auto aconverter = factory->createElement<AudioConverter>().release();
+    auto apresenter = factory->createElement<AudioPresenter>().release();
+
+    auto vdecoder = factory->createElement<Decoder>().release();
+    auto vconverter = factory->createElement<VideoConverter>().release();
     auto sink = new ImageSink(ltb);
 
     demuxer->setLoadedCallback([&]() {
         NEKO_DEBUG(*demuxer);
         for (auto pad : demuxer->outputs()) {
             if (pad->isVideo()) {
-                demuxer->linkWith(pad->name(), decoder, "sink");
-                return;
+                demuxer->linkWith(pad->name(), vdecoder, "sink");
+                break;
+            }
+        }
+        for (auto pad : demuxer->outputs()) {
+            if (pad->isAudio()) {
+                demuxer->linkWith(pad->name(), adecoder, "sink");
+                break;
             }
         }
     });
 
-    decoder->linkWith("src", converter, "sink");
-    converter->linkWith("src", sink, "sink");
+    vdecoder->linkWith("src", vconverter, "sink");
+    vconverter->linkWith("src", sink, "sink");
 
-    graph.addElement(demuxer);
-    graph.addElement(decoder);
-    graph.addElement(converter);
-    graph.addElement(sink);
+    adecoder->linkWith("src", aconverter, "sink");
+    aconverter->linkWith("src", apresenter, "sink");
+
+    // graph.addElement(demuxer);
+
+    // graph.addElement(vdecoder);
+    // graph.addElement(vconverter);
+    // graph.addElement(sink);
+
+    // graph.addElement(adecoder);
+    // graph.addElement(aconverter);
+    // graph.addElement(apresenter);
+    graph.addElements(demuxer, vdecoder, vconverter, sink, adecoder, aconverter, apresenter);
+
+    std::cout << graph.toDocoument() << std::endl;
 
     QObject::connect(btn, &QPushButton::clicked, [&](bool) {
         auto url = QFileDialog::getOpenFileUrl(nullptr, "Open File");

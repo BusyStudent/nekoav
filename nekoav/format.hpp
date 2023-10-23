@@ -56,6 +56,7 @@ inline bool IsSampleFormatPlanar(SampleFormat fmt) {
 }
 inline size_t GetBytesPerSample(SampleFormat fmt) {
     switch (fmt) {
+        default: return 0;
         case SampleFormat::None: return 0;
         
         case SampleFormat::U8: return sizeof(uint8_t);
