@@ -492,12 +492,9 @@ void Pipeline::_doInit() {
     auto threadElement = std::vector(threadElementsView.begin(), threadElementsView.end());
 
     auto walkAndSet = [this](auto &&self, Element *currentElement, Thread *thread) {
-        if (currentElement->threadPolicy() == ThreadPolicy::SingleThread) {
-            return; //< Stop on this
-        }
         if (currentElement->thread() == d->mSharedThread) {
             // Got it, has no workers
-            NEKO_LOG("Set Element {} to thread {}", currentElement, thread);
+            NEKO_LOG("Set Element {} : {} to thread {}", currentElement, typeid(*currentElement), thread);
             currentElement->setThread(thread);
         }
         if (currentElement->thread() != thread) {
@@ -506,7 +503,8 @@ void Pipeline::_doInit() {
         }
 
         for (const auto &pad : currentElement->outputs()) {
-            if (pad->nextElement()) {
+            // Stop if is a thread element
+            if (pad->nextElement() && pad->nextElement()->threadPolicy() != ThreadPolicy::SingleThread) {
                 self(self, pad->nextElement(), thread);
             }
         }
@@ -529,7 +527,7 @@ void Pipeline::_doInit() {
         element->setThread(thread);
 
         NEKO_LOG("Alloc thread {}", thread);
-        NEKO_LOG("Set Element {} to thread {}", element, thread);
+        NEKO_LOG("Set Element {} : {} to thread {}", element, typeid(*element), thread);
 
         // Set Thread below
         walkAndSet(walkAndSet, element, thread);

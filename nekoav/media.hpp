@@ -8,6 +8,9 @@
 
 NEKO_NS_BEGIN
 
+class AudioDevice;
+class VideoRenderer;
+
 inline namespace _abiv1 {
 
 /**
@@ -217,11 +220,11 @@ public:
 
 class AudioPresenter : public MediaElement {
 public:
-
+    virtual void setDevice(AudioDevice *device = nullptr) = 0;
 };
 class VideoPresenter : public MediaElement {
 public:
-    
+    virtual void setRenderer(VideoRenderer *renderer = nullptr) = 0;
 };
 
 class AppSink       : public MediaElement {

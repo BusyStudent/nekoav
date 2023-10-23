@@ -3,7 +3,6 @@
 #include "ffmpeg.hpp"
 #include "../log.hpp"
 #include "../media.hpp"
-#include "../audio/device.hpp"
 #include <queue>
 #include <mutex>
 #include <map>
@@ -513,20 +512,44 @@ public:
 
         // TODO Finish it
 
-        // Alloc frame and data
+        // Alloc frame
         auto dstFrame = av_frame_alloc();
-        auto ret = av_image_alloc(
+        auto ret = 0;
+
+        // New version of api
+#if     LIBSWSCALE_VERSION_INT > AV_VERSION_INT(6, 1, 100)
+        ret = sws_scale_frame(mCtxt, dstFrame, srcFrame);        
+#else
+        // Use old one, alloc data
+        auto n = av_image_get_buffer_size(mSwsFormat, srcFrame->width, srcFrame->height, 32);
+        auto buffer = av_buffer_alloc(n);
+        ret = av_image_fill_arrays(
             dstFrame->data,
             dstFrame->linesize,
+            buffer->data,
+            mSwsFormat,
             srcFrame->width,
             srcFrame->height,
-            AVPixelFormat(srcFrame->format),
-            0
+            32
         );
         if (ret < 0) {
+            av_buffer_unref(&buffer);
             return Error::OutOfMemory;
         }
-        ret = sws_scale_frame(mCtxt, dstFrame, srcFrame);        
+        dstFrame->buf[0] = buffer;
+        ret = sws_scale(
+            mCtxt,
+            srcFrame->data,
+            srcFrame->linesize,
+            0,
+            srcFrame->height,
+            dstFrame->data,
+            dstFrame->linesize
+        );
+        dstFrame->width = srcFrame->width;
+        dstFrame->height = srcFrame->height;
+        dstFrame->format = mSwsFormat;
+#endif
         if (ret < 0) {
             av_frame_free(&dstFrame);
             return Error::OutOfMemory;
@@ -585,6 +608,7 @@ public:
         if (!mCtxt) {
             return Error::Unknown;
         }
+        mSwsFormat = fmt;
         return Error::Ok;
     }
 private:
@@ -595,6 +619,7 @@ private:
     bool        mPassthrough = false;
     bool        mCopyback = false;
     PixelFormat mTargetFormat = PixelFormat::None; //< If not None, force
+    AVPixelFormat mSwsFormat = AV_PIX_FMT_NONE; //< Current target format
 };
 class FFAudioConverter final : public AudioConverter {
 public:
@@ -693,133 +718,6 @@ private:
     Pad        *mSinkPad = nullptr;
     Pad        *mSourcePad = nullptr;
 };
-/**
- * @brief Present for ffmpeg audio
- * 
- */
-class FFAudioPresenter final : public AudioPresenter, MediaClock {
-public:
-    FFAudioPresenter() {
-        auto pad = addInput("sink");
-        auto list = Property::newList();
-
-        list.push_back(SampleFormat::U8);
-        list.push_back(SampleFormat::S16);
-        list.push_back(SampleFormat::S32);
-        list.push_back(SampleFormat::FLT);
-
-        pad->property(MediaProperty::SampleFormatList) = std::move(list);
-    }
-    ~FFAudioPresenter() {
-
-    }
-
-    Error init() override {
-        mDevice = CreateAudioDevice();
-        mDevice->setCallback([this](void *buf, int len) {
-            audioCallback(buf, len);
-        });
-
-        mController = graph()->queryInterface<MediaController>();
-        if (mController) {
-            mController->addClock(this);
-        }
-        return Error::Ok;
-    }
-    Error teardown() override {
-        mDevice.reset();
-        if (mController) {
-            mController->removeClock(this);
-        }
-        mController = nullptr;
-        return Error::Ok;
-    }
-    Error processInput(Pad &, ResourceView resourceView) override {
-        auto frame = resourceView.viewAs<MediaFrame>();
-        if (!frame) {
-            return Error::UnsupportedResource;
-        }
-        if (!mOpened) {
-            // Try open it
-            mOpened = mDevice->open(frame->sampleFormat(), frame->sampleRate(), frame->channels());
-            if (!mOpened) {
-                return Error::UnsupportedFormat;
-            }
-            // Start it
-            mDevice->pause(false);
-        }
-
-        // Is Opened, write to queue
-        std::lock_guard lock(mMutex);
-        mFrames.push(frame->shared_from_this<MediaFrame>());
-        return Error::Ok;
-    }
-
-    double position() const override {
-        return mPosition;
-    }
-    Type type() const override {
-        return Audio;
-    }
-    void audioCallback(void *_buf, int len) {
-        auto buf = reinterpret_cast<uint8_t*>(_buf);
-        while (len > 0) {
-            // No current frame
-            if (!mCurrentFrame) {
-                std::lock_guard lock(mMutex);
-                if (mFrames.empty()) {
-                    break;
-                }
-                mCurrentFramePosition = 0; //< Reset position
-                mCurrentFrame = std::move(mFrames.front());
-                mFrames.pop();
-
-                // Update audio clock
-                mPosition = mCurrentFrame->timestamp();
-            }
-            void *frameData = mCurrentFrame->data(0);
-            // int frameLen = mCurrentFrame->linesize(0);
-            int frameLen = mCurrentFrame->sampleCount() * 
-                           mCurrentFrame->channels() * 
-                           GetBytesPerSample(mCurrentFrame->sampleFormat());
-            int bytes = std::min(len, frameLen - mCurrentFramePosition);
-            memcpy(buf, (uint8_t*) frameData + mCurrentFramePosition, bytes);
-
-            mCurrentFramePosition += bytes;
-            buf += bytes;
-            len -= bytes;
-
-            // Update audio clock
-#if         NEKO_CXX20
-            mPosition += mCurrentFrame->duration() * bytes / frameLen;
-#else
-            mPosition  = mPosition + mCurrentFrame->duration() * bytes / frameLen;
-#endif
-            NEKO_DEBUG(mPosition.load());
-
-            if (mCurrentFramePosition == frameLen) {
-                mCurrentFrame.reset();
-                mCurrentFramePosition = 0;
-            }
-        }
-        if (len > 0) {
-            NEKO_DEBUG("No Audio data!!!!");
-            ::memset(buf, 0, len);
-        }
-    }
-private:
-    MediaController *mController = nullptr;
-    Atomic<double>   mPosition {0.0}; //< Current media clock position
-    Box<AudioDevice> mDevice;
-    bool             mPaused = false;
-    bool             mOpened = false;
-
-    // Audio Callback data
-    std::mutex                   mMutex;
-    std::queue<Arc<MediaFrame> > mFrames;
-    Arc<MediaFrame>              mCurrentFrame;
-    int                          mCurrentFramePosition = 0;
-};
 
 }
 
@@ -840,10 +738,9 @@ NEKO_CONSTRUCTOR(ffregister) {
     factory->registerElement<FFAudioConverter>("AudioConverter");
     factory->registerElement<AudioConverter, FFAudioConverter>();
 
-    factory->registerElement<FFAudioPresenter>("AudioPresenter");
-    factory->registerElement<AudioPresenter, FFAudioPresenter>();
 
     // Register bultins
+    factory->registerElement<AudioPresenter, CreateAudioPresenter>();
     factory->registerElement<MediaQueue, CreateMediaQueue>();
     factory->registerElement<AppSource, CreateAppSource>();
     factory->registerElement<AppSink, CreateAppSink>();
