@@ -481,7 +481,7 @@ public:
         mCtxt = nullptr;
         return Error::Ok;
     }
-    Error processInput(Pad &, ResourceView resourceView) {
+    Error processInput(Pad &, ResourceView resourceView) override {
         auto frame = resourceView.viewAs<FFFrame>();
         if (!frame) {
             return Error::UnsupportedResource;

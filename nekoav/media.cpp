@@ -121,6 +121,9 @@ public:
         mSinkPad = addInput("sink");
         mSourcePad = addOutput("src");
     }
+    ~MediaQueueImpl() {
+
+    }
     Error run() override {
         while (state() != State::Stopped) {
             waitTask(1);

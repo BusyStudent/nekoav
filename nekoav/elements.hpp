@@ -63,7 +63,7 @@ enum class ThreadPolicy {
  */
 class NEKO_API Element {
 public:
-    ~Element();
+    virtual ~Element();
 
     /**
      * @brief Get the state
