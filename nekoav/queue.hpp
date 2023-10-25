@@ -49,12 +49,7 @@ public:
     T      pop() {
         std::unique_lock locker(mMutex);
         while (mQueue.empty()) {
-            locker.unlock();
-
-            std::unique_lock condLocker(mConditionMutex);
-            mCondition.wait(condLocker);
-
-            locker.lock();
+            mCondition.wait(locker);
         }
         auto value = std::move(mQueue.front());
         mQueue.pop();
@@ -64,18 +59,12 @@ public:
     bool wait(T *value, int milliseconds = -1) {
         std::unique_lock locker(mMutex);
         while (mQueue.empty()) {
-            locker.unlock();
-
             if (milliseconds == -1) {
-                std::unique_lock condLocker(mConditionMutex);
-                mCondition.wait(condLocker);
+                mCondition.wait(locker);
             }
             else {
-                std::unique_lock condLocker(mConditionMutex);
-                mCondition.wait_for(condLocker, std::chrono::milliseconds(milliseconds));
+                mCondition.wait_for(locker, std::chrono::milliseconds(milliseconds));
             }
-
-            locker.lock();
         }
         *value = std::move(mQueue.front());
         mQueue.pop();
@@ -97,7 +86,6 @@ public:
 private:
     std::queue<T>           mQueue;
     std::condition_variable mCondition;
-    std::mutex              mConditionMutex;
     mutable std::mutex      mMutex;
 };
 

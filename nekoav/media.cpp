@@ -3,6 +3,8 @@
 #include "queue.hpp"
 #include "format.hpp"
 #include "audio/device.hpp"
+#include "video/renderer.hpp"
+#include "time.hpp"
 #include "log.hpp"
 #include <chrono>
 #include <queue>
@@ -12,12 +14,6 @@ NEKO_NS_BEGIN
 namespace _abiv1 {
 
 namespace chrono = std::chrono;
-
-static auto GetTicks() {
-    return chrono::duration_cast<chrono::milliseconds>(
-        chrono::steady_clock::now().time_since_epoch()
-    ).count();
-}
 
 ExternalClock::ExternalClock() {
 
@@ -126,13 +122,17 @@ public:
     }
     Error run() override {
         while (state() != State::Stopped) {
-            waitTask(1);
-            sendData();
+            waitTask(); //< 0n Idle
+            while (!mQueue.empty()) {
+                dispatchTask();
+                sendData();
+            }
         }
         return Error::Ok;
     }
     Error processInput(Pad &, ResourceView resource) override {
         // We should return as soon as possible
+        // NEKO_DEBUG(mQueue.size());
         while (mQueue.size() > mCapacity) {
             sendData();
         }
@@ -144,6 +144,12 @@ public:
             auto data = std::move(mQueue.front());
             mQueue.pop();
             return mSourcePad->send(data);
+        }
+        return Error::Ok;
+    }
+    Error teardown() override {
+        while (!mQueue.empty()) {
+            mQueue.pop();
         }
         return Error::Ok;
     }
@@ -208,6 +214,94 @@ public:
 private:
     BlockingQueue<Arc<Resource> > mQueue;
     Pad                          *mSinkPad = nullptr;
+};
+class VideoPresenterImpl final : public VideoPresenter, MediaClock {
+public:
+    VideoPresenterImpl() {
+        setThreadPolicy(ThreadPolicy::SingleThread);
+        
+        mSinkPad = addInput("sink");
+    }
+    ~VideoPresenterImpl() {
+
+    }
+    Error init() override {
+        mController = graph()->queryInterface<MediaController>();
+        if (!mController) {
+            return Error::InvalidState;
+        }
+        if (!mRenderer) {
+            return Error::InvalidState;
+        }
+        mController->addClock(this);
+        mRenderer->init();
+
+        // Query the prop and add it to it
+        auto list = Property::newList();
+        for (auto fmt : mRenderer->supportedFormats()) {
+            list.push_back(fmt);
+        }
+        mSinkPad->property(MediaProperty::PixelFormatList) = std::move(list);
+        return Error::Ok;
+    }
+    Error teardown() override {
+        if (!mRenderer) {
+            return Error::InvalidState;
+        }
+        mSinkPad->properties().clear();
+        mRenderer->teardown();
+        mController->removeClock(this);
+        mController = nullptr;
+        return Error::Ok;
+    }
+    Error run() override {
+        while (state() != State::Stopped) {
+            waitTask();
+        }
+        return Error::Ok;
+    }
+    Error processInput(Pad &pad, ResourceView resourceView) {
+        // Draw frame out
+        auto frame = resourceView.viewAs<MediaFrame>();
+        if (!frame) {
+            return Error::UnsupportedResource;
+        }
+        auto pts = frame->timestamp();
+        auto diff = mController->masterClock()->position() - pts;
+        if (diff < -0.01) {
+            // Too fast
+            std::this_thread::sleep_for(std::chrono::milliseconds(int64_t(-diff * 1000)));
+        }
+        else if (diff > 0.3) {
+            // Too slow, drop
+            NEKO_DEBUG("Too slow, drop");
+            NEKO_DEBUG(diff);
+            return Error::Ok;
+        }
+        else {
+            // Normal, sleep by duration
+            auto delay = std::min(diff, frame->duration());
+            std::this_thread::sleep_for(std::chrono::milliseconds(int64_t(delay * 1000)));
+        }
+
+        mRenderer->sendFrame(frame);
+        mPosition = pts;
+        return Error::Ok;
+    }
+    void setRenderer(VideoRenderer *render) override {
+        mRenderer = render;
+    }
+    double position() const override {
+        return mPosition.load();
+    }
+    Type type() const override {
+        return Video;
+    }
+private:
+    Pad             *mSinkPad = nullptr;
+    Atomic<double>   mPosition {0.0}; //< Current media clock position
+    MediaController *mController = nullptr;
+    VideoRenderer   *mRenderer = nullptr;
 };
 /**
  * @brief Present for generic audio
@@ -351,6 +445,9 @@ auto CreateMediaQueue() -> Box<MediaQueue> {
 }
 auto CreateAudioPresenter() -> Box<AudioPresenter> {
     return std::make_unique<AudioPresenterImpl>();
+}
+auto CreateVideoPresenter() -> Box<VideoPresenter> {
+    return std::make_unique<VideoPresenterImpl>();
 }
 
 

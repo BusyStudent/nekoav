@@ -135,6 +135,11 @@ class MediaPacket : public Resource {
 public:
     virtual void lock() = 0;
     virtual void unlock() = 0;
+
+    virtual auto size() const -> int64_t = 0;
+    virtual auto data() const -> void * = 0;
+    virtual auto duration() const -> double = 0;
+    virtual auto timestamp() const -> double = 0;
 };
 
 

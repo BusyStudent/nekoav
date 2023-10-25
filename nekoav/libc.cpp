@@ -11,6 +11,9 @@ void *malloc(size_t n) {
 void  free(void *ptr) {
     return std::free(ptr);
 }
+void  sleep(int ms) {
+
+}
 
 }
 

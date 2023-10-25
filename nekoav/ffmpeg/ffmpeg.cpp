@@ -3,6 +3,7 @@
 #include "ffmpeg.hpp"
 #include "../log.hpp"
 #include "../media.hpp"
+#include "../time.hpp"
 #include <queue>
 #include <mutex>
 #include <map>
@@ -43,10 +44,16 @@ public:
     double timestamp() const override {
         // Because AVFrame's time_base is currently unused, so we have to carray it by ourself
         // return mFrame->pts * av_q2d(mFrame->time_base);
+        if (mFrame->pts == AV_NOPTS_VALUE) {
+            return 0;
+        }
         return mFrame->pts * av_q2d(mTimebase);
     }
     double duration() const override {
         // return mFrame->pkt_duration * av_q2d(mFrame->time_base);
+        if (mFrame->pkt_duration == AV_NOPTS_VALUE) {
+            return 0;
+        }
         return mFrame->pkt_duration * av_q2d(mTimebase);
     }
     bool isKeyFrame() const override {
@@ -447,6 +454,7 @@ public:
             }
 
             // Done
+            NEKO_LOG("Hardware inited by {}", std::string_view(av_pix_fmt_desc_get(mHardwareFmt)->name));
             return Error::Ok;
         }
 
@@ -507,6 +515,7 @@ public:
                 // Failed to transfer
                 return Error::Unknown;
             }
+            av_frame_copy_props(mSwFrame, srcFrame);
             srcFrame = mSwFrame;
         }
 
@@ -740,6 +749,7 @@ NEKO_CONSTRUCTOR(ffregister) {
 
 
     // Register bultins
+    factory->registerElement<VideoPresenter, CreateVideoPresenter>(); 
     factory->registerElement<AudioPresenter, CreateAudioPresenter>();
     factory->registerElement<MediaQueue, CreateMediaQueue>();
     factory->registerElement<AppSource, CreateAppSource>();

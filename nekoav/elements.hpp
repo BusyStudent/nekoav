@@ -314,7 +314,9 @@ public:
         if (mType != Output && other->mType != Input) {
             return false;
         }
+        unlink();
         mNext = other.get();
+        mNext->mLinksCount += 1;
         return true;
     }
     /**
@@ -322,9 +324,15 @@ public:
      * 
      */
     void unlink() {
-        mNext = nullptr;
+        if (mNext) {
+            mNext->mLinksCount -= 1;
+            mNext = nullptr;
+        }
     }
     bool isLinked() const {
+        if (mType == Input) {
+            return mLinksCount > 0;
+        }
         return mNext != nullptr;
     }
     /**
@@ -421,6 +429,7 @@ private:
     explicit Pad(Type type) : mType(type) { }
 
     PropertyMap   mProperties;
+    Atomic<int>   mLinksCount {0};    //< Numof Output pad linked with (for Input Pad)
     Element      *mElement {nullptr}; //< Which element belong
     Pad          *mNext {nullptr};
     Type          mType;

@@ -94,9 +94,8 @@ private:
 
     std::queue<std::function<void()>> mQueue;
     std::condition_variable           mCondition;
-    std::mutex                        mConditionMutex;
-    std::mutex                        mQueueMutex;
     std::thread                       mThread;
+    std::mutex                        mMutex;
 };
 
 NEKO_NS_END

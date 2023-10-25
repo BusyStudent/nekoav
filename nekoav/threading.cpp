@@ -26,7 +26,7 @@ void Thread::run() {
         if (!mRunning) {
             break;
         }
-        std::unique_lock lock(mConditionMutex);
+        std::unique_lock lock(mMutex);
         mCondition.wait(lock);
     }
 }
@@ -59,9 +59,9 @@ void Thread::setPriority(ThreadPriority p) {
 
 }
 void Thread::postTask(std::function<void()> &&fn) {
-    std::lock_guard lock(mQueueMutex);
+    std::lock_guard lock(mMutex);
     mQueue.emplace(std::move(fn));
-    mCondition.notify_one();
+    mCondition.notify_all();
 }
 void Thread::sendTask(std::function<void()> &&fn) {
     std::latch latch {1};
@@ -72,7 +72,7 @@ void Thread::sendTask(std::function<void()> &&fn) {
     latch.wait();
 }
 void Thread::dispatchTask() {
-    std::unique_lock lock(mQueueMutex);
+    std::unique_lock lock(mMutex);
     while (!mQueue.empty()) {
         auto fn = std::move(mQueue.front());
         mQueue.pop();
@@ -85,20 +85,16 @@ void Thread::dispatchTask() {
     }
 }
 void Thread::waitTask(int timeoutMS) {
-    std::unique_lock lock(mQueueMutex);
-
+    std::unique_lock lock(mMutex);
     while (mQueue.empty()) {
-        lock.unlock();
-        std::unique_lock condlock(mConditionMutex);
         if (timeoutMS != -1) {
-            if (mCondition.wait_for(condlock, std::chrono::milliseconds(timeoutMS)) == std::cv_status::timeout) {
+            if (mCondition.wait_for(lock, std::chrono::milliseconds(timeoutMS)) == std::cv_status::timeout) {
                 return;
             }
         }
         else {
-            mCondition.wait(condlock);
+            mCondition.wait(lock);
         }
-        lock.lock();
     }
 
     // Do dispatch
