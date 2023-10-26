@@ -244,6 +244,11 @@ public:
     virtual auto size() const -> size_t = 0;
 };
 
+class MediaFactory : public ElementFactory {
+public:
+    virtual void registerFactory(ElementFactory *factory) = 0;
+};
+
 /**
  * @brief External Clock for Media
  * 
@@ -294,6 +299,8 @@ extern auto NEKO_API CreateVideoPresenter() -> Box<VideoPresenter>;
 extern auto NEKO_API CreateMediaQueue() -> Box<MediaQueue>;
 extern auto NEKO_API CreateAppSource() -> Box<AppSource>;
 extern auto NEKO_API CreateAppSink() -> Box<AppSink>;
+extern auto NEKO_API GetMediaFactory() -> MediaFactory *;
+extern auto NEKO_API ParseMediaUrl(std::string_view url) -> Box<Graph>;
 
 }
 NEKO_NS_END

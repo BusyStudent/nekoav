@@ -99,6 +99,19 @@ public:
     auto setThreadPolicy(ThreadPolicy policy) noexcept -> void {
         mThreadPolicy = policy;
     }
+    /**
+     * @brief Set the Name object for debugging
+     * 
+     * @param name 
+     */
+    auto setName(std::string_view name) -> void {
+        mName = name;
+    }
+    /**
+     * @brief Set the Bus object
+     * 
+     * @param bus 
+     */
     auto setBus(Bus *bus) noexcept -> void {
         mBus = bus;
     }
@@ -143,6 +156,7 @@ public:
     auto  bus() const noexcept {
         return mBus;
     }
+    auto  name() const -> std::string;
     /**
      * @brief Find a input pad by name
      * 
@@ -259,12 +273,23 @@ protected:
      * @param newState 
      */
     virtual void stateChanged(State newState) { }
-    virtual auto processInput(Pad &inputPad, View<Resource> resourceView) -> Error { return Error::NoImpl; }
-    virtual auto teardown() -> Error { return Error::NoImpl; }
-    virtual auto init() -> Error { return Error::NoImpl; }
-    virtual auto resume() -> Error { return Error::NoImpl; }
-    virtual auto pause() -> Error { return Error::NoImpl; }
-    virtual auto run() -> Error { return Error::NoImpl; }
+
+    /**
+     * @brief Invoked by Pad::send, It defaultly invoke processInput or post a invoke task by checking work thread
+     * 
+     * @note It is note thread safe, It can be called in any thread, you should handle it by your self
+     * 
+     * @param inputPad 
+     * @param resourceView 
+     * @return Error 
+     */
+    virtual auto doProcessInput(Pad &inputPad, View<Resource> resourceView) -> Error;
+    virtual auto processInput(Pad &inputPad, View<Resource> resourceView) -> Error;
+    virtual auto teardown() -> Error { return Error::Ok; }
+    virtual auto init() -> Error { return Error::Ok; }
+    virtual auto resume() -> Error { return Error::Ok; }
+    virtual auto pause() -> Error { return Error::Ok; }
+    virtual auto run() -> Error;
 private:
     void _run();
 
@@ -275,7 +300,7 @@ private:
     ThreadPolicy  mThreadPolicy { ThreadPolicy::AnyThread };
     Graph        *mGraph { nullptr };
     Bus          *mBus { nullptr };
-    
+    std::string  mName;
 
     std::vector<Pad *> mInputPads;
     std::vector<Pad *> mOutputPads;
@@ -561,7 +586,7 @@ public:
      * 
      * @param graph The graph ptr
      */
-    void setGraph(Graph *graph);
+    void setGraph(View<Graph> graph);
     /**
      * @brief Change the pipeline state
      * 

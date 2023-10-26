@@ -747,13 +747,8 @@ NEKO_CONSTRUCTOR(ffregister) {
     factory->registerElement<FFAudioConverter>("AudioConverter");
     factory->registerElement<AudioConverter, FFAudioConverter>();
 
-
-    // Register bultins
-    factory->registerElement<VideoPresenter, CreateVideoPresenter>(); 
-    factory->registerElement<AudioPresenter, CreateAudioPresenter>();
-    factory->registerElement<MediaQueue, CreateMediaQueue>();
-    factory->registerElement<AppSource, CreateAppSource>();
-    factory->registerElement<AppSink, CreateAppSink>();
+    // Register self as a  global pub
+    GetMediaFactory()->registerFactory(factory);
 }
 
 NEKO_NS_END

@@ -6,6 +6,7 @@
 #include <QMetaObject>
 #include <QPainter>
 #include <QWidget>
+#include <QDebug>
 #include <latch>
 
 NEKO_NS_BEGIN
@@ -44,6 +45,7 @@ private:
             this,
             [this, cancel = mCancel]() {
                 if (*cancel) {
+                    qDebug() << "QNekoVideoWidget drop a video frame";
                     return;
                 }
                 updateImage(mFrame);
@@ -67,12 +69,30 @@ private:
         }
 
         // Copy pixels into it
-        ::memcpy(mImage.bits(), frame->data(0), width * height * 4);
+        int srcPitch = frame->linesize(0);
+        int dstPitch = mImage.bytesPerLine();
+        if (srcPitch != dstPitch) {
+            // Update it
+            auto dst = mImage.bits();
+            auto pixels = (uint8_t*) frame->data(0);
+            for (int y = 0; y < mImage.height(); y++) {
+                for (int x = 0; x < mImage.width(); x++) {
+                    *((uint32_t*)   &dst[y * dstPitch + x * 4]) = *(
+                        (uint32_t*) &pixels[y * srcPitch + x * 4]
+                    );
+                }
+            }
+
+        }
+        else {
+            ::memcpy(mImage.bits(), frame->data(0), width * height * 4);
+        }
 
         update();
     }
     void paintEvent(QPaintEvent *) override {
         QPainter painter(this);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform);
         painter.fillRect(0, 0, width(), height(), Qt::black);
         if (mImage.isNull()) {
             return;
@@ -104,6 +124,52 @@ private:
     QImage mImage; //< Current Image
     Arc<Atomic<bool> > mCancel;
     Arc<MediaFrame>    mFrame; //< Current media frame
+};
+class QNekoMediaPlayer : public QObject {
+public:
+    enum PlaybackState {
+        StoppedState,
+        PlayingState,
+        PausedState
+    };
+    Q_ENUM(PlaybackState)
+
+    enum MediaStatus {
+        NoMedia,
+        LoadingMedia,
+        LoadedMedia,
+        StalledMedia,
+        BufferingMedia,
+        BufferedMedia,
+        EndOfMedia,
+        InvalidMedia
+    };
+    Q_ENUM(MediaStatus)
+
+    enum Error {
+        NoError,
+        ResourceError,
+        FormatError,
+        NetworkError,
+        AccessDeniedError,
+        UnknownError
+    };
+    Q_ENUM(Error)
+
+    enum Loops {
+        Infinite = -1,
+        Once = 1
+    };
+    Q_ENUM(Loops)
+    QNekoMediaPlayer(QObject *parent) : QObject(parent) {
+        mPipeline.setGraph(&mGraph);
+    }
+    ~QNekoMediaPlayer() {
+        
+    }
+private:
+    Graph         mGraph;
+    MediaPipeline mPipeline;
 };
 
 NEKO_NS_END

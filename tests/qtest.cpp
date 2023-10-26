@@ -9,7 +9,6 @@
 #include <QLabel>
 #include <iostream>
 #include "../nekoav/interop/qnekoav.hpp"
-#include "../nekoav/ffmpeg/factory.hpp"
 #include "../nekoav/backtrace.hpp"
 #include "../nekoav/format.hpp"
 #include "../nekoav/media.hpp"
@@ -41,7 +40,7 @@ int main(int argc, char **argv) {
     pipeline.setGraph(&graph);
 
     // Init Graph
-    auto factory = GetFFmpegFactory();
+    auto factory = GetMediaFactory();
     auto demuxer = factory->createElement<Demuxer>().release();
 
     auto aqueue = CreateMediaQueue().release();
@@ -92,6 +91,9 @@ int main(int argc, char **argv) {
     // graph.addElement(apresenter);
     graph.addElements(demuxer, vdecoder, vconverter, vpresenter, adecoder, aconverter, apresenter);
     graph.addElements(aqueue, vqueue);
+
+    aqueue->setName("AudioQueue");
+    vqueue->setName("VideoQueue");
 
     vpresenter->setRenderer(canvas);
 

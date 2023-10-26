@@ -122,29 +122,41 @@ public:
     }
     Error run() override {
         while (state() != State::Stopped) {
-            waitTask(); //< 0n Idle
+            dispatchTask(); //< 0n Idle
+            std::unique_lock lock(mMutex);
             while (!mQueue.empty()) {
+                auto data = std::move(mQueue.front());
+                mQueue.pop();
+
+                lock.unlock();
+                mCondition.notify_one();
+
+                // Send it
+                mSourcePad->send(data);
                 dispatchTask();
-                sendData();
+
+                lock.lock();
             }
+            // Empty release it
+            lock.unlock();
+
+            waitTask(2);
         }
         return Error::Ok;
     }
-    Error processInput(Pad &, ResourceView resource) override {
+    Error doProcessInput(Pad &, ResourceView resource) override {
         // We should return as soon as possible
         // NEKO_DEBUG(mQueue.size());
-        while (mQueue.size() > mCapacity) {
-            sendData();
-        }
+        std::unique_lock lock(mMutex);
+        mCondition.wait(lock, [this]() {
+            auto v = mQueue.size() < mCapacity;
+            if (!v) {
+                // NEKO_LOG("MediaQueue is full current {}", mQueue.size());
+            }
+            return v;
+        });
+
         mQueue.push(resource->shared_from_this());
-        return Error::Ok;
-    }
-    Error sendData() {
-        if (!mQueue.empty()) {
-            auto data = std::move(mQueue.front());
-            mQueue.pop();
-            return mSourcePad->send(data);
-        }
         return Error::Ok;
     }
     Error teardown() override {
@@ -164,6 +176,8 @@ private:
     Pad                       *mSourcePad = nullptr;
     Pad                       *mSinkPad = nullptr;
     size_t                     mCapacity = 1000;
+    std::condition_variable    mCondition;
+    std::mutex                 mMutex;
 };
 
 class AppSourceImpl final : public AppSource {
@@ -278,11 +292,11 @@ public:
             NEKO_DEBUG(diff);
             return Error::Ok;
         }
-        else {
-            // Normal, sleep by duration
-            auto delay = std::min(diff, frame->duration());
-            std::this_thread::sleep_for(std::chrono::milliseconds(int64_t(delay * 1000)));
-        }
+        // else {
+        //     // Normal, sleep by duration
+        //     auto delay = std::min(diff, frame->duration());
+        //     std::this_thread::sleep_for(std::chrono::milliseconds(int64_t(delay * 1000)));
+        // }
 
         mRenderer->sendFrame(frame);
         mPosition = pts;
@@ -433,6 +447,66 @@ private:
     Arc<MediaFrame>              mCurrentFrame;
     int                          mCurrentFramePosition = 0;
 };
+class MediaFactoryImpl final : public MediaFactory {
+public:
+    MediaFactoryImpl() {
+
+    }
+    Box<Element> createElement(const char *name) const override {
+        auto iter = mMap.find(name);
+        if (iter != mMap.end()) {
+            return iter->second();
+        }
+        for (auto m : mFactories) {
+            if (auto v = m->createElement(name); v) {
+                return v;
+            }
+        }
+        return nullptr;
+    }
+    Box<Element> createElement(const std::type_info &info) const override {
+        auto iter = mMap.find(typenameOf(info));
+        if (iter != mMap.end()) {
+            return iter->second();
+        }
+        for (auto m : mFactories) {
+            if (auto v = m->createElement(info); v) {
+                return v;
+            }
+        }
+        return nullptr;
+    }
+    void registerFactory(ElementFactory *factory) override {
+        if (factory == nullptr || factory == this) {
+            return;
+        }
+        mFactories.push_back(factory);
+    }
+    static std::string_view typenameOf(const std::type_info &info) {
+#ifdef _MSC_VER
+        return info.raw_name();
+#else
+        return info.name();
+#endif
+    }
+    template <typename T>
+    static std::string_view typenameOf() {
+        return typenameOf(typeid(T));
+    }
+    template <typename T>
+    static Box<Element> make() {
+        return std::make_unique<T>();
+    }
+private:
+    std::vector<ElementFactory *> mFactories;
+    std::map<std::string_view, Box<Element> (*)()> mMap {
+        {typenameOf<MediaQueue>(), make<MediaQueueImpl>},
+        {typenameOf<AppSource>(), make<AppSourceImpl>},
+        {typenameOf<AppSink>(), make<AppSinkImpl>},
+        {typenameOf<AudioPresenter>(), make<AudioPresenterImpl>},
+        {typenameOf<VideoPresenter>(), make<VideoPresenterImpl>}
+    };
+};
 
 auto CreateAppSource() -> Box<AppSource> {
     return std::make_unique<AppSourceImpl>();
@@ -449,7 +523,10 @@ auto CreateAudioPresenter() -> Box<AudioPresenter> {
 auto CreateVideoPresenter() -> Box<VideoPresenter> {
     return std::make_unique<VideoPresenterImpl>();
 }
-
+auto GetMediaFactory() -> MediaFactory * {
+    static MediaFactoryImpl f;
+    return &f;
+}
 
 
 }

@@ -18,6 +18,9 @@ public:
         StateChanged,  //< Some element state changed
         ErrorOccurred, //< Error occurred, require pipeline stop
 
+        MediaEndOfFile, //< Media is reached eof
+        MediaBuffering, //< Media is buffering
+
         PipelineWakeup, //< Wakeup Pipeline, internal use only
         User = 10086   //< User Begin
     };
@@ -94,9 +97,7 @@ public:
     }
 private:
     std::condition_variable mCondition;
-    std::mutex              mConditionMutex;
-    std::mutex              mQueueMutex;
-    std::mutex              mHandlersMutex;
+    std::mutex              mMutex;
     std::queue<Arc<Message> > mQueue;
     std::list<Watcher>        mHandlers;
 };

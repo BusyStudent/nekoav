@@ -78,7 +78,7 @@ void Element::setState(State state, std::latch *syncLatch) {
         bus()->postMessage(ErrorMessage::make(err, this));
     }
 
-    NEKO_LOG("Element {} state changed to {}", typeid(*this), mState.load());
+    NEKO_LOG("Element {} state changed to {}", name(), mState.load());
 
     if (syncLatch) {
         syncLatch->count_down();
@@ -210,6 +210,7 @@ auto Element::toDocoument() const -> std::string {
     };
 
     std::format_to(std::back_inserter(ret), "Thread: {:#010x}\n", uintptr_t(mWorkthread));
+    std::format_to(std::back_inserter(ret), "Name: {}\n", name());
     std::format_to(std::back_inserter(ret), "State: {}\n", stateName);
     std::format_to(std::back_inserter(ret), "Inputs: {}\n", mInputPads.size());
     for (const auto &pad : mInputPads) {
@@ -223,6 +224,38 @@ auto Element::toDocoument() const -> std::string {
 
     return ret;
 }
+Error Element::doProcessInput(Pad &pad, View<Resource> view) {
+    // Got elements, check threads
+    if (Thread::currentThread() != mWorkthread) {
+        std::latch latch {1};
+        Error errcode = Error::Ok;
+        mWorkthread->postTask([&]() {
+            errcode = processInput(pad, view);
+            latch.count_down();
+        });
+        latch.wait();
+        return errcode;
+    }
+
+    // Call the next
+    return processInput(pad, view);
+}
+Error Element::processInput(Pad &pad, View<Resource> view) {
+    return Error::Ok;
+}
+Error Element::run() {
+    while (state() != State::Stopped) {
+        waitTask();
+    }
+    return Error::Ok;
+}
+
+auto Element::name() const -> std::string {
+    if (mName.empty()) {
+        return typeid(*this).name();
+    }
+    return mName;
+}
 
 Error Pad::send(View<Resource> view) {
     if (!mNext) {
@@ -234,21 +267,7 @@ Error Pad::send(View<Resource> view) {
     if (nextElement->mState == State::Stopped || nextElement->mState == State::Error) {
         return Error::NoConnection;
     }
-
-    // Got elements, check threads
-    if (Thread::currentThread() != nextElement->mWorkthread) {
-        std::latch latch {1};
-        Error errcode = Error::Ok;
-        nextElement->mWorkthread->postTask([&]() {
-            errcode = nextElement->processInput(*mNext, view);
-            latch.count_down();
-        });
-        latch.wait();
-        return errcode;
-    }
-
-    // Call the next
-    return nextElement->processInput(*mNext, view);
+    return nextElement->doProcessInput(*this, view);
 }
 
 Graph::Graph() {
@@ -392,8 +411,8 @@ Pipeline::~Pipeline() {
     stop();
 }
 
-void Pipeline::setGraph(Graph *graph) {
-    mGraph = graph;
+void Pipeline::setGraph(View<Graph> graph) {
+    mGraph = graph.get();
 }
 
 void Pipeline::setState(State state) {
@@ -494,7 +513,7 @@ void Pipeline::_doInit() {
     auto walkAndSet = [this](auto &&self, Element *currentElement, Thread *thread) {
         if (currentElement->thread() == d->mSharedThread) {
             // Got it, has no workers
-            NEKO_LOG("Set Element {} : {} to thread {}", currentElement, typeid(*currentElement), thread);
+            NEKO_LOG("Set Element {} : {} to thread {}", currentElement, currentElement->name(), thread);
             currentElement->setThread(thread);
         }
         if (currentElement->thread() != thread) {
@@ -527,7 +546,7 @@ void Pipeline::_doInit() {
         element->setThread(thread);
 
         NEKO_LOG("Alloc thread {}", thread);
-        NEKO_LOG("Set Element {} : {} to thread {}", element, typeid(*element), thread);
+        NEKO_LOG("Set Element {} : {} to thread {}", element, element->name(), thread);
 
         // Set Thread below
         walkAndSet(walkAndSet, element, thread);
