@@ -24,16 +24,13 @@ public:
 
     }
 private:
-    void init() override {
-
+    Error init() override {
+        return Error::Ok;
     }
-    void teardown() override {
-        
+    Error teardown() override {
+        return Error::Ok;
     }
-    void sendFrame(View<MediaFrame> frame) override {
-        if (frame.empty()) {
-            return;
-        }
+    Error sendFrame(View<MediaFrame> frame) override {
         if (mCancel) {
             // Cancel prev frames
             *mCancel = true;
@@ -48,17 +45,19 @@ private:
                     qDebug() << "QNekoVideoWidget drop a video frame";
                     return;
                 }
-                updateImage(mFrame);
+                updateImage(mFrame.load());
         }, Qt::QueuedConnection);
+        return Error::Ok;
     }
-    std::span<PixelFormat> supportedFormats() const override {
-        static PixelFormat fmts [] = {
-            PixelFormat::RGBA,
+    std::vector<PixelFormat> supportedFormats() const override {
+        return {
+            PixelFormat::RGBA
         };
-        return fmts;
     }
     void updateImage(View<MediaFrame> frame) {
         if (frame.empty()) {
+            mImage = QImage();
+            update();
             return;
         }
         int width = frame->width();
@@ -92,7 +91,7 @@ private:
     }
     void paintEvent(QPaintEvent *) override {
         QPainter painter(this);
-        painter.setRenderHint(QPainter::SmoothPixmapTransform);
+        // painter.setRenderHint(QPainter::SmoothPixmapTransform);
         painter.fillRect(0, 0, width(), height(), Qt::black);
         if (mImage.isNull()) {
             return;
@@ -123,7 +122,7 @@ private:
 
     QImage mImage; //< Current Image
     Arc<Atomic<bool> > mCancel;
-    Arc<MediaFrame>    mFrame; //< Current media frame
+    Atomic<Arc<MediaFrame> > mFrame; //< Current media frame
 };
 class QNekoMediaPlayer : public QObject {
 public:

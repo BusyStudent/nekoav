@@ -2,6 +2,7 @@
 
 #include "resource.hpp"
 #include "property.hpp"
+#include "error.hpp"
 #include <typeindex>
 #include <typeinfo>
 #include <string>
@@ -20,22 +21,6 @@ class Thread;
 class Graph;
 class Pad;
 
-enum class Error : int {
-    Ok = 0,              //< No Error
-    NoConnection,        //< Pad is unlinked
-    NoImpl,              //< User doesnot impl it
-    NoStream,            //< No Media Strean founded
-    NoCodec,             //< Mo Media Codec founded
-    UnsupportedFormat,   //< Unsupported media format
-    UnsupportedResource, //< Unsupported Resource type 
-    InvalidArguments,
-    InvalidTopology,
-    InvalidState,
-    OutOfMemory,
-
-    Unknown,
-    NumberOfErrors, //< Numbers of Error code
-};
 /**
  * @brief State of Element / Pipeline
  * 

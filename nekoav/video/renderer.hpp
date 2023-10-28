@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../defs.hpp"
-#include <span>
+#include <vector>
 
 NEKO_NS_BEGIN
 
@@ -19,23 +19,23 @@ public:
      * @brief Video start present
      * 
      */
-    virtual void                   init() = 0;
+    virtual Error                   init() = 0;
     /**
      * @brief Video end present
      * 
      */
-    virtual void                   teardown() = 0;
+    virtual Error                   teardown() = 0;
     /**
      * @brief draw a frame (it can block or not)
      * 
      */
-    virtual void                   sendFrame(View<MediaFrame>) = 0;
+    virtual Error                   sendFrame(View<MediaFrame>) = 0;
     /**
      * @brief Get the pixelformat of the list
      * 
-     * @return std::span<PixelFormat> 
+     * @return std::vector<PixelFormat> 
      */
-    virtual std::span<PixelFormat> supportedFormats() const = 0;
+    virtual std::vector<PixelFormat> supportedFormats() const = 0;
 protected:
     VideoRenderer() = default;
     ~VideoRenderer() = default;
