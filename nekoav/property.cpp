@@ -11,6 +11,7 @@ Property::Property(Property &&) = default;
 Property& Property::operator=(const Property &) = default;
 Property& Property::operator=(Property &&) = default;
 
+Property::Property(std::initializer_list<Property> list) : mValue(List{list}) { }
 Property::Property(std::string_view view) : mValue(std::string(view)) { }
 Property::Property(int64_t value) : mValue(value) { }
 Property::Property(double value) : mValue(value) { }

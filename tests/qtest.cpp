@@ -6,10 +6,12 @@
 #include <QPushButton>
 #include <QFileDialog>
 #include <QTextEdit>
+#include <QSlider>
 #include <QLabel>
 #include <iostream>
 #include "../nekoav/interop/qnekoav.hpp"
 #include "../nekoav/backtrace.hpp"
+#include "../nekoav/message.hpp"
 #include "../nekoav/format.hpp"
 #include "../nekoav/media.hpp"
 #include "../nekoav/log.hpp"
@@ -105,6 +107,13 @@ int main(int argc, char **argv) {
             demuxer->setSource(url.toLocalFile().toUtf8().constData());
             pipeline.setState(State::Stopped);
             pipeline.setState(State::Running);
+        }
+    });
+    pipeline.setMessageCallback([&](View<Message> message) {
+        if (message->type() == Message::ClockUpdated) {
+            QMetaObject::invokeMethod(&win, [&]() {
+                win.setWindowTitle(QString::number(pipeline.masterClock()->position()));
+            }, Qt::QueuedConnection);
         }
     });
 

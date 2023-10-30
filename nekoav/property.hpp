@@ -24,6 +24,8 @@ public:
     Property(std::string_view value);
     Property(const Property &other);
     Property(Property &&other);
+    Property(std::initializer_list<Property> list);
+    Property(std::initializer_list<std::pair<std::string, Property> > list);
     ~Property();
 
     template <typename T,
@@ -42,6 +44,7 @@ public:
     >
     Property(T value) : Property(static_cast<int64_t>(value)) { }
     Property(const char *value) : Property(std::string_view(value)) { }
+    Property(const std::string &value) : Property(std::string_view(value)) { }
 
     std::string toDocoument() const;
     std::string toString() const;
@@ -92,6 +95,19 @@ public:
 
     static Property newList();
     static Property newMap();
+
+    template <typename ...Args>
+    static Property newList(Args &&...args) {
+        std::initializer_list<Property> list {std::forward<Args>(args)...};
+        return Property {list};
+    }
+
+    auto operator new(size_t size) -> void * {
+        return libc::malloc(size);
+    }
+    auto operator delete(void *ptr) -> void {
+        return libc::free(ptr);
+    }
 private:
     std::variant<
         std::monostate,

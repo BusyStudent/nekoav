@@ -2,6 +2,7 @@
 #include "factory_impl.hpp"
 #include "ffmpeg.hpp"
 #include "../log.hpp"
+#include "../message.hpp"
 #include "../media.hpp"
 #include "../time.hpp"
 #include <queue>
@@ -294,6 +295,26 @@ protected:
         }
         return Error::Unknown; //< TODO : Use a meaningful eror code
     }
+    Error processMessage(View<Message> message) override {
+        if (message->type() == Message::SeekRequested) {
+            NEKO_DEBUG("Seek AVFormatContext");
+            auto pos = message.viewAs<SeekMessage>()->position();
+
+            // Convert S to AV_TIME_BASE
+            int64_t ts = pos * AV_TIME_BASE;
+            int ret = av_seek_frame(mFormatContext, -1, 0, AVSEEK_FLAG_BACKWARD);
+            if (ret < 0) {
+                return toError(ret);
+            }
+        }
+        return Error::Ok;
+    }
+    double duration() const noexcept {
+        if (!mFormatContext || mFormatContext->duration == AV_NOPTS_VALUE) {
+            return 0.0;
+        }
+        return double(mFormatContext->duration) / AV_TIME_BASE;
+    }
 private:
     std::map<int, Pad*> mStreamMapping;
     std::function<void()> mLoadedCallback;
@@ -461,6 +482,13 @@ public:
         // Fail
         avcodec_free_context(&mCtxt);
         return Error::Unknown;
+    }
+    Error processMessage(View<Message> message) override {
+        if (message->type() == Message::SeekRequested) {
+            NEKO_DEBUG("Flush CodecContext");
+            avcodec_flush_buffers(mCtxt);
+        }
+        return Error::Ok;
     }
 private:
     AVCodecContext *mCtxt = nullptr;

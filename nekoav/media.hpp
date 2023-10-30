@@ -181,6 +181,7 @@ class Demuxer : public MediaElement {
 public:
     virtual void setSource(std::string_view url) = 0;
     virtual void setLoadedCallback(std::function<void()> &&cb) = 0;
+    virtual auto duration() const -> double = 0;
 };
 
 class Enmuxer : public MediaElement {
@@ -274,24 +275,32 @@ private:
  * @brief Media Pipeline
  * 
  */
-class NEKO_API MediaPipeline final : public MediaController {
+class NEKO_API MediaPipeline final : public Pipeline, public MediaController {
 public:
     MediaPipeline();
     MediaPipeline(const MediaPipeline &) = delete;
     ~MediaPipeline();
 
-    void setGraph(Graph *g);
-    void setState(State s);
+    void setGraph(View<Graph> graph) override;
 
     void addClock(MediaClock *clock) override;
     void removeClock(MediaClock *clock) override;
     auto masterClock() const -> MediaClock * override;
+    auto position() const noexcept {
+        return mPosition.load();
+    }
+
+    void seek(double pos);
+protected:
+    void stateChanged(State newState) override;
 private:
-    Pipeline                  mPipeline;
+    void _run();
     std::vector<MediaClock *> mClocks;
     mutable std::mutex        mClockMutex;
     MediaClock               *mMasterClock = nullptr;
     ExternalClock             mExternalClock;
+    Thread                   *mThread = nullptr;
+    Atomic<double>            mPosition {0}; //< Current media playing position
 };
 
 extern auto NEKO_API CreateAudioPresenter() -> Box<AudioPresenter>;

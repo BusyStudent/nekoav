@@ -56,26 +56,27 @@ private:
     }
     void updateImage(View<MediaFrame> frame) {
         if (frame.empty()) {
-            mImage = QImage();
+            mPixmap = QPixmap();
             update();
             return;
         }
         int width = frame->width();
         int height = frame->height();
-        if (mImage.isNull() || mImage.width() != width || mImage.height() != height) {
-            // Create a new Image
-            mImage = QImage(width, height, QImage::Format_RGBA8888);
-        }
+        // if (mImage.isNull() || mImage.width() != width || mImage.height() != height) {
+        //     // Create a new Image
+        //     mImage = QImage(width, height, QImage::Format_RGB32);
+        // }
 
-        // Copy pixels into it
+        // // Copy pixels into it
+        QImage image(width, height, QImage::Format_RGBA8888);
         int srcPitch = frame->linesize(0);
-        int dstPitch = mImage.bytesPerLine();
+        int dstPitch = image.bytesPerLine();
         if (srcPitch != dstPitch) {
             // Update it
-            auto dst = mImage.bits();
+            auto dst = image.bits();
             auto pixels = (uint8_t*) frame->data(0);
-            for (int y = 0; y < mImage.height(); y++) {
-                for (int x = 0; x < mImage.width(); x++) {
+            for (int y = 0; y < image.height(); y++) {
+                for (int x = 0; x < image.width(); x++) {
                     *((uint32_t*)   &dst[y * dstPitch + x * 4]) = *(
                         (uint32_t*) &pixels[y * srcPitch + x * 4]
                     );
@@ -84,8 +85,9 @@ private:
 
         }
         else {
-            ::memcpy(mImage.bits(), frame->data(0), width * height * 4);
+            ::memcpy(image.bits(), frame->data(0), width * height * 4);
         }
+        mPixmap = QPixmap::fromImage(std::move(image));
 
         update();
     }
@@ -93,11 +95,11 @@ private:
         QPainter painter(this);
         // painter.setRenderHint(QPainter::SmoothPixmapTransform);
         painter.fillRect(0, 0, width(), height(), Qt::black);
-        if (mImage.isNull()) {
+        if (mPixmap.isNull()) {
             return;
         }
-        qreal texWidth = mImage.width();
-        qreal texHeight = mImage.height();
+        qreal texWidth = mPixmap.width();
+        qreal texHeight = mPixmap.height();
 
         qreal winWidth = width();
         qreal winHeight = height();
@@ -117,10 +119,10 @@ private:
 
         QRectF r(x, y, w, h);
 
-        painter.drawImage(r, mImage);
+        painter.drawPixmap(r, mPixmap, QRectF(0, 0, texWidth, texHeight));
     }
 
-    QImage mImage; //< Current Image
+    QPixmap mPixmap; //< Current Image
     Arc<Atomic<bool> > mCancel;
     Atomic<Arc<MediaFrame> > mFrame; //< Current media frame
 };

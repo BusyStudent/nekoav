@@ -1,6 +1,6 @@
 #define _NEKO_SOURCE
-#include "elements.hpp"
 #include "threading.hpp"
+#include "elements.hpp"
 #include "utils.hpp"
 #include "bus.hpp"
 #include "log.hpp"
@@ -83,6 +83,17 @@ void Element::setState(State state, std::latch *syncLatch) {
     if (syncLatch) {
         syncLatch->count_down();
     }
+}
+void Element::postMessage(View<Message> message, std::latch *latch) {
+    mWorkthread->postTask([m = message->shared_from_this(), l = latch, this]() {
+        NEKO_DEBUG(m->type());
+        NEKO_DEBUG(typeid(m.get()));
+
+        processMessage(m);
+        if (l) {
+            l->count_down();
+        }
+    });
 }
 
 Pad *Element::findInput(std::string_view name) const {
@@ -399,7 +410,6 @@ public:
     std::vector<Thread *>  mThreadPool;
     Thread                *mSharedThread {nullptr};
     Bus                    mElementBus; //< From Element to Pipeline
-    Bus                    mBus; //< From Pipeline to User
 
     std::thread            mThread; //< Thread for pipeline
 };
@@ -419,7 +429,7 @@ void Pipeline::setState(State state) {
     switch (state) {
         case State::Stopped: {
             if (mState != State::Stopped) {
-                mState = State::Stopped;
+                _changeState(State::Stopped);
                 _wakeup();
                 if (d->mThread.joinable()) {
                     d->mThread.join();
@@ -440,7 +450,7 @@ void Pipeline::setState(State state) {
                 setState(State::Paused);
             }
             if (mState == State::Paused) {
-                mState = State::Running;
+                _changeState(State::Running);
                 _wakeup();
             }
             return;
@@ -448,7 +458,7 @@ void Pipeline::setState(State state) {
         case State::Paused: {
             if (mState == State::Running || mState == State::Ready) {
                 // Can switch
-                mState = State::Paused;
+                _changeState(State::Paused);
                 _wakeup();
             }
             return;
@@ -463,6 +473,16 @@ void Pipeline::setState(State state) {
     }
 }
 
+void Pipeline::postMessage(View<Message> message, std::latch *latch) {
+    for (auto elem : *mGraph) {
+        elem->postMessage(message, latch);
+    }
+}
+void Pipeline::sendMessage(View<Message> message) {
+    std::latch latch {ptrdiff_t(mGraph->size())};
+    postMessage(message, &latch);
+}
+
 void Pipeline::_main(std::latch &latch) {
     NEKO_SetThreadName("NekoPipeline");
     NEKO_DEBUG("Init env");
@@ -471,7 +491,7 @@ void Pipeline::_main(std::latch &latch) {
     _doInit();
 
     // Done
-    mState = State::Ready;
+    _changeState(State::Ready);
     latch.count_down();
 
     if (mGraph->hasCycle()) {
@@ -498,7 +518,7 @@ void Pipeline::_main(std::latch &latch) {
             }
         }
         else {
-            d->mBus.postMessage(message);
+            _procMessage(message);
         }
     }
 }
@@ -556,10 +576,24 @@ void Pipeline::_doInit() {
     _broadcastState(State::Ready);
 }
 void Pipeline::_raiseError(Error err) {
-    mState = State::Error;
-    d->mBus.postMessage(ErrorMessage::make(err, this));
+    _changeState(State::Error);
+    _procMessage(ErrorMessage::make(err, this));
     // Shutdown all
     _broadcastState(State::Stopped);
+}
+void Pipeline::_changeState(State state) {
+    mState = state;
+    stateChanged(state);
+}
+void Pipeline::_procMessage(View<Message> msg) {
+    NEKO_DEBUG(msg->type());
+    NEKO_DEBUG(typeid(*msg));
+    if (mCallback) {
+        mCallback(msg);
+    }
+}
+Bus *Pipeline::bus() {
+    return &d->mElementBus;
 }
 
 void Pipeline::_prepare() {
@@ -580,8 +614,5 @@ void Pipeline::_wakeup() {
     d->mElementBus.postMessage(msg);
 }
 
-Bus *Pipeline::bus() {
-    return &d->mBus;
-}
 
 NEKO_NS_END

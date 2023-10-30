@@ -3,6 +3,7 @@
 #include "resource.hpp"
 #include "property.hpp"
 #include "error.hpp"
+#include <functional>
 #include <typeindex>
 #include <typeinfo>
 #include <string>
@@ -19,6 +20,7 @@ class Resource;
 class Element;
 class Thread;
 class Graph;
+class Bus;
 class Pad;
 
 /**
@@ -76,6 +78,13 @@ public:
      * 
      */
     auto setState(State state, std::latch *syncLatch = nullptr) -> void;
+    /**
+     * @brief Post a message directly to Element
+     * 
+     * @param msg
+     * @param syncLatch 
+     */
+    auto postMessage(View<Message> msg, std::latch *syncLatch = nullptr) -> void;
     /**
      * @brief Set the Thread Policy object
      * 
@@ -270,6 +279,7 @@ protected:
      */
     virtual auto doProcessInput(Pad &inputPad, View<Resource> resourceView) -> Error;
     virtual auto processInput(Pad &inputPad, View<Resource> resourceView) -> Error;
+    virtual auto processMessage(View<Message> message) -> Error { return Error::Ok; };
     virtual auto teardown() -> Error { return Error::Ok; }
     virtual auto init() -> Error { return Error::Ok; }
     virtual auto resume() -> Error { return Error::Ok; }
@@ -571,13 +581,27 @@ public:
      * 
      * @param graph The graph ptr
      */
-    void setGraph(View<Graph> graph);
+    virtual void setGraph(View<Graph> graph);
     /**
      * @brief Change the pipeline state
      * 
      * @param state 
      */
-    void setState(State state);
+    virtual void setState(State state);
+
+    /**
+     * @brief Post this message to all element
+     * 
+     * @param message 
+     * @param syncLatch 
+     */
+    void postMessage(View<Message> message, std::latch *syncLatch = nullptr);
+    /**
+     * @brief Send this message to all element and wait
+     * 
+     * @param message 
+     */
+    void sendMessage(View<Message> message);
 
     void start() {
         setState(State::Running);
@@ -588,18 +612,34 @@ public:
     void pause() {
         setState(State::Paused);
     }
+    auto state() const noexcept {
+        return mState.load();
+    }
+    /**
+     * @brief Set the Message Callback object, this callback will be invoked at pipline thread to process event
+     * 
+     * @param cb 
+     */
+    void setMessageCallback(std::function<void(View<Message>)> &&cb) {
+        mCallback = std::move(cb);
+    }
+protected:
     Bus *bus();
+    virtual void stateChanged(State newState) { }
 private:
     void _main(std::latch &);
     void _prepare();
     void _doInit();
     void _raiseError(Error err);
     void _broadcastState(State state); //< Set All element state, blocking
+    void _changeState(State state);
+    void _procMessage(View<Message>);
     void _wakeup();
 
     Graph        *mGraph { nullptr };
     Atomic<State> mState { State::Stopped };
     Box<PipelineImpl> d; //< Private data
+    std::function<void(View<Message>)> mCallback; //< Message callback
 };
 
 /**

@@ -2,9 +2,12 @@
 #include "media.hpp"
 #include "queue.hpp"
 #include "format.hpp"
+#include "threading.hpp"
 #include "audio/device.hpp"
 #include "video/renderer.hpp"
+#include "message.hpp"
 #include "time.hpp"
+#include "bus.hpp"
 #include "log.hpp"
 #include <chrono>
 #include <queue>
@@ -55,20 +58,12 @@ MediaPipeline::MediaPipeline() {
     addClock(&mExternalClock);
 }
 MediaPipeline::~MediaPipeline() {
-    mPipeline.stop();
+    stop();
+    delete mThread;
 }
-void MediaPipeline::setGraph(Graph *graph) {
-    mPipeline.setGraph(graph);
+void MediaPipeline::setGraph(View<Graph> graph) {
+    Pipeline::setGraph(graph);
     graph->registerInterface<MediaController>(this);
-}
-void MediaPipeline::setState(State state) {
-    mPipeline.setState(state);
-    switch (state) {
-        case State::Paused: mExternalClock.pause(); break;
-        case State::Stopped: mExternalClock.pause(); mExternalClock.setPosition(0); break;
-        case State::Running: mExternalClock.start(); break;
-        default: break;
-    }
 }
 void MediaPipeline::addClock(MediaClock *clock) {
     if (!clock) {
@@ -108,6 +103,48 @@ void MediaPipeline::removeClock(MediaClock *clock) {
 auto MediaPipeline::masterClock() const -> MediaClock * {
     std::lock_guard locker(mClockMutex);
     return mMasterClock;
+}
+void MediaPipeline::stateChanged(State newState) {
+    NEKO_DEBUG(newState);
+    switch (newState) {
+        case State::Ready : {
+            mExternalClock.setPosition(0);
+            if (!mThread) {
+                mThread = new Thread();
+            }
+            mThread->postTask(std::bind(&MediaPipeline::_run, this));
+            break;
+        }
+        case State::Paused : {
+            mExternalClock.pause();
+            break;
+        }
+        case State::Running: {
+            mExternalClock.start();
+            break;
+        }
+        case State::Stopped : {
+            mExternalClock.pause();
+            mExternalClock.setPosition(0);
+            break;
+        }
+    }
+}
+void MediaPipeline::_run() {
+    using namespace std::chrono_literals;
+    while (state() != State::Stopped) {
+        auto cur = masterClock()->position();
+        if (std::abs(mPosition - cur) > 1.0) {
+            mPosition = int64_t(cur);
+            // Notify user
+            NEKO_DEBUG(mPosition.load());
+            bus()->postMessage(make_shared<Message>(Message::ClockUpdated, nullptr));
+        }
+        std::this_thread::sleep_for(10ms);
+    }
+}
+void MediaPipeline::seek(double pos) {
+    postMessage(SeekMessage::make(pos));
 }
 
 class MediaQueueImpl final : public MediaQueue {
@@ -157,6 +194,16 @@ public:
         });
 
         mQueue.push(resource->shared_from_this());
+        return Error::Ok;
+    }
+    Error processMessage(View<Message> message) override {
+        if (message->type() == Message::SeekRequested) {
+            std::lock_guard lock(mMutex);
+            while (!mQueue.empty()) {
+                mQueue.pop();
+            }
+            mCondition.notify_all();
+        }
         return Error::Ok;
     }
     Error teardown() override {
@@ -292,11 +339,11 @@ public:
             NEKO_DEBUG(diff);
             return Error::Ok;
         }
-        // else {
-        //     // Normal, sleep by duration
-        //     auto delay = std::min(diff, frame->duration());
-        //     std::this_thread::sleep_for(std::chrono::milliseconds(int64_t(delay * 1000)));
-        // }
+        else {
+            // Normal, sleep by duration
+            auto delay = std::min(diff, frame->duration());
+            std::this_thread::sleep_for(std::chrono::milliseconds(int64_t(delay * 1000)));
+        }
 
         mRenderer->sendFrame(frame);
         mPosition = pts;
@@ -325,14 +372,12 @@ class AudioPresenterImpl final : public AudioPresenter, MediaClock {
 public:
     AudioPresenterImpl() {
         auto pad = addInput("sink");
-        auto list = Property::newList();
-
-        list.push_back(SampleFormat::U8);
-        list.push_back(SampleFormat::S16);
-        list.push_back(SampleFormat::S32);
-        list.push_back(SampleFormat::FLT);
-
-        pad->property(MediaProperty::SampleFormatList) = std::move(list);
+        pad->property(MediaProperty::SampleFormatList) = {
+            SampleFormat::U8, 
+            SampleFormat::S16, 
+            SampleFormat::S32, 
+            SampleFormat::FLT
+        };
     }
     ~AudioPresenterImpl() {
 

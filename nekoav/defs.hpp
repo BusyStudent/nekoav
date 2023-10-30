@@ -71,8 +71,8 @@ enum class SampleFormat : int;
 enum class Error : int;
 
 class Pad;
-class Bus;
 class Thread;
+class Message;
 class Element;
 class ElementFactory;
 class Pipeline;
