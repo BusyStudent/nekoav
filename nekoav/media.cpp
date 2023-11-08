@@ -1,3 +1,5 @@
+#if 0
+
 #define _NEKO_SOURCE
 #include "media.hpp"
 #include "queue.hpp"
@@ -577,3 +579,5 @@ auto GetMediaFactory() -> MediaFactory * {
 }
 
 NEKO_NS_END
+
+#endif

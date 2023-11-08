@@ -1,5 +1,6 @@
 #include "../nekoav/backtrace.hpp"
 #include "../nekoav/threading.hpp"
+#include "../nekoav/flags.hpp"
 #include "../nekoav/log.hpp"
 #include <map>
 
@@ -9,10 +10,12 @@ enum MyEnum {
     A, B, C, D, E, F, MyValues
 };
 
-template <char ...Fmts>
-void Call() {
 
-}
+enum class TestFlag : uint32_t {
+    A = 1 << 0,
+    B = 1 << 1
+};
+NEKO_DECLARE_FLAGS(TestFlag);
 
 int main() {
     NekoAV::Thread worker;
@@ -68,4 +71,6 @@ int main() {
     std::function<void()> fn = []() {};
     NEKO_DEBUG(mp);
     NEKO_DEBUG(typeid(NekoAV::Thread));
+
+    NEKO_DEBUG(TestFlag::A | TestFlag::B);
 }

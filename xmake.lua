@@ -17,17 +17,13 @@ if is_plat("windows") then
     add_cxxflags("cl::/permissive-")
 end
 
+-- Core
 target("nekoav")
     set_kind("shared")
     set_languages("c++20")
-    add_packages("ffmpeg")
 
     if is_plat("windows") then
         add_links("user32")
-    end
-
-    if has_package("ffmpeg") then 
-        add_files("nekoav/ffmpeg/*.cpp")
     end
 
     if has_package("miniaudio") then
@@ -36,6 +32,17 @@ target("nekoav")
 
     add_files("nekoav/*.cpp")
 target_end()
+
+-- FFmpeg
+-- if has_package("ffmpeg") then 
+--     target("nekoav_ffmpeg")
+--         set_kind("shared")
+--         set_languages("c++20")
+
+--         add_deps("nekoav")
+--         add_files("ffmpeg/*.cpp")
+--     target_end()
+-- end
 
 target("utilstest")
     set_kind("binary")
@@ -61,13 +68,13 @@ target_end()
 
 
 -- Gui Test
-if has_config("qt_test") then 
-    target("qtest")
-        add_rules("qt.widgetapp")
-        add_deps("nekoav")
-        add_packages("ffmpeg")
+-- if has_config("qt_test") then 
+--     target("qtest")
+--         add_rules("qt.widgetapp")
+--         add_deps("nekoav")
+--         add_packages("ffmpeg")
 
-        add_frameworks("QtCore", "QtGui")
-        add_files("tests/qtest.cpp")
-    target_end()
-end
+--         add_frameworks("QtCore", "QtGui")
+--         add_files("tests/qtest.cpp")
+--     target_end()
+-- end

@@ -42,10 +42,15 @@
     static void name()
 #endif
 
+#if defined(__GNUC__) && __has_include(<cxxabi.h>)
+#define NEKO_GCC_ABI
+#endif
+
 #define NEKO_CXX17 (__cplusplus >= 201703L)
 #define NEKO_CXX20 (__cplusplus >= 202002L)
 #define NEKO_CXX23 (__cplusplus >= 202300L)
 
+#include <typeinfo>
 #include <cstddef>
 #include <cstdint>
 #include <cassert>
@@ -69,13 +74,18 @@ using microseconds = int64_t;
 enum class PixelFormat : int;
 enum class SampleFormat : int;
 enum class Error : int;
+enum class State : int;
+enum class StateChange : int;
 
 class Pad;
-class Thread;
-class Message;
+class Event;
+class EventSink;
+class Resource;
 class Element;
 class ElementFactory;
+class Container;
 class Pipeline;
+class Thread;
 
 /**
  * @brief Wrapper for RAW Pointer, implict cast from Arc and RAW Pointer
@@ -137,6 +147,16 @@ Arc<T> make_shared(Args &&...args) {
 
 // Memory Allocate
 namespace libc {
+
+#ifdef NEKO_GCC_ABI
+    extern NEKO_API char *demangle(const std::type_info &typeinfo);
+#else
+    [[deprecated("Current platform is not GCC ABI, so this func do nothing")]]
+    inline          char *demangle(const std::type_info &typeinfo) {
+        return nullptr;
+    }
+#endif
+
     extern NEKO_API void *malloc(size_t n);
     extern NEKO_API void  free(void *ptr);
 }

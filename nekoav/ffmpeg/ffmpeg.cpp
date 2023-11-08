@@ -1,8 +1,10 @@
+#if 0
+
 #define _NEKO_SOURCE
 #include "factory_impl.hpp"
 #include "ffmpeg.hpp"
 #include "../log.hpp"
-#include "../message.hpp"
+#include "../event.hpp"
 #include "../media.hpp"
 #include "../time.hpp"
 #include <queue>
@@ -780,3 +782,5 @@ NEKO_CONSTRUCTOR(ffregister) {
 }
 
 NEKO_NS_END
+
+#endif

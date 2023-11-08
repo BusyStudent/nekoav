@@ -6,7 +6,7 @@ NEKO_NS_BEGIN
 
 enum class Error : int {
     Ok = 0,              //< No Error
-    NoConnection,        //< Pad is unlinked
+    NoLink,              //< Pad is unlinked
     NoImpl,              //< User doesnot impl it
     NoStream,            //< No Media Strean founded
     NoCodec,             //< Mo Media Codec founded

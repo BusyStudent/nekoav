@@ -1,8 +1,14 @@
 #pragma once
 
 #include "defs.hpp"
+#include <source_location>
+#include <cstdio>
 
-#define NEKO_TRACE_TIME_COST(tracer) NEKO_NAMESPACE::TimeTracer tracer = [&]()
+#ifndef NDEBUG
+    #define NEKO_TRACE_TIME if (NEKO_NAMESPACE::TimeTracer t; true)
+#else
+    #define NEKO_TRACE_TIME if (true)
+#endif
 
 NEKO_NS_BEGIN
 
@@ -18,22 +24,36 @@ extern int64_t NEKO_API GetTicks() noexcept;
  * @param ms The duration to sleep in ms
  * @return int64_t The offset of target duration
  */
-extern int64_t NEKO_API Sleep(int64_t ms) noexcept;
+extern int64_t NEKO_API SleepFor(int64_t ms) noexcept;
 
-template <typename T>
+/**
+ * @brief Get the Time Cost For This expression
+ * 
+ * @tparam Callable 
+ * @tparam Args 
+ * @param cb 
+ * @param args 
+ * @return int64_t Time Cost
+ */
+template <typename Callable, typename ...Args>
+inline int64_t GetTimeCostFor(Callable &&callable, Args &&...args) noexcept(std::is_nothrow_invocable_v<Callable, Args...>) {
+    int64_t start = GetTicks();
+    std::invoke(std::forward<Callable>(callable), std::forward<Args>(args)...);
+    return GetTicks() - start;
+}
+
 class TimeTracer {
 public:
-    TimeTracer(T &&cb) {
-        auto cur = GetTicks();
-        cb();
-        mDuration = GetTicks() - cur;
+    TimeTracer(std::source_location loc = std::source_location::current()) : mLoc(loc) {
+        mStart = GetTicks();
     }
-
-    auto duration() const noexcept {
-        return mDuration;
+    ~TimeTracer() {
+        auto diff = GetTicks() - mStart;
+        fprintf(stderr, "[%s:%d (%s)] time costed %lld\n", mLoc.file_name(), mLoc.line(), mLoc.function_name(), diff);
     }
 private:
-    int64_t mDuration = 0;
+    std::source_location mLoc;
+    int64_t              mStart = 0;
 };
 
 NEKO_NS_END

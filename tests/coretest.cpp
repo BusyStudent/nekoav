@@ -1,79 +1,113 @@
 #include <thread>
 #include <gtest/gtest.h>
-#include "../nekoav/ffmpeg/factory.hpp"
+#include "../nekoav/detail/template.hpp"
+#include "../nekoav/backtrace.hpp"
 #include "../nekoav/elements.hpp"
 #include "../nekoav/property.hpp"
-#include "../nekoav/media.hpp"
+#include "../nekoav/format.hpp"
+#include "../nekoav/enum.hpp"
+#include "../nekoav/time.hpp"
 #include "../nekoav/log.hpp"
 
 using namespace std::chrono_literals;
 using namespace NekoAV;
 
-class MyInterface {
+class TinyElement final : public Template::GetImpl<Element> {
 public:
-    virtual void call() = 0;
-};
-
-class TestResource : public Resource {
-public:
-    virtual void call() {
-        NEKO_LOG("Call from {}", this);        
-    }
-};
-
-class TestElementSource : public Element, public MyInterface {
-public:
-    TestElementSource() {
-        setThreadPolicy(ThreadPolicy::SingleThread);
-    }
-    void call() override {
+    TinyElement() {
 
     }
-    Error run() override {
-        while (state() != State::Stopped) {
-            // waitTask();
-            std::this_thread::sleep_for(10ms);
-            pad->send(make_shared<TestResource>());
-            dispatchTask();
-        }
+    Error onInitialize() override {
+        Backtrace();
         return Error::Ok;
     }
-    void stateChanged(State newState) override {
-        NEKO_LOG("State changed to {}", newState);
-    }
-    Error init() override {
-        NEKO_DEBUG("Init");
+    Error onTeardown() override {
+        Backtrace();
         return Error::Ok;
     }
-    Error teardown() override {
-        NEKO_DEBUG("Teardown");
-        return Error::Ok;
-    }
-private:
-    Pad *pad {addOutput("src")};
 };
-class TestElementSink : public Element {
+class TinyThreadElement final : public Template::GetThreadImpl<Element> {
 public:
-    TestElementSink() {
-        addInput("sink");
+    TinyThreadElement() {
+
     }
-    Error processInput(Pad &, View<Resource> resource) override {
-        NEKO_DEBUG("Process input");
-        resource.viewAs<TestResource>()->call();
+    Error onInitialize() override {
+        Backtrace();
         return Error::Ok;
     }
-    void stateChanged(State newState) override {
-        NEKO_LOG("State changed to {}", newState);
-    }
-    Error init() override {
-        NEKO_DEBUG("Init");
-        return Error::Ok;
-    }
-    Error teardown() override {
-        NEKO_DEBUG("Teardown");
+    Error onTeardown() override {
+        Backtrace();
         return Error::Ok;
     }
 };
+
+// class TestElementSource : public Element, public MyInterface {
+// public:
+//     TestElementSource() {
+//         setThreadPolicy(ThreadPolicy::SingleThread);
+//     }
+//     void call() override {
+
+//     }
+//     Error run() override {
+//         while (state() != State::Stopped) {
+//             // waitTask();
+//             std::this_thread::sleep_for(10ms);
+//             pad->send(make_shared<TestResource>());
+//             dispatchTask();
+//         }
+//         return Error::Ok;
+//     }
+//     void stateChanged(State newState) override {
+//         NEKO_LOG("State changed to {}", newState);
+//     }
+//     Error init() override {
+//         NEKO_DEBUG("Init");
+//         return Error::Ok;
+//     }
+//     Error teardown() override {
+//         NEKO_DEBUG("Teardown");
+//         return Error::Ok;
+//     }
+// private:
+//     Pad *pad {addOutput("src")};
+// };
+// class TestElementSink : public Element {
+// public:
+//     TestElementSink() {
+//         addInput("sink");
+//     }
+//     Error processInput(Pad &, View<Resource> resource) override {
+//         NEKO_DEBUG("Process input");
+//         resource.viewAs<TestResource>()->call();
+//         return Error::Ok;
+//     }
+//     void stateChanged(State newState) override {
+//         NEKO_LOG("State changed to {}", newState);
+//     }
+//     Error init() override {
+//         NEKO_DEBUG("Init");
+//         return Error::Ok;
+//     }
+//     Error teardown() override {
+//         NEKO_DEBUG("Teardown");
+//         return Error::Ok;
+//     }
+// };
+
+TEST(CoreTest, TimeTest) {
+    int64_t offset;
+    int64_t ms = GetTimeCostFor([&]() {
+        offset = SleepFor(10);
+    });
+    NEKO_DEBUG(ms);
+    NEKO_DEBUG(offset);
+    NEKO_DEBUG(GetTimeCostFor(SleepFor, 10));
+
+    NEKO_TRACE_TIME {
+        SleepFor(10);
+    }
+}
 
 TEST(CoreTest, PropertyTest) {
     Property prop(1);
@@ -114,66 +148,32 @@ TEST(CoreTest, PropertyTest) {
     ASSERT_EQ(prop.toEnum<BEnum>(), BEnum::VB);
 }
 
-TEST(CoreTest, Test1) {
-    auto source = new TestElementSource();
-    auto sink = new TestElementSink();
-    auto queue = CreateMediaQueue().release();
-    Graph graph;
-    graph.addElement(source);
-    graph.addElement(sink);
-    graph.addElement(queue);
-    graph.registerInterface<MyInterface>(source);
-
-    if (auto v = source->linkWith("src", queue, "sink"); !v) {
-        // Failed 
-        ASSERT_EQ(v, true);
-    }
-    if (auto v = queue->linkWith("src", sink, "sink"); !v) {
-        // Failed 
-        ASSERT_EQ(v, true);
-    }
-
-    ASSERT_EQ(graph.hasCycle(), false);
-
-    Pipeline pipeline;
-    pipeline.setGraph(&graph);
-    pipeline.start();
-
-    std::this_thread::sleep_for(100ms);
+TEST(CoreTest, StateEnum) {
+    NEKO_DEBUG(ComputeStateChanges(State::Null, State::Running));
+    NEKO_DEBUG(ComputeStateChanges(State::Running, State::Null));
+    
+    ASSERT_EQ(ComputeStateChanges(State::Null, State::Error).empty(), true);
+    ASSERT_EQ(ComputeStateChanges(State::Null, State::Null).empty(), true);
+    ASSERT_EQ(GetTargetState(StateChange::Invalid), State::Error);
 }
 
-TEST(CoreTest, Test2) {
-    auto source = new TestElementSource();
-    auto queue = CreateMediaQueue().release();
-    auto queue2 = CreateMediaQueue().release();
-    auto queue3 = CreateMediaQueue().release();
-
-    Graph graph;
-    graph.addElement(source);
-    graph.addElement(queue);
-    graph.addElement(queue2);
-    graph.addElement(queue3);
-    graph.registerInterface<MyInterface>(source);
-
-    if (auto v = source->linkWith("src", queue, "sink"); !v) {
-        // Failed 
-        ASSERT_EQ(v, true);
-    }
-    if (auto v = queue->linkWith("src", queue2, "sink"); !v) {
-        // Failed 
-        ASSERT_EQ(v, true);
-    }
-    if (auto v = queue2->linkWith("src", queue3, "sink")) {
-        ASSERT_EQ(v, true);
-    }
-    if (auto v = queue3->linkWith("src", queue, "sink")) {
-        ASSERT_EQ(v, true);
-    }
-
-    ASSERT_EQ(graph.hasCycle(), true);
-
-    std::this_thread::sleep_for(100ms);
+TEST(CoreTest, Format) {
+    constexpr auto sfmt = GetAltSampleFormat(SampleFormat::FLTP);
+    constexpr auto sfmt1 = GetPackedSampleFormat(SampleFormat::FLT);
 }
+
+TEST(CoreTest, Elem) {
+    TinyElement elem;
+    NEKO_DEBUG(elem.name());
+
+    elem.setState(State::Running);
+    elem.setState(State::Null);
+
+    TinyThreadElement thelem;
+    thelem.setState(State::Running);
+    thelem.setState(State::Null);
+
+};
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
