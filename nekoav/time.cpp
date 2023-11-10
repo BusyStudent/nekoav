@@ -1,6 +1,7 @@
 #define _NEKO_SOURCE
 #include "time.hpp"
 #include <chrono>
+#include <thread>
 
 #ifdef _WIN32
     #include <Windows.h>

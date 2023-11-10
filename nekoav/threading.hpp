@@ -80,6 +80,13 @@ public:
         return mIdle;
     }
 
+    void *operator new(size_t size) {
+        return libc::malloc(size);
+    }
+    void operator delete(void *ptr) {
+        return libc::free(ptr);
+    }
+
     /**
      * @brief Current thread object
      * 

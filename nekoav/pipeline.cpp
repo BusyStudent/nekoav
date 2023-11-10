@@ -2,18 +2,32 @@
 #include "pipeline.hpp"
 #include "eventsink.hpp"
 #include "threading.hpp"
+#include "context.hpp"
 #include "factory.hpp"
+#include "media.hpp"
 #include "event.hpp"
+#include "log.hpp"
 #include <vector>
 
 NEKO_NS_BEGIN
 
 class PipelineImpl final : public Pipeline {
 public:
+    PipelineImpl() {
+        // Init env
+        setBus(&mBusSink);
+        setContext(&mContext);
+    }
+    ~PipelineImpl() {
+        setState(State::Null);
+        delete mThread;
+    }
     Error addElement(View<Element> element) override {
         if (!element) {
             return Error::InvalidArguments;
         }
+        element->setBus(&mBusSink);
+        element->setContext(&mContext);
         mElements.push_back(element->shared_from_this());
         return Error::Ok;
     }
@@ -27,10 +41,12 @@ public:
         if (it == mElements.end()) {
             return Error::InvalidArguments;
         }
+        element->setBus(nullptr);
+        element->setContext(nullptr);
         mElements.erase(it);
         return Error::Ok;
     }
-    Error forElement(const std::function<bool (View<Element>)> &cb) override {
+    Error forElements(const std::function<bool (View<Element>)> &cb) override {
         if (!cb) {
             return Error::InvalidArguments;
         }
@@ -42,12 +58,37 @@ public:
         return Error::Ok;
     }
     Error changeState(StateChange stateChange) override {
-        for (const auto &elem : mElements) {
-            if (auto err = elem->setState(GetTargetState(stateChange)); err != Error::Ok) {
-                return err;
-            }
+        if (stateChange == StateChange::Initialize) {
+            // Initalize, new a thread
+            assert(!mThread && "Already initialized");
+            mRunning = true;
+            mThread = new Thread;
+            mThread->postTask(std::bind(&PipelineImpl::threadEntry, this));
         }
-        return Error::Ok;
+        Error ret = Error::Ok;
+        auto cb = [&, this]() {
+            for (const auto &elem : mElements) {
+                ret = elem->setState(GetTargetState(stateChange));
+                if (ret != Error::Ok) {
+                    NEKO_LOG("Failed to set state for {} : {}", elem->name(), ret);
+                    return;
+                }
+            }
+        };
+        if (Thread::currentThread() == mThread) {
+            cb();
+        }
+        else {
+            mThread->sendTask(cb);
+        }
+        if (stateChange == StateChange::Teardown || (stateChange == StateChange::Initialize && ret != Error::Ok)) {
+            // Teardown or Init failed
+            assert(mThread && "Not initialized");
+            mRunning = false;
+            delete mThread;
+            mThread = nullptr;
+        }
+        return ret;
     }
     Error sendEvent(View<Event> event) override {
         for (const auto &elem : mElements) {
@@ -77,11 +118,19 @@ private:
         return Error::Ok;
     }
     Error sendBusEvent(View<Event> event) {
-        mThread->sendTask(std::bind(&PipelineImpl::processEvent, this, event->shared_from_this()));
+        if (Thread::currentThread() != mThread) {
+            mThread->sendTask(std::bind(&PipelineImpl::processEvent, this, event->shared_from_this()));
+        }
+        else {
+            mThread->postTask(std::bind(&PipelineImpl::processEvent, this, event->shared_from_this()));
+        }
         return Error::Ok;
     }
     Error processEvent(const Arc<Event> &event) {
         // Process event here
+        NEKO_DEBUG(typeid(*event));
+        NEKO_DEBUG(event->type());
+        
         if (event->type() == Event::ErrorOccurred) {
             // Error 
             // Do Error here
@@ -89,18 +138,27 @@ private:
         if (mEventCallback) {
             mEventCallback(event);
         }
-        new PipelineImpl;
         return Error::Ok;
     }
+    void threadEntry() {
+        mThread->setName("NekoPipeline");
+        NEKO_DEBUG("Pipeline Thread Started");
+        while (mRunning) {
+            mThread->waitTask();
+            NEKO_DEBUG("Pipeline Thread Dispatch once");
+        }
+    }
 
-    Thread            *mThread;
+    Thread            *mThread = nullptr;
     Vec<Arc<Element> > mElements;
+    Atomic<bool>       mRunning {false};
+    Context            mContext;
 
     std::function<void(View<Event>)> mEventCallback;
 };
 
-Box<Pipeline> CreatePipeline() {
-    return std::make_unique<PipelineImpl>();
+Arc<Pipeline> CreatePipeline() {
+    return make_shared<PipelineImpl>();
 }
 
 NEKO_REGISTER_ELEMENT(Pipeline, PipelineImpl);

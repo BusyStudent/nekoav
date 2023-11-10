@@ -12,6 +12,8 @@ public:
     enum Type : uint32_t {
         None,
         StateChanged,  //< Some element state changed
+        BusChanged,    //< Element bus was changed
+        ConetxtChanged, //< Element's context was changed
         ErrorOccurred, //< Error occurred, require pipeline stop
 
         PadAdded,

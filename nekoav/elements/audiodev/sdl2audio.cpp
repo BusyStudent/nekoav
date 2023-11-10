@@ -1,5 +1,5 @@
 #define _NEKO_SOURCE
-#include "device.hpp"
+#include "../audiodev.hpp"
 #include <SDL2/SDL_audio.h>
 
 NEKO_NS_BEGIN

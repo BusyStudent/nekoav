@@ -16,7 +16,11 @@ enum class Error : int {
     InvalidTopology,
     InvalidState,
     OutOfMemory,
-    Internal,            //< Internal Error
+    Async,                  //< This operation is a asynchronous
+    Internal,               //< Internal Error
+    TemporarilyUnavailable, //< This operation is TemporarilyUnavailable, try again later
+    FileNotFound          , //< This file is not founded
+    
 
     Unknown,
     NumberOfErrors, //< Numbers of Error code

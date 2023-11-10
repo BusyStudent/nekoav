@@ -1,8 +1,7 @@
 #pragma once
 
-#include <functional>
 #include "../format.hpp"
-#include "../defs.hpp"
+#include <functional>
 
 NEKO_NS_BEGIN
 
@@ -21,6 +20,11 @@ public:
     virtual void setCallback(std::function<void(void *buffer, int bufferLen)> &&cb) = 0;
 };
 
+/**
+ * @brief Create a default Audio Device object
+ * 
+ * @return Box<AudioDevice> 
+ */
 extern Box<AudioDevice> NEKO_API CreateAudioDevice();
 
 NEKO_NS_END

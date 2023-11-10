@@ -27,22 +27,18 @@ target("nekoav")
     end
 
     if has_package("miniaudio") then
-        add_files("nekoav/audio/miniaudio.cpp")
+        add_files("nekoav/elements/audiodev/miniaudio.cpp")
+    end
+
+    -- FFmpeg
+    if has_package("ffmpeg") then 
+        add_packages("ffmpeg")
+        add_files("nekoav/ffmpeg/*.cpp")
     end
 
     add_files("nekoav/*.cpp")
+    add_files("nekoav/elements/*.cpp")
 target_end()
-
--- FFmpeg
--- if has_package("ffmpeg") then 
---     target("nekoav_ffmpeg")
---         set_kind("shared")
---         set_languages("c++20")
-
---         add_deps("nekoav")
---         add_files("ffmpeg/*.cpp")
---     target_end()
--- end
 
 target("utilstest")
     set_kind("binary")
@@ -66,6 +62,13 @@ target("coretest")
     add_files("tests/coretest.cpp")
 target_end()
 
+target("elemtest")
+    set_kind("binary")
+    add_deps("nekoav")
+    add_packages("gtest")
+
+    add_files("tests/elemtest.cpp")
+target_end()
 
 -- Gui Test
 -- if has_config("qt_test") then 

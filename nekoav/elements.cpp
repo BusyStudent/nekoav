@@ -609,15 +609,18 @@ Element::Element() {
 
 }
 Element::~Element() {
-    for (const auto ins : mInputs) {
-        delete ins;
-    }
-    for (const auto outs : mOutputs) {
-        delete outs;
-    }
+    removeAllInputs();
+    removeAllOutputs();
 }
 
 Error Element::setState(State newState) {
+    if (state() == newState) {
+        NEKO_DEBUG(name());
+        NEKO_DEBUG("Same state");
+        NEKO_DEBUG(state());
+        NEKO_DEBUG(newState);
+        return Error::Ok;
+    }
     auto vec = ComputeStateChanges(state(), newState);
     NEKO_DEBUG(vec);
     if (vec.empty()) {
@@ -626,6 +629,9 @@ Error Element::setState(State newState) {
     for (auto change : vec) {
         NEKO_DEBUG(change);
         if (auto err = changeState(change); err != Error::Ok) {
+            NEKO_DEBUG(name());
+            NEKO_DEBUG("Error to");
+            NEKO_DEBUG(err);
             return err;
         }
     }
@@ -637,6 +643,13 @@ Error Element::setBus(EventSink *newBus) {
         return Error::InvalidState;
     }
     mBus = newBus;
+    return Error::Ok;
+}
+Error Element::setContext(Context *newContext) {
+    if (state() != State::Null) {
+        return Error::InvalidState;
+    }
+    mContext = newContext;
     return Error::Ok;
 }
 void  Element::setName(std::string_view name) {
@@ -705,15 +718,29 @@ void Element::removePad(Pad *pad) {
         }
     }
 }
+void Element::removeAllInputs() {
+    for (const auto ins : mInputs) {
+        delete ins;
+    }
+    mInputs.clear();
+}
+void Element::removeAllOutputs() {
+    for (const auto outs : mOutputs) {
+        delete outs;
+    }
+    mOutputs.clear();
+}
 
 // Another
-Error LinkElements(std::span<View<Element> > elements) {
+Error LinkElements(std::initializer_list<View<Element> > elements) {
     if (elements.size() < 2) {
         return Error::InvalidArguments;
     }
     for (size_t i = 0; i < elements.size() - 1; ++i) {
-        auto srcElement = elements[i];
-        auto dstElement = elements[i + 1];
+        // auto srcElement = elements[i];
+        // auto dstElement = elements[i + 1];
+        auto srcElement = *(elements.begin() + i);
+        auto dstElement = *(elements.begin() + i + 1);
 
         auto srcPad = srcElement->findOutput("src");
         auto dstPad = dstElement->findInput("sink");

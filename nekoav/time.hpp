@@ -2,6 +2,7 @@
 
 #include "defs.hpp"
 #include <source_location>
+#include <functional>
 #include <cstdio>
 
 #ifndef NDEBUG

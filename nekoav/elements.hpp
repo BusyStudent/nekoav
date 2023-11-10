@@ -13,6 +13,7 @@ NEKO_NS_BEGIN
 
 class EventSink;
 class Resource;
+class Context;
 class Element;
 class Event;
 class Pad;
@@ -46,6 +47,12 @@ public:
      * @return EventSink* 
      */
     EventSink * bus() const noexcept;
+    /**
+     * @brief Get the context of this element
+     * 
+     * @return Context* 
+     */
+    Context   * context() const noexcept;
     /**
      * @brief Get the name of this element
      * 
@@ -86,6 +93,13 @@ public:
      */
     Error setBus(EventSink *newBus);
     /**
+     * @brief Set the Context object
+     * 
+     * @param newCtxt 
+     * @return Error 
+     */
+    Error setContext(Context *newCtxt);
+    /**
      * @brief Set the Name object
      * 
      * @param name 
@@ -124,6 +138,8 @@ protected:
 
     void addPad(Pad *pad);
     void removePad(Pad *pad);
+    void removeAllInputs();
+    void removeAllOutputs();
 
     Pad *addInput(std::string_view name);
     Pad *addOutput(std::string_view name);
@@ -132,6 +148,7 @@ protected:
 protected:
     Atomic<State> mState { State::Null };
 private:
+    Context      *mContext { nullptr };
     EventSink    *mBus { nullptr };
     std::string   mName;
     ElementFlags  mFlags { ElementFlags::None };
@@ -144,7 +161,7 @@ private:
  * 
  * @return NEKO_API 
  */
-extern NEKO_API Error LinkElements(std::span<View<Element> > elements);
+extern NEKO_API Error LinkElements(std::initializer_list<View<Element> > elements);
 
 
 // -- IMPL Here
@@ -154,6 +171,9 @@ inline State Element::state() const noexcept {
 inline EventSink *Element::bus() const noexcept {
     return mBus;
 }
+inline Context   *Element::context() const noexcept {
+    return mContext;
+}
 inline std::span<Pad*> Element::inputs() const {
     return {
         const_cast<Pad**>(mInputs.data()),
@@ -162,8 +182,8 @@ inline std::span<Pad*> Element::inputs() const {
 }
 inline std::span<Pad*> Element::outputs() const {
     return {
-        const_cast<Pad**>(mInputs.data()),
-        mInputs.size()
+        const_cast<Pad**>(mOutputs.data()),
+        mOutputs.size()
     };
 }
 
@@ -179,8 +199,7 @@ inline const T *Element::as() const noexcept {
 
 template <typename ...Args>
 inline Error LinkElements(Args &&...args) {
-    View<Element> elements [] {std::forward<Args>(args)...};
-    return LinkElements(elements);
+    return LinkElements({std::forward<Args>(args)...});
 }
 
 NEKO_NS_END

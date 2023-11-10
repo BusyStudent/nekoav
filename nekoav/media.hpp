@@ -1,98 +1,11 @@
-#if 0
-
 #pragma once
 
-#include "elements.hpp"
 #include "resource.hpp"
-#include <functional>
-#include <chrono>
-#include <span>
 
 NEKO_NS_BEGIN
 
 class AudioDevice;
 class VideoRenderer;
-
-inline namespace _abiv1 {
-
-/**
- * @brief Add extra method for Property
- * 
- */
-class MediaProperty final : public Property {
-public:
-    static constexpr const char *PixelFormatList = "pixelFormatList";
-    static constexpr const char *PixelFormat = "pixelFormat";
-    static constexpr const char *Width = "width";
-    static constexpr const char *Height = "height";
-    static constexpr const char *Channels = "channels";
-    static constexpr const char *SampleRate = "sampleRate";
-    static constexpr const char *SampleFormat = "sampleFormat";
-    static constexpr const char *SampleFormatList = "sampleFormatList";
-    static constexpr const char *Duration = "duration";
-
-private:
-    MediaProperty() = delete;
-};
-
-/**
- * @brief Add extra method for Pad
- * 
- */
-class MediaPad final : public Pad {
-public:
-    auto isVideo() const -> bool {
-        return name().starts_with("video");
-    }
-    auto isAudio() const -> bool {
-        return name().starts_with("audio");
-    }
-    auto isSubtitle() const -> bool {
-        return name().starts_with("subtitle");
-    }
-    int  videoIndex() const {
-        int idx = -1;
-        ::sscanf(name().data(), "video%d", &idx);
-        return idx;
-    }
-    int  audioIndex() const {
-        int idx = -1;
-        ::sscanf(name().data(), "audio%d", &idx);
-        return idx;
-    }
-    int  subtitleIndex() const {
-        int idx = -1;
-        ::sscanf(name().data(), "subtitle%d", &idx);
-        return idx;
-    }
-private:
-    MediaPad() = delete;
-};
-
-
-class MediaElement : public Element {
-public:
-    auto inputs() -> std::span<MediaPad*> {
-        auto &vec = Element::inputs();
-        return {
-            reinterpret_cast<MediaPad**>(vec.data()),
-            vec.size()
-        };
-    }
-    auto outputs() -> std::span<MediaPad*> {
-        auto &vec = Element::outputs();
-        return {
-            reinterpret_cast<MediaPad**>(vec.data()),
-            vec.size()
-        };
-    }
-    auto findInput(std::string_view name) -> MediaPad * {
-        return static_cast<MediaPad*>(Element::findInput(name));
-    };
-    auto findOutput(std::string_view name) -> MediaPad * {
-        return static_cast<MediaPad*>(Element::findOutput(name));
-    };
-};
 
 /**
  * @brief Interface for Media Frame (Audio / Video)
@@ -131,6 +44,12 @@ public:
     inline  auto sampleCount() const -> int { return query(Query::SampleCount); }
     inline  auto sampleFormat() const -> SampleFormat { return SampleFormat(format()); }
     inline  auto pixelFormat() const -> PixelFormat { return PixelFormat(format()); }
+};
+
+class AudioFrame : public MediaFrame {
+public:
+    virtual void setTimestamp(double timestamp) = 0;
+    virtual void setSampleRate(int sampleRate) = 0;
 };
 
 class MediaPacket : public Resource {
@@ -175,82 +94,10 @@ protected:
     MediaController() = default;
     ~MediaController() = default;
 };
-/**
- * @brief Demuxer Element
- * 
- */
-class Demuxer : public MediaElement {
-public:
-    virtual void setSource(std::string_view url) = 0;
-    virtual void setLoadedCallback(std::function<void()> &&cb) = 0;
-    virtual auto duration() const -> double = 0;
-};
-
-class Enmuxer : public MediaElement {
-public:
-
-};
-
-class Decoder : public MediaElement {
-public:
-
-};
-
-class Encoder : public MediaElement {
-public:
-
-};
-
-/**
- * @brief Cache Resource, and start a new thread
- * 
- */
-class MediaQueue : public MediaElement {
-public:
-    virtual void setCapacity(size_t size) = 0;
-    virtual auto size() const -> size_t = 0;
-};
-
-class AudioConverter : public MediaElement {
-public:
-    virtual void setSampleFormat(SampleFormat fmt) = 0;
-};
-class VideoConverter : public MediaElement {
-public:
-    /**
-     * @brief Force the converter to convert video to {fmt}, passthrough is disabled
-     * 
-     * @param fmt 
-     */
-    virtual void setPixelFormat(PixelFormat fmt) = 0;
-
-};
-
-class AudioPresenter : public MediaElement {
-public:
-    virtual void setDevice(AudioDevice *device = nullptr) = 0;
-};
-class VideoPresenter : public MediaElement {
-public:
-    virtual void setRenderer(VideoRenderer *renderer = nullptr) = 0;
-};
-
-class AppSink       : public MediaElement {
-public:
-    virtual bool wait(Arc<Resource> *v, int timeout = -1) = 0;
-    virtual auto size() const -> size_t = 0;
-};
-
-class AppSource     : public MediaElement {
-public:
-    virtual auto push(const Arc<Resource> &res) -> Error = 0;
-    virtual auto size() const -> size_t = 0;
-};
-
-class MediaFactory : public ElementFactory {
-public:
-    virtual void registerFactory(ElementFactory *factory) = 0;
-};
+// /**
+//  * @brief Demuxer Element
+//  * 
+//  */
 
 /**
  * @brief External Clock for Media
@@ -273,47 +120,47 @@ private:
     Atomic<double>  mCurrent {0.0}; //< Current Position
 };
 
+// /**
+//  * @brief Media Pipeline
+//  * 
+//  */
+// class NEKO_API MediaPipeline final : public Pipeline, public MediaController {
+// public:
+//     MediaPipeline();
+//     MediaPipeline(const MediaPipeline &) = delete;
+//     ~MediaPipeline();
+
+//     void setGraph(View<Graph> graph) override;
+
+//     void addClock(MediaClock *clock) override;
+//     void removeClock(MediaClock *clock) override;
+//     auto masterClock() const -> MediaClock * override;
+//     auto position() const noexcept {
+//         return mPosition.load();
+//     }
+
+//     void seek(double pos);
+// protected:
+//     void stateChanged(State newState) override;
+// private:
+//     void _run();
+//     std::vector<MediaClock *> mClocks;
+//     mutable std::mutex        mClockMutex;
+//     MediaClock               *mMasterClock = nullptr;
+//     ExternalClock             mExternalClock;
+//     Thread                   *mThread = nullptr;
+//     Atomic<double>            mPosition {0}; //< Current media playing position
+// };
+
+
 /**
- * @brief Media Pipeline
+ * @brief Create a Audio Frame object
  * 
+ * @param fmt The format type
+ * @param channels Numbe of channels
+ * @param samples Number of samples in a single channel
+ * @return Arc<MediaFrame> 
  */
-class NEKO_API MediaPipeline final : public Pipeline, public MediaController {
-public:
-    MediaPipeline();
-    MediaPipeline(const MediaPipeline &) = delete;
-    ~MediaPipeline();
+extern NEKO_API Arc<AudioFrame> CreateAudioFrame(SampleFormat fmt, int channels, int samples);
 
-    void setGraph(View<Graph> graph) override;
-
-    void addClock(MediaClock *clock) override;
-    void removeClock(MediaClock *clock) override;
-    auto masterClock() const -> MediaClock * override;
-    auto position() const noexcept {
-        return mPosition.load();
-    }
-
-    void seek(double pos);
-protected:
-    void stateChanged(State newState) override;
-private:
-    void _run();
-    std::vector<MediaClock *> mClocks;
-    mutable std::mutex        mClockMutex;
-    MediaClock               *mMasterClock = nullptr;
-    ExternalClock             mExternalClock;
-    Thread                   *mThread = nullptr;
-    Atomic<double>            mPosition {0}; //< Current media playing position
-};
-
-extern auto NEKO_API CreateAudioPresenter() -> Box<AudioPresenter>;
-extern auto NEKO_API CreateVideoPresenter() -> Box<VideoPresenter>;
-extern auto NEKO_API CreateMediaQueue() -> Box<MediaQueue>;
-extern auto NEKO_API CreateAppSource() -> Box<AppSource>;
-extern auto NEKO_API CreateAppSink() -> Box<AppSink>;
-extern auto NEKO_API GetMediaFactory() -> MediaFactory *;
-extern auto NEKO_API ParseMediaUrl(std::string_view url) -> Box<Graph>;
-
-}
 NEKO_NS_END
-
-#endif

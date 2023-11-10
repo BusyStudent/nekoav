@@ -40,15 +40,21 @@ public:
 template <typename ...Ts>
 class GetThreadImpl : public Ts..., protected StateDispatch {
 public:
-    Error sendEvent(View<Event> event) override {
+    Error sendEvent(View<Event> ev) override {
         if (!mThread) {
             return Error::InvalidState;
         }
+        Error err;
+        mThread->sendTask([&, this]() {
+            err = event(ev);
+        });
+        return err;
     }
     Error changeState(StateChange change) override {
         if (change == StateChange::Initialize) {
             assert(mThread == nullptr);
             mThread = new Thread();
+            mRunning = true;
         }
         Error ret;
         mThread->sendTask([&, this]() {
@@ -60,6 +66,7 @@ public:
         }
         if (change == StateChange::Teardown) {
             assert(mThread != nullptr);
+            mRunning = false;
             delete mThread;
             mThread = nullptr;
         }
@@ -71,7 +78,7 @@ public:
         return Error::Ok;
     }
     virtual Error onLoop() {
-        while (this->state() != State::Null) {
+        while (!stopRequested()) {
             // While not stop
             mThread->waitTask();
         }
@@ -81,8 +88,14 @@ public:
     Thread *thread() const noexcept {
         return mThread;
     }
+    bool   stopRequested() const noexcept {
+        return !mRunning;
+    }
 private:
     void  _threadEntry() {
+#ifndef     NDEBUG
+        mThread->setName(typeid(*this).name());
+#endif
         auto err = onLoop();
         if (err != Error::Ok && this->bus()) {
             auto event = ErrorEvent::make(err, this);
@@ -90,7 +103,8 @@ private:
         }
     }
 
-    Thread *mThread = nullptr;
+    Thread      *mThread = nullptr;
+    Atomic<bool> mRunning {false};
 };
 
 template <typename ...Ts>

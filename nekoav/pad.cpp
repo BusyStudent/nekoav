@@ -20,7 +20,7 @@ Error Pad::push(View<Resource> resourceView) {
     if (!mNext) {
         return Error::NoLink;
     }
-    if (mNext->mCallback) {
+    if (!mNext->mCallback) {
         return Error::InvalidState;
     }
     NEKO_TRACE_TIME {
@@ -43,6 +43,7 @@ Error Pad::unlink() {
     return Error::Ok;
 }
 void Pad::setCallback(Callback &&callback) {
+    assert(mType == Input);
     mCallback = std::move(callback);
 }
 void Pad::setName(std::string_view name) {

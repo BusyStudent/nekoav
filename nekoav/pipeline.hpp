@@ -13,9 +13,9 @@ public:
      * 
      * @param cb 
      */
-    virtual void setEventCallback(std::function<void(View<Event> )> &&cb) = 0;
+    virtual void        setEventCallback(std::function<void(View<Event> )> &&cb) = 0;
 };
 
-extern Box<Pipeline> NEKO_API CreatePipeline();
+extern Arc<Pipeline> NEKO_API CreatePipeline();
 
 NEKO_NS_END

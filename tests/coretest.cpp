@@ -3,11 +3,13 @@
 #include "../nekoav/detail/template.hpp"
 #include "../nekoav/backtrace.hpp"
 #include "../nekoav/elements.hpp"
+#include "../nekoav/container.hpp"
 #include "../nekoav/property.hpp"
 #include "../nekoav/format.hpp"
 #include "../nekoav/enum.hpp"
 #include "../nekoav/time.hpp"
 #include "../nekoav/log.hpp"
+#include "../nekoav/pad.hpp"
 
 using namespace std::chrono_literals;
 using namespace NekoAV;
@@ -29,7 +31,10 @@ public:
 class TinyThreadElement final : public Template::GetThreadImpl<Element> {
 public:
     TinyThreadElement() {
-
+        auto src = addInput("sink");
+        src->setCallback([&](View<Resource> resourceView) -> Error {
+            return Error::Ok;
+        });
     }
     Error onInitialize() override {
         Backtrace();
@@ -41,59 +46,41 @@ public:
     }
 };
 
-// class TestElementSource : public Element, public MyInterface {
-// public:
-//     TestElementSource() {
-//         setThreadPolicy(ThreadPolicy::SingleThread);
-//     }
-//     void call() override {
 
-//     }
-//     Error run() override {
-//         while (state() != State::Stopped) {
-//             // waitTask();
-//             std::this_thread::sleep_for(10ms);
-//             pad->send(make_shared<TestResource>());
-//             dispatchTask();
-//         }
-//         return Error::Ok;
-//     }
-//     void stateChanged(State newState) override {
-//         NEKO_LOG("State changed to {}", newState);
-//     }
-//     Error init() override {
-//         NEKO_DEBUG("Init");
-//         return Error::Ok;
-//     }
-//     Error teardown() override {
-//         NEKO_DEBUG("Teardown");
-//         return Error::Ok;
-//     }
-// private:
-//     Pad *pad {addOutput("src")};
-// };
-// class TestElementSink : public Element {
-// public:
-//     TestElementSink() {
-//         addInput("sink");
-//     }
-//     Error processInput(Pad &, View<Resource> resource) override {
-//         NEKO_DEBUG("Process input");
-//         resource.viewAs<TestResource>()->call();
-//         return Error::Ok;
-//     }
-//     void stateChanged(State newState) override {
-//         NEKO_LOG("State changed to {}", newState);
-//     }
-//     Error init() override {
-//         NEKO_DEBUG("Init");
-//         return Error::Ok;
-//     }
-//     Error teardown() override {
-//         NEKO_DEBUG("Teardown");
-//         return Error::Ok;
-//     }
-// };
+class TinyResource final : public Resource {
+
+};
+class TinySource final : public Template::GetImpl<Element> {
+public:
+    TinySource() {
+        mPad = addOutput("src");
+    }
+    void push() {
+        mPad->push(make_shared<TinyResource>());
+    }
+private:
+    Pad *mPad;
+};
+class TinySink final : public Template::GetImpl<Element> {
+public:
+    TinySink() {
+        addInput("sink")->setCallback(std::bind(&TinySink::process, this, std::placeholders::_1));
+    }
+    Error process(View<Resource> resourceView) {
+        // Backtrace();
+        NEKO_DEBUG(typeid(*resourceView));
+        return Error::Ok;
+    }
+};
+class TinyMiddle final : public Template::GetImpl<Element> {
+public:
+    TinyMiddle() {
+        auto out = addOutput("src");
+        auto in = addInput("sink");
+
+        in->setCallback(std::bind(&Pad::push, out, std::placeholders::_1));
+    }
+};
 
 TEST(CoreTest, TimeTest) {
     int64_t offset;
@@ -172,6 +159,16 @@ TEST(CoreTest, Elem) {
     TinyThreadElement thelem;
     thelem.setState(State::Running);
     thelem.setState(State::Null);
+
+    TinySource src;
+    TinyMiddle middle;
+    TinyMiddle middle2;
+    TinySink sink;
+
+    LinkElements(&src, &middle, &middle2, &sink);
+    src.push();
+    src.push();
+    src.push();
 
 };
 

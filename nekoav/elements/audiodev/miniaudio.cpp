@@ -14,9 +14,7 @@
     #define  MA_NO_NEON
 #endif
 #include <miniaudio.h>
-#include "device.hpp"
-#include "../format.hpp"
-
+#include "../audiodev.hpp"
 
 NEKO_NS_BEGIN
 
