@@ -27,6 +27,15 @@ public:
     void setUrl(std::string_view source) {
         mSource = source;
     }
+    double duration() const override {
+        if (!mFormatContext) {
+            return 0.0;
+        }
+        if (mFormatContext->duration == AV_NOPTS_VALUE) {
+            return 0.0;
+        }
+        return double(mFormatContext->duration) / AV_TIME_BASE;
+    }
     Error onInitialize() override {
         mFormatContext = avformat_alloc_context();
         mFormatContext->interrupt_callback.opaque = this;
@@ -63,6 +72,28 @@ public:
                 if (err != Error::Ok) {
                     return err;
                 }
+            }
+        }
+        return Error::Ok;
+    }
+    Error onEvent(View<Event> event) override {
+        if (event->type() == Event::SeekRequested) {
+            // Require a seek
+            auto time = event.viewAs<SeekEvent>()->time();
+            int64_t seekTime = time * AV_TIME_BASE;
+            int ret = av_seek_frame(
+                mFormatContext,
+                -1,
+                seekTime,
+                AVSEEK_FLAG_BACKWARD
+            );
+            if (ret < 0) {
+                return ToError(ret);
+            }
+
+            // Send pad with event
+            for (auto out : outputs()) {
+                out->push(std::make_shared<Event>(Event::FlushRequested, this));
             }
         }
         return Error::Ok;

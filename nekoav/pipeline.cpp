@@ -232,7 +232,7 @@ private:
             }
 #endif
 
-            sendBusEvent(ClockEvent::make(Event::ClockUpdated, this, masterClock()));
+            sendBusEvent(ClockEvent::make(Event::ClockUpdated, masterClock(), this));
         }
     }
 

@@ -19,6 +19,13 @@ public:
         mSink->setCallback([this](View<Resource> resourceView) {
             auto v = resourceView.viewAs<Packet>();
             if (!v) {
+                if (auto event = resourceView.viewAs<Event>(); event) {
+                    if (event->type() == Event::FlushRequested) {
+                        avcodec_flush_buffers(mCtxt);
+                    }
+                    // Chain this event
+                    mSrc->push(resourceView);
+                }
                 return Error::UnsupportedResource;
             }
             return process(v);

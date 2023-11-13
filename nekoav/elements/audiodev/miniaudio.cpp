@@ -6,15 +6,18 @@
 #define  MA_NO_GENERATION
 #define  MA_API static
 
-#if defined(NEKOAV_DEBUG)
+#if !defined(NDEBUG)
+    #define  MA_ON_THREAD_ENTRY NEKO_SetThreadName("Miniaudio");
     #define  MA_DEBUG_OUTPUT
 #endif
 
 #if defined(__WIN32)
     #define  MA_NO_NEON
 #endif
-#include <miniaudio.h>
+
 #include "../audiodev.hpp"
+#include "../../utils.hpp"
+#include <miniaudio.h>
 
 NEKO_NS_BEGIN
 
