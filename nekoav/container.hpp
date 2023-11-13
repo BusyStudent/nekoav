@@ -29,6 +29,12 @@ public:
      */
     virtual Error forElements(const std::function<bool (View<Element>)> &cb) = 0;
     /**
+     * @brief Get Elements size in the container
+     * 
+     * @return size
+     */
+    virtual size_t size() = 0;
+    /**
      * @brief Add this elements all to the container
      * 
      * @param elements 

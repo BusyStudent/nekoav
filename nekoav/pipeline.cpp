@@ -111,6 +111,9 @@ public:
     void  setEventCallback(std::function<void(View<Event> )> &&cb) override {
         mEventCallback = std::move(cb);
     }
+    size_t size() override {
+        return mElements.size();
+    }
 
     // MediaController
     void addClock(MediaClock *clock) override {

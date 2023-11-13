@@ -2,8 +2,54 @@
 #include "container.hpp"
 #include "factory.hpp"
 #include "pad.hpp"
+#include <map>
 
 NEKO_NS_BEGIN
+
+Vec<View<Element> > topologySort(const View<Container> &container) {
+    std::map<View<Element>, int> inDeg;
+    container->forElements([inDeg](View<Element> element) mutable {
+        inDeg.insert(std::make_pair(element, 0));
+        return true;
+    });
+    // TODO:这里outputs里面的节点是不是有可能不是这个图里面的节点
+    for (auto [element, _] : inDeg) {
+        auto inputs = element->outputs();
+        for (auto pad : inputs) {
+            auto next = pad->next();
+            if (next != nullptr && next->element() != nullptr) {
+                inDeg[next->element()] ++;
+            }
+        }
+    }
+    // Push all nodes with indegree 0 to the queue
+    Vec<View<Element>> elements;
+    for (const auto [key, value] : inDeg) {
+        if (value == 0) {
+            elements.push_back(key);
+        }
+    }
+    // Traverse the queue and delete in-degree points
+    int index = 0;
+    while (index < elements.size()) {
+        for (const auto &pad : elements[index]->outputs()) {
+            auto next = pad->next();
+            if (next != nullptr && next->element() != nullptr) {
+                inDeg[next->element()] --;
+                if (inDeg[next->element()] == 0) {
+                    // Push node when indegree == 0
+                    elements.push_back(next->element());
+                }
+            }
+        }
+        index ++;
+    }
+    // Topological sorting is completed if and only if the number of topological sorting nodes is equal to the number of source nodes.
+    if (elements.size() == inDeg.size()) {
+        return elements;
+    }
+    return Vec<View<Element>>();
+}
 
 class ContainerImpl final : public Container {
 public:
@@ -60,6 +106,9 @@ public:
         }
         return Error::Ok;
     }
+    size_t size() override {
+        return mElements.size();
+    }
 private:
     Vec<Arc<Element> > mElements;
 };
@@ -80,19 +129,15 @@ std::string DumpTopology(View<Container> container) {
     if (!container) {
         return std::string();
     }
-    auto elements = GetElements(container);
+    auto elements = topologySort(container);
     if (elements.empty()) {
         return std::string();
     }
 
     std::map<Element *, std::string> elementIds;
-    std::string currentId {"a"};
-    auto randId = [&]() {
-        currentId.back() += 1;
-        if (currentId.back() == 'z') {
-            currentId.push_back('a');
-        }
-        return currentId;
+    auto randId = [a = 0]() mutable {
+        a ++;
+        return std::to_string(a);
     };
     auto markElement = [](Element *elem) {
         if (elem->inputs().empty()) {
@@ -107,8 +152,8 @@ std::string DumpTopology(View<Container> container) {
 
     std::string result {"graph LR\n"};
     for (const auto &el : elements) {
-        if (!elementIds.contains(el)) {
-            elementIds[el] = randId();
+        if (!elementIds.contains(el.get())) {
+            elementIds[el.get()] = randId();
         }
         for (auto out : el->outputs()) {
             if (!out->isLinked()) {
@@ -121,8 +166,8 @@ std::string DumpTopology(View<Container> container) {
 
             // Generate A[Square Rect] -- Link text --> B((Circle))
             result += "    ";
-            result += elementIds[el];
-            result += markElement(el);
+            result += elementIds[el.get()];
+            result += markElement(el.get());
 
             result += " -- ";
             result += out->name();
@@ -141,6 +186,22 @@ std::string DumpTopology(View<Container> container) {
 
 Arc<Container> CreateContainer() {
     return make_shared<ContainerImpl>();
+}
+
+bool HasCycle(View<Container> container) {
+    auto elements = topologySort(container);
+    for (auto element : elements) {
+        auto ptr = element.viewAs<Container>();
+        if (ptr != nullptr) {
+            if (HasCycle(ptr)) {
+                return true;
+            }
+        }
+    }
+    if (elements.size() != container->size()) {
+        return true;
+    }
+    return false;
 }
 
 NEKO_REGISTER_ELEMENT(Container, ContainerImpl);
