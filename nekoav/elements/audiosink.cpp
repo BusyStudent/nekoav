@@ -18,9 +18,9 @@ public:
     AudioSinkImpl() {
         auto pad = addInput("sink");
         pad->addProperty(Properties::SampleFormatList, {
-            SampleFormat::U8, 
-            SampleFormat::S16, 
-            SampleFormat::S32, 
+            // SampleFormat::U8, 
+            // SampleFormat::S16, 
+            // SampleFormat::S32, 
             SampleFormat::FLT
         });
         pad->setCallback(std::bind(&AudioSinkImpl::processInput, this, std::placeholders::_1));
@@ -48,18 +48,33 @@ public:
         return Error::Ok;
     }
     Error onPause() override {
+        mCondition.notify_one();
         if (mDevice) {
             mDevice->pause(true);
         }
         return Error::Ok;
     }
+    Error onStop() override {
+        std::lock_guard locker(mMutex);
+        while (!mFrames.empty()) {
+            mFrames.pop();
+        }
+        mCondition.notify_one();
+        return Error::Ok;
+    }
     Error onRun() override {
+        mCondition.notify_one();
         if (mDevice) {
             mDevice->pause(false);
         }
         return Error::Ok;
     }
     Error processInput(ResourceView resourceView) {
+        if (state() != State::Running && state() != State::Paused) {
+            NEKO_DEBUG("Can not process input at this state");
+            NEKO_DEBUG(state());
+            return Error::TemporarilyUnavailable;
+        }
         auto frame = resourceView.viewAs<MediaFrame>();
         if (!frame) {
             return Error::UnsupportedResource;
@@ -77,9 +92,9 @@ public:
         // Is Opened, write to queue
         std::unique_lock lock(mMutex);
         mFrames.push(frame->shared_from_this<MediaFrame>());
-        mCondition.wait(lock, [this]() {
-            return mFrames.size() < mMaxFrames;
-        });
+        while (state() == State::Running && mFrames.size() > mMaxFrames) {
+            mCondition.wait_for(lock, std::chrono::milliseconds(10));
+        }
         return Error::Ok;
     }
 

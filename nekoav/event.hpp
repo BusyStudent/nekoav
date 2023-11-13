@@ -70,17 +70,30 @@ private:
 class MediaClock;
 class ClockEvent : public Event {
 public:
-    ClockEvent(Type type, Element *sender, MediaClock *clock) : Event(type, sender), mClock(clock) { };
+    ClockEvent(Type type, MediaClock *clock, Element *sender) : Event(type, sender), mClock(clock) { };
 
     MediaClock *clock() const noexcept {
         return mClock;
     }
 
-    static Arc<ClockEvent> make(Type type, Element *sender, MediaClock *clock) {
-        return std::make_shared<ClockEvent>(type, sender, clock);
+    static Arc<ClockEvent> make(Type type, MediaClock *clock, Element *sender) {
+        return std::make_shared<ClockEvent>(type, clock, sender);
     }
 private:
     MediaClock *mClock = nullptr;
+};
+class SeekEvent : public Event {
+public:
+    SeekEvent(double targetSeconds) : Event(SeekRequested, nullptr) { }
+
+    double time() const noexcept {
+        return mTime;
+    }
+    static Arc<SeekEvent> make(double targetSeconds) {
+        return std::make_shared<SeekEvent>(targetSeconds);
+    }
+private:
+    double mTime;
 };
 
 extern NEKO_API Error     DispatchEvent(View<Event> event);

@@ -42,10 +42,15 @@ int main(int argc, char **argv) {
     win.setCentralWidget(widget);
 
     auto layout = new QVBoxLayout(widget);
+    auto sublay = new QHBoxLayout(widget);
     auto btn = new QPushButton("OpenFile");
     auto pauseBtn = new QPushButton("Pause");
-    layout->addWidget(btn);
-    layout->addWidget(pauseBtn);
+    auto progressBar = new QSlider(Qt::Horizontal);
+
+    layout->addLayout(sublay);
+    sublay->addWidget(btn);
+    sublay->addWidget(pauseBtn);
+    sublay->addWidget(progressBar);
 
     pauseBtn->setEnabled(false);
 
@@ -75,9 +80,10 @@ int main(int argc, char **argv) {
 
     pipeline->setEventCallback([&](View<Event> event) {
         if (event->type() == Event::ClockUpdated) {
-            auto str = QString("Time: %1").arg(event.viewAs<ClockEvent>()->clock()->position());
-            QMetaObject::invokeMethod(&win, [s = std::move(str), &win]() {
-                win.setWindowTitle(s);
+            auto time = event.viewAs<ClockEvent>()->clock()->position();
+            QMetaObject::invokeMethod(&win, [t = time, &win, &progressBar]() {
+                win.setWindowTitle(QString::number(t));
+                progressBar->setValue(t);
             }, Qt::QueuedConnection);
         }
     });
@@ -104,6 +110,7 @@ int main(int argc, char **argv) {
                 err = pipeline->setState(State::Running);
             }
             if (err == Error::Ok) {
+                progressBar->setRange(0, demuxer->duration());
                 pauseBtn->setEnabled(true);
             }
         }

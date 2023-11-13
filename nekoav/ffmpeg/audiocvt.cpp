@@ -29,6 +29,10 @@ public:
     Error processInput(ResourceView resourceView) {
         auto frame = resourceView.viewAs<Frame>();
         if (!frame) {
+            // Is event, just chain it
+            if (auto event = resourceView.viewAs<Event>(); event) {
+                return mSourcePad->push(event);
+            }
             return Error::UnsupportedResource;
         }
         if (!mSourcePad->isLinked()) {

@@ -62,6 +62,10 @@ public:
             lock.unlock();
 
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            if (state() != State::Running) {
+                // If not running, return directly
+                return Error::Ok;
+            }
 
             lock.lock();
         }
@@ -73,6 +77,8 @@ public:
             while (state() == State::Running && mRunning) {
                 pullQueue();
             }
+            std::this_thread::yield();
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
     void pullQueue() {
@@ -83,11 +89,14 @@ public:
         if (!mQueue.empty()) {
             Item item = std::move(mQueue.front());
             mQueue.pop();
+            lock.unlock();
 
             if (item.frame) {
                 mDuration -= item.frame->duration();
             }
             mSrc->push(item.resource);
+
+            lock.lock();
         }
     }
     double duration() const override {
