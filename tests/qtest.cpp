@@ -9,11 +9,21 @@
 #include <QSlider>
 #include <QLabel>
 #include <iostream>
-#include "../nekoav/interop/qnekoav.hpp"
+
+#include "../nekoav/elements/demuxer.hpp"
+#include "../nekoav/elements/decoder.hpp"
+#include "../nekoav/elements/audiosink.hpp"
+#include "../nekoav/elements/audiocvt.hpp"
+#include "../nekoav/elements/videocvt.hpp"
+#include "../nekoav/elements/videosink.hpp"
+#include "../nekoav/elements/mediaqueue.hpp"
 #include "../nekoav/backtrace.hpp"
-#include "../nekoav/message.hpp"
+#include "../nekoav/pipeline.hpp"
+#include "../nekoav/factory.hpp"
 #include "../nekoav/format.hpp"
+#include "../nekoav/event.hpp"
 #include "../nekoav/media.hpp"
+#include "../nekoav/pad.hpp"
 #include "../nekoav/log.hpp"
 
 #ifdef _MSC_VER
@@ -33,89 +43,80 @@ int main(int argc, char **argv) {
 
     auto layout = new QVBoxLayout(widget);
     auto btn = new QPushButton("OpenFile");
-    auto canvas = new QNekoVideoWidget;
+    auto pauseBtn = new QPushButton("Pause");
     layout->addWidget(btn);
-    layout->addWidget(canvas);
+    layout->addWidget(pauseBtn);
 
-    Graph graph;
-    MediaPipeline pipeline;
-    pipeline.setGraph(&graph);
+    pauseBtn->setEnabled(false);
 
     // Init Graph
-    auto factory = GetMediaFactory();
-    auto demuxer = factory->createElement<Demuxer>().release();
+    auto factory = GetElementFactory();
+    auto pipeline = factory->createElement<Pipeline>();
+    auto demuxer = factory->createElement<Demuxer>();
 
-    auto aqueue = CreateMediaQueue().release();
-    auto vqueue = CreateMediaQueue().release();
+    auto aqueue = factory->createElement<MediaQueue>();
+    auto vqueue = factory->createElement<MediaQueue>();
 
-    auto adecoder = factory->createElement<Decoder>().release();
-    auto aconverter = factory->createElement<AudioConverter>().release();
-    auto apresenter = factory->createElement<AudioPresenter>().release();
+    auto adecoder = factory->createElement<Decoder>();
+    auto aconverter = factory->createElement<AudioConverter>();
+    auto apresenter = factory->createElement<AudioSink>();
 
-    auto vdecoder = factory->createElement<Decoder>().release();
-    auto vconverter = factory->createElement<VideoConverter>().release();
-    auto vpresenter = factory->createElement<VideoPresenter>().release();
-
-    demuxer->setLoadedCallback([&]() {
-        NEKO_DEBUG(*demuxer);
-        for (auto pad : demuxer->outputs()) {
-            if (pad->isVideo()) {
-                demuxer->linkWith(pad->name(), vqueue, "sink");
-                break;
-            }
-        }
-        for (auto pad : demuxer->outputs()) {
-            if (pad->isAudio()) {
-                demuxer->linkWith(pad->name(), aqueue, "sink");
-                break;
-            }
-        }
-    });
-
-
-    vqueue->linkWith("src", vdecoder, "sink");
-    vdecoder->linkWith("src", vconverter, "sink");
-    vconverter->linkWith("src", vpresenter, "sink");
-
-
-    aqueue->linkWith("src", adecoder, "sink");
-    adecoder->linkWith("src", aconverter, "sink");
-    aconverter->linkWith("src", apresenter, "sink");
-
-    // graph.addElement(demuxer);
-
-    // graph.addElement(vdecoder);
-    // graph.addElement(vconverter);
-    // graph.addElement(sink);
-
-    // graph.addElement(adecoder);
-    // graph.addElement(aconverter);
-    // graph.addElement(apresenter);
-    graph.addElements(demuxer, vdecoder, vconverter, vpresenter, adecoder, aconverter, apresenter);
-    graph.addElements(aqueue, vqueue);
+    auto vdecoder = factory->createElement<Decoder>();
+    auto vconverter = factory->createElement<VideoConverter>();
+    auto vpresenter = factory->createElement<TestVideoSink>();
 
     aqueue->setName("AudioQueue");
     vqueue->setName("VideoQueue");
 
-    vpresenter->setRenderer(canvas);
+    pipeline->addElements(demuxer, aqueue, adecoder, aconverter, apresenter, vqueue, vdecoder, vconverter, vpresenter);
 
-    std::cout << graph.toDocoument() << std::endl;
+    LinkElements(aqueue, adecoder, aconverter, apresenter);
+    LinkElements(vqueue, vdecoder, vconverter, vpresenter);
+
+    pipeline->setEventCallback([&](View<Event> event) {
+        if (event->type() == Event::ClockUpdated) {
+            auto str = QString("Time: %1").arg(event.viewAs<ClockEvent>()->clock()->position());
+            QMetaObject::invokeMethod(&win, [s = std::move(str), &win]() {
+                win.setWindowTitle(s);
+            }, Qt::QueuedConnection);
+        }
+    });
 
     QObject::connect(btn, &QPushButton::clicked, [&](bool) {
         auto url = QFileDialog::getOpenFileUrl(nullptr, "Open File");
         if (url.isValid()) {
-            demuxer->setSource(url.toLocalFile().toUtf8().constData());
-            pipeline.setState(State::Stopped);
-            pipeline.setState(State::Running);
+            demuxer->setUrl(url.toLocalFile().toUtf8().constData());
+            auto err = pipeline->setState(State::Null);
+            err = pipeline->setState(State::Paused);
+            if (err == Error::Ok) {
+                for (auto out : demuxer->outputs()) {
+                    if (out->name().starts_with("audio")) {
+                        auto err = LinkElement(demuxer, out->name(), aqueue, "sink");
+                        break;
+                    }
+                }
+                for (auto out : demuxer->outputs()) {
+                    if (out->name().starts_with("video")) {
+                        auto err = LinkElement(demuxer, out->name(), vqueue, "sink");
+                        break;
+                    }
+                }
+                err = pipeline->setState(State::Running);
+            }
+            if (err == Error::Ok) {
+                pauseBtn->setEnabled(true);
+            }
         }
     });
-    pipeline.setMessageCallback([&](View<Message> message) {
-        if (message->type() == Message::ClockUpdated) {
-            QMetaObject::invokeMethod(&win, [&]() {
-                win.setWindowTitle(QString::number(pipeline.masterClock()->position()));
-            }, Qt::QueuedConnection);
+    QObject::connect(pauseBtn, &QPushButton::clicked, [&](bool) {
+        if (pipeline->state() == State::Paused) {
+            pipeline->setState(State::Running);
+        }
+        else if (pipeline->state() == State::Running) {
+            pipeline->setState(State::Paused);
         }
     });
+
 
     win.show();
     return app.exec();

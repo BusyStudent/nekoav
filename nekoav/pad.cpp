@@ -6,7 +6,7 @@ NEKO_NS_BEGIN
 
 // Pad here
 Pad::Pad(Element *master, Type type, std::string_view name) : mElement(master), mType(type), mName(name) {
-    assert(master != nullptr);
+    NEKO_ASSERT(master != nullptr);
 }
 Pad::~Pad() {
 
@@ -23,9 +23,9 @@ Error Pad::push(View<Resource> resourceView) {
     if (!mNext->mCallback) {
         return Error::InvalidState;
     }
-    NEKO_TRACE_TIME {
+    // NEKO_TRACE_TIME {
         return mNext->mCallback(resourceView);
-    }
+    // }
 }
 Error Pad::link(View<Pad> pad) {
     if (!pad) {
@@ -43,7 +43,7 @@ Error Pad::unlink() {
     return Error::Ok;
 }
 void Pad::setCallback(Callback &&callback) {
-    assert(mType == Input);
+    NEKO_ASSERT(mType == Input);
     mCallback = std::move(callback);
 }
 void Pad::setName(std::string_view name) {

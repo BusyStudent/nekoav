@@ -24,6 +24,7 @@ target("nekoav")
 
     if is_plat("windows") then
         add_links("user32")
+        add_defines("NOMINMAX")
     end
 
     if has_package("miniaudio") then
@@ -71,13 +72,13 @@ target("elemtest")
 target_end()
 
 -- Gui Test
--- if has_config("qt_test") then 
---     target("qtest")
---         add_rules("qt.widgetapp")
---         add_deps("nekoav")
---         add_packages("ffmpeg")
+if has_config("qt_test") then 
+    target("qtest")
+        add_rules("qt.widgetapp")
+        add_deps("nekoav")
+        add_packages("ffmpeg")
 
---         add_frameworks("QtCore", "QtGui")
---         add_files("tests/qtest.cpp")
---     target_end()
--- end
+        add_frameworks("QtCore", "QtGui")
+        add_files("tests/qtest.cpp")
+    target_end()
+end

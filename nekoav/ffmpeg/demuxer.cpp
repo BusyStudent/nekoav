@@ -24,7 +24,7 @@ public:
     ~FFDemuxer() {
         av_packet_free(&mPacket);
     }
-    void setSource(std::string_view source) {
+    void setUrl(std::string_view source) {
         mSource = source;
     }
     Error onInitialize() override {
@@ -49,13 +49,14 @@ public:
     Error onTeardown() override {
         avformat_close_input(&mFormatContext);
         mStreamMapping.clear();
+        mEof = false;
         return Error::Ok;
     }
 
     Error onLoop() override {
         while (!stopRequested()) {
             thread()->waitTask();
-            while (state() == State::Running) {
+            while (state() == State::Running && !mEof) {
                 thread()->dispatchTask();
                 
                 auto err = readFrame();
@@ -69,6 +70,11 @@ public:
     Error readFrame() {
         int ret = av_read_frame(mFormatContext, mPacket);
         if (ret < 0) {
+            if (ret == AVERROR_EOF) {
+                // Read at end of file
+                mEof = true;
+                return Error::Ok;
+            }
             return ToError(ret);
         }
         // Send
@@ -140,6 +146,7 @@ private:
     AVPacket        *mPacket = nullptr;
     std::string      mSource;
     std::map<int, Pad*> mStreamMapping; //< Mapping from FFmpeg stream index to Pad pointer
+    bool             mEof = false;
 };
 
 NEKO_REGISTER_ELEMENT(Demuxer, FFDemuxer);

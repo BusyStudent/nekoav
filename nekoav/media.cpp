@@ -20,42 +20,6 @@ namespace _abiv1 {
 
 namespace chrono = std::chrono;
 
-ExternalClock::ExternalClock() {
-
-}
-ExternalClock::~ExternalClock() {
-
-}
-double ExternalClock::position() const {
-    if (mPaused) {
-        return mCurrent;
-    }
-
-    // Calc
-    return double(GetTicks() - mTicks) / 1000.0;
-}
-auto ExternalClock::type() const -> Type {
-    return External;
-}
-void ExternalClock::start() {
-    if (!mPaused) {
-        return;
-    }
-    mTicks = GetTicks() - mCurrent * 1000;
-    mPaused = true;
-}
-void ExternalClock::pause() {
-    if (mPaused) {
-        return;
-    }
-    mCurrent = double(GetTicks() - mTicks) / 1000.0;
-    mPaused = true;
-}
-void ExternalClock::setPosition(double position) {
-    mTicks = GetTicks() - position * 1000;
-    mCurrent = position;
-}
-
 MediaPipeline::MediaPipeline() {
     addClock(&mExternalClock);
 }
@@ -583,8 +547,11 @@ NEKO_NS_END
 #endif
 
 #define _NEKO_SOURCE
+#include "time.hpp"
 #include "media.hpp"
 #include "format.hpp"
+#include "context.hpp"
+#include "elements.hpp"
 
 NEKO_NS_BEGIN
 
@@ -651,8 +618,51 @@ private:
     void *mData = nullptr;
     double mTimestamp = 0;
 };
+
+ExternalClock::ExternalClock() {
+
+}
+ExternalClock::~ExternalClock() {
+
+}
+double ExternalClock::position() const {
+    if (mPaused) {
+        return mCurrent;
+    }
+
+    // Calc
+    return double(GetTicks() - mTicks) / 1000.0;
+}
+auto ExternalClock::type() const -> Type {
+    return External;
+}
+void ExternalClock::start() {
+    if (!mPaused) {
+        return;
+    }
+    mTicks = GetTicks() - mCurrent * 1000;
+    mPaused = true;
+}
+void ExternalClock::pause() {
+    if (mPaused) {
+        return;
+    }
+    mCurrent = double(GetTicks() - mTicks) / 1000.0;
+    mPaused = true;
+}
+void ExternalClock::setPosition(double position) {
+    mTicks = GetTicks() - position * 1000;
+    mCurrent = position;
+}
+
 Arc<AudioFrame> CreateAudioFrame(SampleFormat fmt, int channels, int samples) {
     return make_shared<AudioFrameImpl>(fmt, channels, samples);
+}
+MediaController *GetMediaController(View<Element> element) {
+    if (!element || !element->context()) {
+        return nullptr;
+    }
+    return element->context()->queryInterface<MediaController>();
 }
 
 NEKO_NS_END

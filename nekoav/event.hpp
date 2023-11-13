@@ -23,6 +23,7 @@ public:
         MediaBuffering, //< Media is buffering
         SeekRequested,  //< Request to seek
         FlushRequested, //< Request to flush internal buffer
+        ClockUpdated,   //< The clock was updated
 
         PipelineWakeup, //< Wakeup Pipeline, internal use only
         User = 10086   //< User Begin
@@ -33,7 +34,7 @@ public:
     Type type() const noexcept {
         return mType;
     }
-    void *sender() const noexcept {
+    Element *sender() const noexcept {
         return mSender;
     }
     int64_t time() const noexcept {
@@ -64,6 +65,22 @@ public:
     }
 private:
     Error mError;
+};
+
+class MediaClock;
+class ClockEvent : public Event {
+public:
+    ClockEvent(Type type, Element *sender, MediaClock *clock) : Event(type, sender), mClock(clock) { };
+
+    MediaClock *clock() const noexcept {
+        return mClock;
+    }
+
+    static Arc<ClockEvent> make(Type type, Element *sender, MediaClock *clock) {
+        return std::make_shared<ClockEvent>(type, sender, clock);
+    }
+private:
+    MediaClock *mClock = nullptr;
 };
 
 extern NEKO_API Error     DispatchEvent(View<Event> event);

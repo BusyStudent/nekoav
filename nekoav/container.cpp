@@ -11,6 +11,8 @@ public:
         if (!element) {
             return Error::InvalidArguments;
         }
+        element->setBus(bus());
+        element->setContext(context());
         mElements.push_back(element->shared_from_this());
         return Error::Ok;
     }
@@ -24,6 +26,8 @@ public:
         if (it == mElements.end()) {
             return Error::InvalidArguments;
         }
+        element->setBus(nullptr);
+        element->setContext(nullptr);
         mElements.erase(it);
         return Error::Ok;
     }
@@ -82,9 +86,12 @@ std::string DumpTopology(View<Container> container) {
     }
 
     std::map<Element *, std::string> elementIds;
-    std::string currentId {"aa"};
+    std::string currentId {"a"};
     auto randId = [&]() {
-        currentId[0] += 1;
+        currentId.back() += 1;
+        if (currentId.back() == 'z') {
+            currentId.push_back('a');
+        }
         return currentId;
     };
     auto markElement = [](Element *elem) {

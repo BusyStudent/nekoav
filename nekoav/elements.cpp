@@ -3,6 +3,7 @@
 #include "time.hpp"
 #include "pad.hpp"
 #include "log.hpp"
+#include "libc.hpp"
 #include <algorithm>
 
 #ifdef __cpp_lib_format
@@ -660,7 +661,7 @@ std::string Element::name() const {
         return mName;
     }
     char buffer [256] = {0};
-    auto typename_ = typeid(*this).name();
+    auto typename_ = libc::typenameof(typeid(*this));
     ::snprintf(buffer, sizeof(buffer), "%s-%p", typename_, this);
     return std::string(buffer);
 }
@@ -754,6 +755,17 @@ Error LinkElements(std::initializer_list<View<Element> > elements) {
         }
     }
     return Error::Ok;
+}
+Error LinkElement(View<Element> src, std::string_view srcPad, View<Element> dst, std::string_view dstPad) {
+    if (!src || !dst || srcPad.empty() || dstPad.empty()) {
+        return Error::InvalidArguments;
+    }
+    auto spad = src->findOutput(srcPad);
+    auto dpad = dst->findInput(dstPad);
+    if (!spad || !dpad) {
+        return Error::InvalidArguments;
+    }
+    return spad->link(dpad);
 }
 
 NEKO_NS_END

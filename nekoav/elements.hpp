@@ -159,9 +159,19 @@ private:
 /**
  * @brief Link elements from left to right (a, b, c) => (a -> b -> c)
  * 
- * @return NEKO_API 
+ * @return Error 
  */
 extern NEKO_API Error LinkElements(std::initializer_list<View<Element> > elements);
+/**
+ * @brief Link Element by name
+ * 
+ * @param src The src element view
+ * @param srcPad The output pad name of src element
+ * @param dst The dst element view
+ * @param dstPad The input pad name of dst element
+ * @return Error 
+ */
+extern NEKO_API Error LinkElement(View<Element> src, std::string_view srcPad, View<Element> dst, std::string_view dstPad);
 
 
 // -- IMPL Here

@@ -22,7 +22,16 @@ public:
     auto shared_from_this() -> Arc<T> {
         return std::static_pointer_cast<T>(shared_from_this());
     }
-    
+
+    template <typename T>
+    auto as() noexcept {
+        return dynamic_cast<T*>(this);
+    }    
+    template <typename T>
+    auto as() const noexcept {
+        return dynamic_cast<const T*>(this);
+    }
+
     void *operator new(size_t size) {
         return libc::malloc(size);
     }

@@ -62,6 +62,9 @@ public:
             if (milliseconds == -1) {
                 mCondition.wait(locker);
             }
+            else if (milliseconds == 0) {
+                return false;
+            }
             else {
                 mCondition.wait_for(locker, std::chrono::milliseconds(milliseconds));
             }
@@ -71,11 +74,7 @@ public:
         return true;
     }
     bool tryWait(T *value) {
-        if (empty()) {
-            return false;
-        }
-        *value = pop();
-        return true;
+        return wait(value, 0);
     }
     void clear() {
         std::lock_guard locker(mMutex);

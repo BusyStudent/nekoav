@@ -36,6 +36,9 @@ int64_t GetTicks() noexcept {
 }
 
 int64_t SleepFor(int64_t ms) noexcept {
+    if (ms < 0) {
+        return 0;
+    }
     auto ticks = GetTicks();
 #ifdef _WIN32
     ::timeBeginPeriod(3);

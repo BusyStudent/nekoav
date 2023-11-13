@@ -162,5 +162,12 @@ private:
  * @return Arc<MediaFrame> 
  */
 extern NEKO_API Arc<AudioFrame> CreateAudioFrame(SampleFormat fmt, int channels, int samples);
+/**
+ * @brief Get the Media Controller object with object
+ * 
+ * @param element 
+ * @return MediaController* 
+ */
+extern NEKO_API MediaController *GetMediaController(View<Element> element);
 
 NEKO_NS_END

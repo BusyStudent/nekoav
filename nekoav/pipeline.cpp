@@ -7,16 +7,20 @@
 #include "media.hpp"
 #include "event.hpp"
 #include "log.hpp"
+#include <shared_mutex>
 #include <vector>
 
 NEKO_NS_BEGIN
 
-class PipelineImpl final : public Pipeline {
+class PipelineImpl final : public Pipeline, public MediaController {
 public:
     PipelineImpl() {
         // Init env
         setBus(&mBusSink);
         setContext(&mContext);
+        addClock(&mExternalClock);
+
+        mContext.registerInterface<MediaController>(this);
     }
     ~PipelineImpl() {
         setState(State::Null);
@@ -60,10 +64,13 @@ public:
     Error changeState(StateChange stateChange) override {
         if (stateChange == StateChange::Initialize) {
             // Initalize, new a thread
-            assert(!mThread && "Already initialized");
+            NEKO_ASSERT(!mThread && "Already initialized");
             mRunning = true;
             mThread = new Thread;
             mThread->postTask(std::bind(&PipelineImpl::threadEntry, this));
+
+            // Init media controller here
+            mPosition = 0.0;
         }
         Error ret = Error::Ok;
         auto cb = [&, this]() {
@@ -74,6 +81,7 @@ public:
                     return;
                 }
             }
+            mState = GetTargetState(stateChange);
         };
         if (Thread::currentThread() == mThread) {
             cb();
@@ -83,10 +91,14 @@ public:
         }
         if (stateChange == StateChange::Teardown || (stateChange == StateChange::Initialize && ret != Error::Ok)) {
             // Teardown or Init failed
-            assert(mThread && "Not initialized");
+            NEKO_ASSERT(mThread && "Not initialized");
             mRunning = false;
-            delete mThread;
-            mThread = nullptr;
+
+            if (Thread::currentThread() != mThread) {
+                //< Call setState at user thread
+                delete mThread;
+                mThread = nullptr;
+            }
         }
         return ret;
     }
@@ -98,6 +110,47 @@ public:
     }
     void  setEventCallback(std::function<void(View<Event> )> &&cb) override {
         mEventCallback = std::move(cb);
+    }
+
+    // MediaController
+    void addClock(MediaClock *clock) override {
+        if (!clock) {
+            return;
+        }
+        std::lock_guard locker(mClockMutex);
+        mClocks.push_back(clock);
+
+        if (mMasterClock == nullptr) {
+            mMasterClock = clock;
+        }
+        else if (clock->type() > mMasterClock->type()) {
+            // Higher
+            mMasterClock = clock;
+        }
+    }
+    void removeClock(MediaClock *clock) override {
+        if (!clock) {
+            return;
+        }
+        std::lock_guard locker(mClockMutex);
+        mClocks.erase(std::remove(mClocks.begin(), mClocks.end(), clock), mClocks.end());
+        if (mMasterClock == clock) {
+            mMasterClock = nullptr;
+            // Find next none
+            for (auto it = mClocks.begin(); it != mClocks.end(); it++) {
+                if (mMasterClock == nullptr) {
+                    mMasterClock = *it;
+                    continue;
+                }
+                if ((*it)->type() > mMasterClock->type()) {
+                    mMasterClock = *it;
+                }
+            }
+        }
+    }
+    auto masterClock() const -> MediaClock * {
+        std::shared_lock locker(mClockMutex);
+        return mMasterClock;
     }
 private:
     struct Sink final : public EventSink {
@@ -130,10 +183,13 @@ private:
         // Process event here
         NEKO_DEBUG(typeid(*event));
         NEKO_DEBUG(event->type());
+        NEKO_DEBUG(typeid(*event->sender()));
         
         if (event->type() == Event::ErrorOccurred) {
             // Error 
+            NEKO_DEBUG(View<Event>(event).viewAs<ErrorEvent>()->error());
             // Do Error here
+            setState(State::Null);
         }
         if (mEventCallback) {
             mEventCallback(event);
@@ -146,14 +202,54 @@ private:
         while (mRunning) {
             mThread->waitTask();
             NEKO_DEBUG("Pipeline Thread Dispatch once");
+            while (state() == State::Running) {
+                mThread->waitTask(10); //< Delay 10ms if no event
+                updateClock();
+            }
+        }
+    }
+    void updateClock() {
+        // Update clock if
+        auto current = masterClock()->position();
+        if (std::abs(current - mPosition) > 1.0) {
+            mPosition = int64_t(current);
+            NEKO_DEBUG(mPosition);
+#ifndef     NDEBUG
+            std::shared_lock lock(mClockMutex);
+            MediaClock *audioClock = nullptr;
+            MediaClock *videoClock = nullptr;
+            for (auto v : mClocks) {
+                if (v->type() == MediaClock::Audio) {
+                    audioClock = v;
+                }
+                if (v->type() == MediaClock::Video) {
+                    videoClock = v;
+                }
+                if (audioClock && videoClock) {
+                    NEKO_DEBUG(audioClock->position() - videoClock->position());
+                    break;
+                }
+            }
+#endif
+
+            sendBusEvent(ClockEvent::make(Event::ClockUpdated, this, masterClock()));
         }
     }
 
+    // Pipeline
     Thread            *mThread = nullptr;
     Vec<Arc<Element> > mElements;
     Atomic<bool>       mRunning {false};
     Context            mContext;
 
+    // MediaController
+    Vec<MediaClock *>  mClocks;
+    MediaClock        *mMasterClock = nullptr;
+    ExternalClock      mExternalClock;
+    double             mPosition = 0.0; //< Current position
+    mutable std::shared_mutex mClockMutex;
+
+    // Event
     std::function<void(View<Event>)> mEventCallback;
 };
 

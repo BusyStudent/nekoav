@@ -2,6 +2,7 @@
 #include "../detail/template.hpp"
 #include "../factory.hpp"
 #include "../media.hpp"
+#include "../log.hpp"
 #include "../pad.hpp"
 #include "audiosink.hpp"
 #include "audiodev.hpp"
@@ -32,18 +33,30 @@ public:
         mDevice = CreateAudioDevice();
         mDevice->setCallback(std::bind(&AudioSinkImpl::audioCallback, this, std::placeholders::_1, std::placeholders::_2));
 
-        // mController = graph()->queryInterface<MediaController>();
-        // if (mController) {
-        //     mController->addClock(this);
-        // }
+        mController = GetMediaController(this);
+        if (mController) {
+            mController->addClock(this);
+        }
         return Error::Ok;
     }
     Error onTeardown() override {
         mDevice.reset();
-        // if (mController) {
-        //     mController->removeClock(this);
-        // }
-        // mController = nullptr;
+        if (mController) {
+            mController->removeClock(this);
+        }
+        mController = nullptr;
+        return Error::Ok;
+    }
+    Error onPause() override {
+        if (mDevice) {
+            mDevice->pause(true);
+        }
+        return Error::Ok;
+    }
+    Error onRun() override {
+        if (mDevice) {
+            mDevice->pause(false);
+        }
         return Error::Ok;
     }
     Error processInput(ResourceView resourceView) {
@@ -55,15 +68,18 @@ public:
             // Try open it
             mOpened = mDevice->open(frame->sampleFormat(), frame->sampleRate(), frame->channels());
             if (!mOpened) {
-                return Error::UnsupportedFormat;
+                return raiseError(Error::UnsupportedFormat);
             }
             // Start it
             mDevice->pause(false);
         }
 
         // Is Opened, write to queue
-        std::lock_guard lock(mMutex);
+        std::unique_lock lock(mMutex);
         mFrames.push(frame->shared_from_this<MediaFrame>());
+        mCondition.wait(lock, [this]() {
+            return mFrames.size() < mMaxFrames;
+        });
         return Error::Ok;
     }
 
@@ -88,6 +104,9 @@ public:
 
                 // Update audio clock
                 mPosition = mCurrentFrame->timestamp();
+
+                // Notify 
+                mCondition.notify_one();
             }
             void *frameData = mCurrentFrame->data(0);
             // int frameLen = mCurrentFrame->linesize(0);
@@ -103,6 +122,7 @@ public:
 
             // Update audio clock
             mPosition += mCurrentFrame->duration() * bytes / frameLen;
+            // NEKO_DEBUG(mPosition.load());
 
             if (mCurrentFramePosition == frameLen) {
                 mCurrentFrame.reset();
@@ -110,7 +130,7 @@ public:
             }
         }
         if (len > 0) {
-            // NEKO_DEBUG("No Audio data!!!!");
+            NEKO_DEBUG("No Audio data!!!!");
             ::memset(buf, 0, len);
         }
     }
@@ -119,17 +139,19 @@ public:
         return Error::NoImpl;
     }
 private:
-    // MediaController *mController = nullptr;
+    MediaController *mController = nullptr;
     Atomic<double>   mPosition {0.0}; //< Current media clock position
     Box<AudioDevice> mDevice;
     bool             mPaused = false;
     bool             mOpened = false;
 
     // Audio Callback data
+    std::condition_variable      mCondition;
     std::mutex                   mMutex;
     std::queue<Arc<MediaFrame> > mFrames;
     Arc<MediaFrame>              mCurrentFrame;
     int                          mCurrentFramePosition = 0;
+    size_t                       mMaxFrames = 10;
 };
 
 NEKO_REGISTER_ELEMENT(AudioSink, AudioSinkImpl);

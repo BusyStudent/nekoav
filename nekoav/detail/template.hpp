@@ -1,13 +1,16 @@
 #pragma once
 
 #include "../defs.hpp"
+#include "../libc.hpp"
 #include "../event.hpp"
 #include "../eventsink.hpp"
 #include "../elements.hpp"
 #include "../threading.hpp"
+#include "../backtrace.hpp"
 
 NEKO_NS_BEGIN
 
+inline namespace _abiv1 {
 namespace Template {
 
 class StateDispatch {
@@ -46,26 +49,29 @@ public:
         }
         Error err;
         mThread->sendTask([&, this]() {
-            err = event(ev);
+            err = onEvent(ev);
         });
         return err;
     }
     Error changeState(StateChange change) override {
         if (change == StateChange::Initialize) {
-            assert(mThread == nullptr);
+            NEKO_ASSERT(mThread == nullptr);
             mThread = new Thread();
             mRunning = true;
         }
         Error ret;
         mThread->sendTask([&, this]() {
             ret = StateDispatch::onChangeState(change);
+            if (ret == Error::Ok) {
+                this->mState = GetTargetState(change);
+            }
         });
         if (change == StateChange::Initialize) {
             // Start thread main
             mThread->postTask(std::bind(&GetThreadImpl::_threadEntry, this));
         }
         if (change == StateChange::Teardown) {
-            assert(mThread != nullptr);
+            NEKO_ASSERT(mThread != nullptr);
             mRunning = false;
             delete mThread;
             mThread = nullptr;
@@ -74,7 +80,7 @@ public:
     }
 
     // Event here
-    virtual Error event(View<Event> event) {
+    virtual Error onEvent(View<Event> event) {
         return Error::Ok;
     }
     virtual Error onLoop() {
@@ -91,15 +97,28 @@ public:
     bool   stopRequested() const noexcept {
         return !mRunning;
     }
+    /**
+     * @brief Send a error event to bus
+     * 
+     * @param errcode 
+     */
+    Error raiseError(Error errcode) {
+#ifndef     NDEBUG
+        Backtrace();
+#endif
+
+        auto event = ErrorEvent::make(errcode, this);
+        this->bus()->postEvent(event);
+        return errcode;
+    }
 private:
     void  _threadEntry() {
 #ifndef     NDEBUG
-        mThread->setName(typeid(*this).name());
+        mThread->setName(this->name().c_str());
 #endif
         auto err = onLoop();
         if (err != Error::Ok && this->bus()) {
-            auto event = ErrorEvent::make(err, this);
-            this->bus()->postEvent(event);
+            raiseError(err);
         }
     }
 
@@ -111,16 +130,25 @@ template <typename ...Ts>
 class GetImpl : public Ts..., protected StateDispatch {
 public:
     Error sendEvent(View<Event> ev) override {
-        return event(ev);
+        return onEevent(ev);
     }
     Error changeState(StateChange change) override {
         return StateDispatch::onChangeState(change);
     }
-    virtual Error event(View<Event> event) {
+    virtual Error onEevent(View<Event> event) {
         return Error::Ok;
+    }
+    Error raiseError(Error errcode) {
+#ifndef     NDEBUG
+        Backtrace();
+#endif
+        auto event = ErrorEvent::make(errcode, this);
+        this->bus()->postEvent(event);
+        return errcode;
     }
 };
 
+}
 }
 
 NEKO_NS_END

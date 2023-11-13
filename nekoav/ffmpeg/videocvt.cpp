@@ -52,7 +52,7 @@ public:
 
         auto srcFrame = frame->get();
         if (mCopyback) {
-            assert(mSwFrame);
+            NEKO_ASSERT(mSwFrame);
             int ret = av_hwframe_transfer_data(mSwFrame, srcFrame, 0);
             if (ret < 0) {
                 // Failed to transfer

@@ -46,10 +46,17 @@
 #define NEKO_GCC_ABI
 #endif
 
+#if !defined(NDEBUG)
+#define NEKO_ASSERT(x) if (!(x)) { NEKO_NAMESPACE::libc::assert_fail(#x); }
+#else
+#define NEKO_ASSERT(x)
+#endif
+
 #define NEKO_CXX17 (__cplusplus >= 201703L)
 #define NEKO_CXX20 (__cplusplus >= 202002L)
 #define NEKO_CXX23 (__cplusplus >= 202300L)
 
+#include <source_location>
 #include <typeinfo>
 #include <cstddef>
 #include <cstdint>
@@ -140,25 +147,49 @@ public:
     }
 };
 
+/**
+ * @brief Create a Arc of giving type
+ * 
+ * @tparam T 
+ * @tparam Args 
+ * @param args 
+ * @return Arc<T> 
+ */
 template <typename T, typename ...Args>
 Arc<T> make_shared(Args &&...args) {
     return std::make_shared<T>(std::forward<Args>(args)...);
 }
 
-// Memory Allocate
+// Some useful function
 namespace libc {
-
-#ifdef NEKO_GCC_ABI
-    extern NEKO_API char *demangle(const std::type_info &typeinfo);
-#else
-    [[deprecated("Current platform is not GCC ABI, so this func do nothing")]]
-    inline          char *demangle(const std::type_info &typeinfo) {
-        return nullptr;
-    }
-#endif
-
+    /**
+     * @brief Allocate memory
+     * 
+     * @param n 
+     * @return NEKO_API* 
+     */
     extern NEKO_API void *malloc(size_t n);
-    extern NEKO_API void  free(void *ptr);
+    /**
+     * @brief Free memory
+     * 
+     * @param ptr 
+     * @return NEKO_API 
+     */
+    extern NEKO_API void free(void *ptr);
+    /**
+     * @brief Trigger debugger to break
+     * 
+     * @return NEKO_API 
+     */
+    extern NEKO_API void breakpoint();
+    /**
+     * @brief Called on assert failed
+     * 
+     * @param cond 
+     * @param loc 
+     * @return NEKO_API 
+     */
+    extern NEKO_API void assert_fail(const char *cond, std::source_location loc = std::source_location::current());
 }
 
 NEKO_NS_END
