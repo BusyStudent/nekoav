@@ -19,8 +19,8 @@ enum class Error : int {
     Async,                  //< This operation is a asynchronous
     Internal,               //< Internal Error
     TemporarilyUnavailable, //< This operation is TemporarilyUnavailable, try again later
-    FileNotFound          , //< This file is not founded
-    
+    FileNotFound,           //< This file is not founded
+    Interrupted,
 
     Unknown,
     NumberOfErrors, //< Numbers of Error code

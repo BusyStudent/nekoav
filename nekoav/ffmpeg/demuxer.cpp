@@ -92,9 +92,9 @@ public:
             }
 
             // Send pad with event
-            for (auto out : outputs()) {
-                out->push(std::make_shared<Event>(Event::FlushRequested, this));
-            }
+            // for (auto out : outputs()) {
+            //     out->push(std::make_shared<Event>(Event::FlushRequested, this));
+            // }
         }
         return Error::Ok;
     }

@@ -35,10 +35,6 @@ public:
     Error processInput(ResourceView resourceView) {
         auto frame = resourceView.viewAs<Frame>();
         if (!frame) {
-            // Is event, just chain it
-            if (auto event = resourceView.viewAs<Event>(); event) {
-                return mSourcePad->push(event);
-            }
             return Error::UnsupportedResource;
         }
         if (!mSourcePad->isLinked()) {
@@ -111,7 +107,7 @@ public:
             return Error::OutOfMemory;
         }
         av_frame_copy_props(dstFrame, srcFrame);
-        return mSourcePad->push(Frame::make(dstFrame, frame->timebase()).get());
+        return mSourcePad->push(Frame::make(dstFrame, frame->timebase(), AVMEDIA_TYPE_VIDEO).get());
     }
     Error initContext(AVFrame *f) {
         AVPixelFormat fmt = AV_PIX_FMT_RGBA;

@@ -11,6 +11,12 @@ option("qt_test")
    set_showmenu(true)
 option_end()
 
+option("qt_interop")
+   set_default(false)
+   set_showmenu(true)
+   set_description("Qt support for nekoav")
+option_end()
+
 if is_plat("windows") then 
     add_cxxflags("cl::/utf-8")
     add_cxxflags("cl::/Zc:__cplusplus")
@@ -40,6 +46,21 @@ target("nekoav")
     add_files("nekoav/*.cpp")
     add_files("nekoav/elements/*.cpp")
 target_end()
+
+-- Qt
+if has_config("qt_interop") then 
+    target("nekoav_qt")
+        add_rules("qt.shared")
+        set_languages("c++20")
+
+        add_deps("nekoav")
+        add_defines("_QNEKO_SOURCE")
+        add_frameworks("QtCore", "QtGui", "QtWidgets")
+
+        add_files("nekoav/interop/qnekoav.cpp")
+        add_files("nekoav/interop/qnekoav.hpp")
+    target_end()
+end
 
 target("utilstest")
     set_kind("binary")
@@ -72,10 +93,10 @@ target("elemtest")
 target_end()
 
 -- Gui Test
-if has_config("qt_test") then 
+if has_config("qt_test") and has_config("qt_interop") then 
     target("qtest")
         add_rules("qt.widgetapp")
-        add_deps("nekoav")
+        add_deps("nekoav", "nekoav_qt")
         add_packages("ffmpeg")
 
         add_frameworks("QtCore", "QtGui")

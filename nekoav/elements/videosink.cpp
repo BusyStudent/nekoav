@@ -16,6 +16,7 @@
 
 NEKO_NS_BEGIN
 
+#ifdef _WIN32
 using Microsoft::WRL::ComPtr;
 
 class TestVideoSinkImpl final : public Template::GetThreadImpl<TestVideoSink, MediaClock> {
@@ -288,5 +289,105 @@ private:
 };
 
 NEKO_REGISTER_ELEMENT(TestVideoSink, TestVideoSinkImpl);
+#endif
+
+class VideoSinkImpl final : public Template::GetThreadImpl<VideoSink, MediaClock> {
+public:
+    VideoSinkImpl() {
+        mSink = addInput("sink");
+        mSink->setCallback(std::bind(&VideoSinkImpl::onSink, this, std::placeholders::_1));
+    }
+    ~VideoSinkImpl() {
+
+    }
+    Error setRenderer(VideoRenderer *renderer) override {
+        mRenderer = renderer;
+        return Error::Ok;
+    }
+
+    // Element
+    Error onInitialize() override {
+        mController = GetMediaController(this);
+        if (mController) {
+            mController->addClock(this);
+        }
+        if (!mRenderer) {
+            return Error::InvalidState;
+        }
+        mSink->addProperty(Properties::PixelFormatList, {
+            PixelFormat::RGBA
+        });
+        return Error::Ok;
+    }
+    Error onTeardown() override {
+        if (mController) {
+            mController->removeClock(this);
+        }
+
+        mSink->properties().clear();
+        mRenderer->setFrame(nullptr); //< Tell Renderer is no frame now
+        mController = nullptr;
+        return Error::Ok;
+    }
+    Error onSink(View<Resource> resource) {
+        auto frame = resource.viewAs<MediaFrame>();
+        if (!frame) {
+            return Error::UnsupportedFormat;
+        }
+        // Wait if too much
+        while (mFrameSize > 2) {
+            if (Thread::msleep(10) == Error::Interrupted) {
+                // Is Interrupted, we need return right now
+                break;
+            }
+        }
+        // Push one to the task queue
+        mFrameSize += 1;
+        thread()->postTask(std::bind(&VideoSinkImpl::onFrameReady, this, frame->shared_from_this<MediaFrame>()));
+        return Error::Ok;
+    }
+    void onFrameReady(const Arc<MediaFrame> &frame) {
+        mFrameSize -= 1;
+        if (!mController) {
+            mRenderer->setFrame(frame);
+            return;
+        }
+        // Sync here
+        auto current = mController->masterClock()->position();
+        auto pts = frame->timestamp();
+        auto diff = current - pts;
+
+        mPosition = pts;
+        if (diff < -0.01) {
+            // Too fast
+            std::this_thread::sleep_for(std::chrono::milliseconds(int64_t(-diff * 1000)));
+        }
+        else if (diff > 0.3) {
+            // Too slow, drop
+            NEKO_DEBUG("Too slow, drop");
+            NEKO_DEBUG(diff);
+            return;
+        }
+        mRenderer->setFrame(frame);
+    }
+    // MediaClock
+    double position() const override {
+        return mPosition;
+    }
+    Type type() const override {
+        return Video;
+    }
+private:
+    // MediaController
+    MediaController *mController = nullptr;
+
+    // Vec<PixelFormat> mFormats;
+    VideoRenderer   *mRenderer = nullptr;
+    Pad             *mSink;
+
+    Atomic<size_t> mFrameSize {0}; //< Num of frames in thread queue
+    Atomic<double> mPosition {0.0}; //< Current time
+};
+NEKO_REGISTER_ELEMENT(VideoSink, VideoSinkImpl);
 
 NEKO_NS_END

@@ -1,6 +1,8 @@
 #define _NEKO_SOURCE
 #include "threading.hpp"
 #include "utils.hpp"
+#include "error.hpp"
+#include "log.hpp"
 #include <mutex>
 
 NEKO_NS_BEGIN
@@ -30,8 +32,8 @@ void Thread::run() {
         mCondition.wait(lock);
     }
 }
-void Thread::setName(const char *name) {
-    if (name == nullptr) {
+void Thread::setName(std::string_view name) {
+    if (name.empty()) {
         name = "NekoWorkThread";
     }
     auto handle = mThread.native_handle();
@@ -39,7 +41,7 @@ void Thread::setName(const char *name) {
 #if !defined(NEKO_MINGW)
     _Neko_SetThreadName(handle, name);
 #endif
-
+    mName = name;
 }
 void Thread::setPriority(ThreadPriority p) {
     auto handle = mThread.native_handle();
@@ -61,7 +63,7 @@ void Thread::setPriority(ThreadPriority p) {
 void Thread::postTask(std::function<void()> &&fn) {
     std::lock_guard lock(mMutex);
     mQueue.emplace(std::move(fn));
-    mCondition.notify_all();
+    mCondition.notify_one();
 }
 void Thread::sendTask(std::function<void()> &&fn) {
     std::latch latch {1};
@@ -71,7 +73,8 @@ void Thread::sendTask(std::function<void()> &&fn) {
     });
     latch.wait();
 }
-void Thread::dispatchTask() {
+size_t Thread::dispatchTask() {
+    size_t n = 0;
     std::unique_lock lock(mMutex);
     while (!mQueue.empty()) {
         auto fn = std::move(mQueue.front());
@@ -79,17 +82,20 @@ void Thread::dispatchTask() {
         lock.unlock();
 
         // Call task
+        n += 1;
         fn();
 
         lock.lock();
     }
+    return n;
 }
-void Thread::waitTask(int timeoutMS) {
+size_t Thread::waitTask(int timeoutMS) {
+    size_t n = 0;
     std::unique_lock lock(mMutex);
     while (mQueue.empty()) {
         if (timeoutMS != -1) {
             if (mCondition.wait_for(lock, std::chrono::milliseconds(timeoutMS)) == std::cv_status::timeout) {
-                return;
+                return n;
             }
         }
         else {
@@ -104,13 +110,38 @@ void Thread::waitTask(int timeoutMS) {
         lock.unlock();
 
         // Call task
+        n += 1;
         fn();
 
         lock.lock();
     }
+    return n;
 }
+std::string_view Thread::name() const noexcept {
+    return mName;
+}
+
 Thread *Thread::currentThread() {
     return _currentThread;
+}
+Error Thread::msleep(int ms) {
+    if (ms <= 0) {
+        return Error::Ok;
+    }
+    auto current = Thread::currentThread();
+    if (!current) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+        return Error::Ok;
+    }
+    std::unique_lock lock(current->mMutex);
+    size_t numofTasks = current->mQueue.size();
+    current->mCondition.wait_for(lock, std::chrono::milliseconds(ms));
+    if (current->mQueue.size() == numofTasks) {
+        return Error::Ok;
+    }
+    NEKO_LOG("Interrupted at {}", current->name());
+    // New Task imcoming
+    return Error::Interrupted;
 }
 
 NEKO_NS_END

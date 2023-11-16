@@ -66,8 +66,7 @@ public:
             // Initalize, new a thread
             NEKO_ASSERT(!mThread && "Already initialized");
             mRunning = true;
-            mThread = new Thread;
-            mThread->postTask(std::bind(&PipelineImpl::threadEntry, this));
+            mThread = new Thread(&PipelineImpl::threadEntry, this);
 
             // Init media controller here
             mPosition = 0.0;
@@ -210,6 +209,7 @@ private:
                 updateClock();
             }
         }
+        NEKO_DEBUG("Pipeline Thread Quit");
     }
     void updateClock() {
         // Update clock if

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../media.hpp"
+#include "ffmpeg.hpp"
 
 extern "C" {
     #include <libavformat/avformat.h>
@@ -13,7 +14,7 @@ namespace FFmpeg {
 
 class Frame final : public MediaFrame {
 public:
-    explicit Frame(AVFrame* frame, AVRational t) : mFrame(frame), mTimebase(t) {
+    explicit Frame(AVFrame* frame, AVRational t, AVMediaType type) : mFrame(frame), mTimebase(t), mType(type) {
 
     }
     ~Frame() {
@@ -32,7 +33,12 @@ public:
         // return mMutex.unlock();
     }
     int  format() const override {
-        return mFrame->format;
+        if (mType == AVMEDIA_TYPE_AUDIO) {
+            return int(ToSampleFormat(AVSampleFormat(mFrame->format)));
+        }
+        else {
+            return int(ToPixelFormat(AVPixelFormat(mFrame->format)));
+        }
     }
     double timestamp() const override {
         // Because AVFrame's time_base is currently unused, so we have to carray it by ourself
@@ -81,13 +87,14 @@ public:
     }
 
 
-    static auto make(AVFrame *f, AVRational timebase) {
-        return make_shared<Frame>(f, timebase);
+    static auto make(AVFrame *f, AVRational timebase, AVMediaType type) {
+        return make_shared<Frame>(f, timebase, type);
     }
 private:
     // std::mutex     mMutex;
     AVFrame       *mFrame {nullptr};
     AVRational     mTimebase {0, 1};
+    AVMediaType    mType;
 };
 
 class Packet final : public MediaPacket {
@@ -96,7 +103,10 @@ public:
         return make_shared<Packet>(p, stream);
     }
 
-    Packet(AVPacket *pack, AVStream *stream) : mPacket(pack), mStream(stream) { }
+    Packet(AVPacket *pack, AVStream *stream) : mPacket(pack), mStream(stream) {
+        mTimebase = mStream->time_base;
+        mType = mStream->codecpar->codec_type;
+    }
     ~Packet() {
         av_packet_free(&mPacket);
     }
@@ -132,9 +142,17 @@ public:
     AVStream *stream() const noexcept {
         return mStream;
     }
+    AVRational timebase() const noexcept {
+        return mTimebase;
+    }
+    AVMediaType type() const noexcept {
+        return mType;
+    }
 private:
     AVPacket *mPacket {nullptr};
     AVStream *mStream {nullptr};
+    AVRational mTimebase;
+    AVMediaType mType;
 };
 
 }

@@ -29,10 +29,6 @@ public:
     Error processInput(ResourceView resourceView) {
         auto frame = resourceView.viewAs<Frame>();
         if (!frame) {
-            // Is event, just chain it
-            if (auto event = resourceView.viewAs<Event>(); event) {
-                return mSourcePad->push(event);
-            }
             return Error::UnsupportedResource;
         }
         if (!mSourcePad->isLinked()) {
@@ -63,7 +59,7 @@ public:
         // Copy metadata
         av_frame_copy_props(dstFrame, frame->get());
 
-        return mSourcePad->push(Frame::make(dstFrame, frame->timebase()).get());
+        return mSourcePad->push(Frame::make(dstFrame, frame->timebase(), AVMEDIA_TYPE_AUDIO).get());
     }
     Error initContext(AVFrame *frame) {
         AVSampleFormat fmt;

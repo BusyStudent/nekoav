@@ -5,6 +5,7 @@
 #include <condition_variable>
 #include <functional>
 #include <thread>
+#include <string>
 #include <queue>
 #include <mutex>
 #include <list>
@@ -34,12 +35,17 @@ public:
     Thread(const Thread &) = delete;
     ~Thread();
 
+    template <typename Callable, typename ...Args>
+    Thread(Callable &&callable, Args &&...args) : Thread() {
+        postTask(std::bind(callable, std::forward<Args>(args)...));
+    }
+
     /**
      * @brief Set the Thread Name
      * 
      * @param name 
      */
-    void setName(const char *name);
+    void setName(std::string_view name);
     /**
      * @brief Set the Priority of the thread
      * 
@@ -49,14 +55,18 @@ public:
     /**
      * @brief Poll task from the queue and execute it
      * 
+     * @return Num of task processed
+     * 
      */
-    void dispatchTask();
+    size_t dispatchTask();
     /**
      * @brief Wait task from the queue and execute it
      * 
-     * @param timeoutMS 
+     * @param timeout timeout in millseconds
+     * @return Num of task processed
+     * 
      */
-    void waitTask(int timeoutMS = -1);
+    size_t waitTask(int timeout = -1);
     /**
      * @brief Send a task into queue and wait for it finish
      * 
@@ -79,7 +89,13 @@ public:
     bool idle() const noexcept {
         return mIdle;
     }
-
+    /**
+     * @brief Get the name of this thread
+     * 
+     * @return std::string_view 
+     */
+    std::string_view name() const noexcept;
+    
     void *operator new(size_t size) {
         return libc::malloc(size);
     }
@@ -93,6 +109,13 @@ public:
      * @return Thread* (nullptr on no-thread worker or in main thread)
      */
     static Thread *currentThread();
+    /**
+     * @brief Sleep for millseconds but it will be interrupted if new task comming
+     * 
+     * @param milliseconds 
+     * @return Ok by default, Interrupted on a new task that has arrived to the current thread
+     */
+    static Error msleep(int milliseconds);
 private:
     void run();
 
@@ -103,6 +126,7 @@ private:
     std::condition_variable           mCondition;
     std::thread                       mThread;
     std::mutex                        mMutex;
+    std::string                       mName;
 };
 
 NEKO_NS_END

@@ -1,7 +1,7 @@
 #define _NEKO_SOURCE
+#include "../threading.hpp"
 #include "../factory.hpp"
 #include "../media.hpp"
-#include "../utils.hpp"
 #include "../pad.hpp"
 #include "mediaqueue.hpp"
 
@@ -21,7 +21,8 @@ public:
         mSink->setCallback(std::bind(&MediaQueueImpl::processInput, this, std::placeholders::_1));
     }
     ~MediaQueueImpl() {
-
+        delete mThread;
+        mThread = nullptr;
     }
     Error sendEvent(View<Event>) override {
         return Error::Ok;
@@ -29,12 +30,19 @@ public:
     Error changeState(StateChange change) override {
         if (change == StateChange::Initialize) {
             mRunning = true;
-            mThread = std::thread(&MediaQueueImpl::threadEntry, this);
+            mThread = new Thread(&MediaQueueImpl::threadEntry, this);
         }
         else if (change == StateChange::Teardown) {
             mRunning = false;
             mCond.notify_one();
-            mThread.join();
+            delete mThread;
+            mThread = nullptr;
+
+            // Clear Queue
+            while (!mQueue.empty()) {
+                mQueue.pop();
+            }
+            mDuration = 0.0;
         }
         return Error::Ok;
     }
@@ -42,16 +50,22 @@ public:
         if (!resource) {
             return Error::InvalidArguments;
         }
-        std::unique_lock lock(mMutex);
         
         Item item;
-        item.frame = resource.viewAs<MediaFrame>();
+        item.packet = resource.viewAs<MediaPacket>();
         item.resource = resource->shared_from_this();
-
-        if (item.frame) {
-            mDuration += item.frame->duration();
+        
+        if (item.packet) {
+            mDuration += item.packet->duration();
+        }
+        else {
+            item.frame = resource.viewAs<MediaFrame>();
+            if (item.frame) {
+                mDuration += item.frame->duration();
+            }
         }
 
+        std::unique_lock lock(mMutex);
         mQueue.emplace(std::move(item));
         lock.unlock();
 
@@ -61,7 +75,10 @@ public:
         while (mQueue.size() > mMaxSize) {
             lock.unlock();
 
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            if (Thread::msleep(10) == Error::Interrupted) {
+                // Interrupted
+                return Error::Ok;
+            }
             if (state() != State::Running) {
                 // If not running, return directly
                 return Error::Ok;
@@ -72,9 +89,11 @@ public:
         return Error::Ok;
     }
     void threadEntry() {
-        NEKO_SetThreadName(name());
+        mThread->setName(name().c_str());
         while (mRunning) {
+            mThread->dispatchTask();
             while (state() == State::Running && mRunning) {
+                mThread->dispatchTask();
                 pullQueue();
             }
             std::this_thread::yield();
@@ -91,7 +110,10 @@ public:
             mQueue.pop();
             lock.unlock();
 
-            if (item.frame) {
+            if (item.packet) {
+                mDuration -= item.packet->duration();
+            }
+            else if (item.frame) {
                 mDuration -= item.frame->duration();
             }
             mSrc->push(item.resource);
@@ -109,6 +131,7 @@ private:
     class Item {
     public:
         MediaFrame   *frame = nullptr;
+        MediaPacket  *packet = nullptr;
         Arc<Resource> resource;
     };
     std::queue<Item>        mQueue;
@@ -117,9 +140,9 @@ private:
     Atomic<double>          mDuration {0.0};
     Atomic<bool>            mRunning {false};
     size_t                  mMaxSize = 4000;
-    std::thread             mThread;
-    Pad                      *mSink;
-    Pad                      *mSrc;
+    Thread                 *mThread = nullptr;
+    Pad                    *mSink;
+    Pad                    *mSrc;
 };
 
 NEKO_REGISTER_ELEMENT(MediaQueue, MediaQueueImpl);

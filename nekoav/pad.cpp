@@ -27,6 +27,21 @@ Error Pad::push(View<Resource> resourceView) {
         return mNext->mCallback(resourceView);
     // }
 }
+Error Pad::pushEvent(View<Event> eventView) {
+    if (mType == Input) {
+        // You can not push a Input pad
+        return Error::InvalidArguments;
+    }
+    if (!mNext) {
+        return Error::NoLink;
+    }
+    if (!mNext->mEventCallback) {
+        return Error::InvalidState;
+    }
+    // NEKO_TRACE_TIME {
+        return mNext->mEventCallback(eventView);
+    // }
+}
 Error Pad::link(View<Pad> pad) {
     if (!pad) {
         return Error::InvalidArguments;
@@ -45,6 +60,10 @@ Error Pad::unlink() {
 void Pad::setCallback(Callback &&callback) {
     NEKO_ASSERT(mType == Input);
     mCallback = std::move(callback);
+}
+void Pad::setEventCallback(EventCallback &&callback) {
+    NEKO_ASSERT(mType == Input);
+    mEventCallback = std::move(callback);
 }
 void Pad::setName(std::string_view name) {
     mName = name;

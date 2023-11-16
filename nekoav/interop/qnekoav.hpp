@@ -1,132 +1,43 @@
 #pragma once
 
-#include "../video/renderer.hpp"
-#include "../format.hpp"
-#include "../media.hpp"
-#include <QMetaObject>
-#include <QPainter>
 #include <QWidget>
-#include <QDebug>
-#include <latch>
+#include <QObject>
+#include <QUrl>
 
-NEKO_NS_BEGIN
+#ifdef  _MSC_VER
+#define QNEKO_ATTRIBUTE(x) __declspec(x)
+#elif   __GNUC__
+#define QNEKO_ATTRIBUTE(x) __attribute__((x))
+#else
+#define QNEKO_ATTRIBUTE(x)
+#endif
+
+#ifdef  _WIN32
+#define QNEKO_EXPORT QNEKO_ATTRIBUTE(dllexport)
+#define QNEKO_IMPORT QNEKO_ATTRIBUTE(dllimport)
+#else
+#define QNEKO_EXPORT QNEKO_ATTRIBUTE(visibility("default"))
+#define QNEKO_IMPORT
+#endif
+
+#ifdef _QNEKO_SOURCE
+#define QNEKO_API QNEKO_EXPORT
+#else
+#define QNEKO_API QNEKO_IMPORT
+#endif
+
+
+namespace QNekoAV {
+
+class MediaPlayerPrivate;
+class VideoWidgetPrivate;
 
 /**
- * @brief A Display widget for Qt
+ * @brief Player holder the pipeline for playing video
  * 
  */
-class QNekoVideoWidget final : public QWidget, public VideoRenderer {
-public:
-    QNekoVideoWidget(QWidget *parent = nullptr) : QWidget(parent) {
-
-    }
-    ~QNekoVideoWidget() {
-
-    }
-private:
-    Error init() override {
-        return Error::Ok;
-    }
-    Error teardown() override {
-        return Error::Ok;
-    }
-    Error sendFrame(View<MediaFrame> frame) override {
-        if (mCancel) {
-            // Cancel prev frames
-            *mCancel = true;
-        }
-        mCancel = make_shared<Atomic<bool> > (false);
-        mFrame = frame->shared_from_this<MediaFrame>();
-        
-        QMetaObject::invokeMethod(
-            this,
-            [this, cancel = mCancel]() {
-                if (*cancel) {
-                    qDebug() << "QNekoVideoWidget drop a video frame";
-                    return;
-                }
-                updateImage(mFrame.load());
-        }, Qt::QueuedConnection);
-        return Error::Ok;
-    }
-    std::vector<PixelFormat> supportedFormats() const override {
-        return {
-            PixelFormat::RGBA
-        };
-    }
-    void updateImage(View<MediaFrame> frame) {
-        if (frame.empty()) {
-            mPixmap = QPixmap();
-            update();
-            return;
-        }
-        int width = frame->width();
-        int height = frame->height();
-        // if (mImage.isNull() || mImage.width() != width || mImage.height() != height) {
-        //     // Create a new Image
-        //     mImage = QImage(width, height, QImage::Format_RGB32);
-        // }
-
-        // // Copy pixels into it
-        QImage image(width, height, QImage::Format_RGBA8888);
-        int srcPitch = frame->linesize(0);
-        int dstPitch = image.bytesPerLine();
-        if (srcPitch != dstPitch) {
-            // Update it
-            auto dst = image.bits();
-            auto pixels = (uint8_t*) frame->data(0);
-            for (int y = 0; y < image.height(); y++) {
-                for (int x = 0; x < image.width(); x++) {
-                    *((uint32_t*)   &dst[y * dstPitch + x * 4]) = *(
-                        (uint32_t*) &pixels[y * srcPitch + x * 4]
-                    );
-                }
-            }
-
-        }
-        else {
-            ::memcpy(image.bits(), frame->data(0), width * height * 4);
-        }
-        mPixmap = QPixmap::fromImage(std::move(image));
-
-        update();
-    }
-    void paintEvent(QPaintEvent *) override {
-        QPainter painter(this);
-        // painter.setRenderHint(QPainter::SmoothPixmapTransform);
-        painter.fillRect(0, 0, width(), height(), Qt::black);
-        if (mPixmap.isNull()) {
-            return;
-        }
-        qreal texWidth = mPixmap.width();
-        qreal texHeight = mPixmap.height();
-
-        qreal winWidth = width();
-        qreal winHeight = height();
-
-        qreal x, y, w, h;
-
-        if(texWidth * winHeight > texHeight * winWidth){
-            w = winWidth;
-            h = texHeight * winWidth / texWidth;
-        }
-        else{
-            w = texWidth * winHeight / texHeight;
-            h = winHeight;
-        }
-        x = (winWidth - w) / 2;
-        y = (winHeight - h) / 2;
-
-        QRectF r(x, y, w, h);
-
-        painter.drawPixmap(r, mPixmap, QRectF(0, 0, texWidth, texHeight));
-    }
-
-    QPixmap mPixmap; //< Current Image
-    Arc<Atomic<bool> > mCancel;
-    Atomic<Arc<MediaFrame> > mFrame; //< Current media frame
-};
-class QNekoMediaPlayer : public QObject {
+class QNEKO_API MediaPlayer : public QObject {
+Q_OBJECT
 public:
     enum PlaybackState {
         StoppedState,
@@ -162,17 +73,144 @@ public:
         Once = 1
     };
     Q_ENUM(Loops)
-    QNekoMediaPlayer(QObject *parent) : QObject(parent) {
-        mPipeline.setGraph(&mGraph);
-    }
-    ~QNekoMediaPlayer() {
-        
-    }
+
+    explicit MediaPlayer(QObject *parent = nullptr);
+    ~MediaPlayer();
+
+    // QList<MediaMetaData> audioTracks() const;
+    // QList<MediaMetaData> videoTracks() const;
+    // QList<MediaMetaData> subtitleTracks() const;
+
+    int activeAudioTrack() const;
+    int activeVideoTrack() const;
+    int activeSubtitleTrack() const;
+
+    void setActiveAudioTrack(int index);
+    void setActiveVideoTrack(int index);
+    void setActiveSubtitleTrack(int index);
+
+    // void setAudioOutput(AudioOutput *output);
+    // AudioOutput *audioOutput() const;
+
+    void setVideoOutput(QObject *);
+    QObject *videoOutput() const;
+
+    // void setVideoSink(VideoSink *sink);
+    // VideoSink *videoSink() const;
+
+    QUrl source() const;
+    const QIODevice *sourceDevice() const;
+
+    PlaybackState playbackState() const;
+    MediaStatus mediaStatus() const;
+
+    qreal duration() const;
+    qreal position() const;
+
+    bool hasAudio() const;
+    bool hasVideo() const;
+
+    float bufferProgress() const;
+    qreal bufferedDuration() const;
+    // QMediaTimeRange bufferedTimeRange() const;
+
+    bool isSeekable() const;
+    qreal playbackRate() const;
+
+    bool isPlaying() const;
+    bool isLoaded() const;
+
+    int loops() const;
+    void setLoops(int loops);
+
+    Error error() const;
+    QString errorString() const;
+
+    bool isAvailable() const;
+
+    // MediaMetaData metaData() const;
+
+    void setOption(const QString &key, const QString &value);
+    void clearOptions();
+
+    void setHttpUseragent(const QString &useragent);
+    void setHttpReferer(const QString &referer);
+
+    /**
+     * @brief Get the pipeline view
+     * 
+     * @return void* is NekoAV::Pipeline* 
+     */
+    void *pipeline() const;
+
+    static QStringList supportedMediaTypes();
+    static QStringList supportedProtocols();
+public Q_SLOTS:
+    void play();
+    void pause();
+    void stop();
+    void load();
+
+    void setPosition(qreal position);
+
+    void setPlaybackRate(qreal rate);
+
+    void setSource(const QUrl &source);
+    void setSourceDevice(QIODevice *device, const QUrl &sourceUrl = QUrl());
+Q_SIGNALS:
+    void sourceChanged(const QUrl &media);
+    void playbackStateChanged(PlaybackState newState);
+    void mediaStatusChanged(MediaStatus status);
+
+    void durationChanged(qreal duration);
+    void positionChanged(qreal position);
+
+    void hasAudioChanged(bool available);
+    void hasVideoChanged(bool videoAvailable);
+
+    void bufferProgressChanged(float progress);
+    void bufferedDurationChanged(qreal duration);
+
+    void seekableChanged(bool seekable);
+    void playingChanged(bool playing);
+    void playbackRateChanged(qreal rate);
+    void loopsChanged();
+
+    void metaDataChanged();
+    void videoOutputChanged();
+    void audioOutputChanged();
+
+    void tracksChanged();
+    void activeTracksChanged();
+
+    void errorChanged();
+    void errorOccurred(MediaPlayer::Error error, const QString &errorString);
 private:
-    Graph         mGraph;
-    MediaPipeline mPipeline;
+    MediaPlayerPrivate *d = nullptr;
 };
 
-NEKO_NS_END
+/**
+ * @brief Widget for Displaying video
+ * 
+ */
+class QNEKO_API VideoWidget : public QWidget {
+Q_OBJECT
+public:
+    VideoWidget(QWidget *parent = nullptr);
+    ~VideoWidget();
 
-using NEKO_NAMESPACE::QNekoVideoWidget;
+    /**
+     * @brief Get NekoAV::VideoRenderer *
+     * 
+     * @return void* 
+     */
+    void *videoRenderer();
+    void  internalRelayout();
+protected:
+    void resizeEvent(QResizeEvent *event) override;
+    void paintEvent(QPaintEvent *event) override;
+private:
+    VideoWidgetPrivate *d = nullptr;
+};
+
+}

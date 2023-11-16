@@ -48,7 +48,6 @@ public:
         return Error::Ok;
     }
     Error onPause() override {
-        mCondition.notify_one();
         if (mDevice) {
             mDevice->pause(true);
         }
@@ -59,11 +58,9 @@ public:
         while (!mFrames.empty()) {
             mFrames.pop();
         }
-        mCondition.notify_one();
         return Error::Ok;
     }
     Error onRun() override {
-        mCondition.notify_one();
         if (mDevice) {
             mDevice->pause(false);
         }
@@ -93,7 +90,13 @@ public:
         std::unique_lock lock(mMutex);
         mFrames.push(frame->shared_from_this<MediaFrame>());
         while (state() == State::Running && mFrames.size() > mMaxFrames) {
-            mCondition.wait_for(lock, std::chrono::milliseconds(10));
+            lock.unlock();
+            if (Thread::msleep(10) == Error::Interrupted) {
+                // In current thread, new task ready
+                NEKO_DEBUG("Current Thread::msleep interrupted");
+                return Error::Ok;
+            }
+            lock.lock();
         }
         return Error::Ok;
     }
@@ -119,9 +122,6 @@ public:
 
                 // Update audio clock
                 mPosition = mCurrentFrame->timestamp();
-
-                // Notify 
-                mCondition.notify_one();
             }
             void *frameData = mCurrentFrame->data(0);
             // int frameLen = mCurrentFrame->linesize(0);
@@ -161,7 +161,6 @@ private:
     bool             mOpened = false;
 
     // Audio Callback data
-    std::condition_variable      mCondition;
     std::mutex                   mMutex;
     std::queue<Arc<MediaFrame> > mFrames;
     Arc<MediaFrame>              mCurrentFrame;

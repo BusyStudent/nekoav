@@ -19,13 +19,6 @@ public:
         mSink->setCallback([this](View<Resource> resourceView) {
             auto v = resourceView.viewAs<Packet>();
             if (!v) {
-                if (auto event = resourceView.viewAs<Event>(); event) {
-                    if (event->type() == Event::FlushRequested) {
-                        avcodec_flush_buffers(mCtxt);
-                    }
-                    // Chain this event
-                    mSrc->push(resourceView);
-                }
                 return Error::UnsupportedResource;
             }
             return process(v);
@@ -64,7 +57,7 @@ public:
 
             // Push data if
             if (mSrc->isLinked()) {
-                auto resource = Frame::make(mFrame, packet->stream()->time_base);
+                auto resource = Frame::make(mFrame, packet->timebase(), packet->type());
                 mFrame = nullptr; //< Move ownship
                 mSrc->push(resource);
             }

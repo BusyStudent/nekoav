@@ -5,14 +5,36 @@
 
 NEKO_NS_BEGIN
 
-class VideoRenderer;
+class MediaFrame;
 
-class D2DVideoSink : public Element {
+class VideoRenderer {
 public:
-    virtual Error setHwnd(void *hwnd) = 0;
+    virtual ~VideoRenderer() = default;
+    /**
+     * @brief Get the supported pixel format of this Renderer, It should at least support RGBA
+     * 
+     * @return Vec<PixelFormat> 
+     */
+    virtual Vec<PixelFormat> supportedFormats() = 0;
+    /**
+     * @brief Set the Frame object, it will be invoked at worker thread
+     * 
+     * @return Error 
+     */
+    virtual Error            setFrame(View<MediaFrame>) = 0;
 };
+
+/**
+ * @brief A Video Sink output video to VideoRenderer
+ * 
+ */
 class VideoSink : public Element {
 public:
+    /**
+     * @brief Set the Renderer object, It only take it's reference
+     * 
+     * @return Error 
+     */
     virtual Error setRenderer(VideoRenderer *) = 0;
 };
 

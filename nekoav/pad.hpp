@@ -31,6 +31,7 @@ class NEKO_API Pad {
         Output
     };
     using Callback = std::function<Error(View<Resource> )>;
+    using EventCallback = std::function<Error(View<Event> )>;
 
     Pad(Element *master, Type type, std::string_view name);
     Pad(const Pad &) = delete;
@@ -57,12 +58,24 @@ class NEKO_API Pad {
      */
     Error push(View<Resource> resource);
     /**
+     * @brief Push a event to the link
+     * 
+     * @return Error 
+     */
+    Error pushEvent(View<Event> event);
+    /**
      * @brief Set the resource arrived Callback object
      * 
      * @param callback 
      * @return Error 
      */
     void setCallback(Callback &&callback);
+    /**
+     * @brief Set the Event Callback object
+     * 
+     * @param callback 
+     */
+    void setEventCallback(EventCallback &&callback);
     /**
      * @brief Set the Name object
      * 
@@ -147,8 +160,9 @@ private:
     Type        mType;
     std::string mName;
     Pad        *mNext = nullptr;
-    Callback    mCallback;
     Properties mProperties;
+    Callback   mCallback;
+    EventCallback mEventCallback;
 };
 
 class NEKO_API ProxyPad final : public Pad {

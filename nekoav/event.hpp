@@ -7,7 +7,7 @@
 
 NEKO_NS_BEGIN
 
-class Event : public Resource {
+class Event : public std::enable_shared_from_this<Event> {
 public:
     enum Type : uint32_t {
         None,
@@ -30,6 +30,7 @@ public:
     };
     
     explicit Event(Type type, Element *sender) : mType(type), mSender(sender) { }
+    virtual ~Event() = default;
 
     Type type() const noexcept {
         return mType;
@@ -39,10 +40,6 @@ public:
     }
     int64_t time() const noexcept {
         return mTime;
-    }
-
-    Arc<Event> shared_from_this() {
-        return Resource::shared_from_this<Event>();
     }
 private:
     Type     mType = None;
