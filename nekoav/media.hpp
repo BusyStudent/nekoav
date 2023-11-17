@@ -94,10 +94,6 @@ protected:
     MediaController() = default;
     ~MediaController() = default;
 };
-// /**
-//  * @brief Demuxer Element
-//  * 
-//  */
 
 /**
  * @brief External Clock for Media
@@ -119,39 +115,6 @@ private:
     Atomic<bool>    mPaused {true};//< Is Paused ?
     Atomic<double>  mCurrent {0.0}; //< Current Position
 };
-
-// /**
-//  * @brief Media Pipeline
-//  * 
-//  */
-// class NEKO_API MediaPipeline final : public Pipeline, public MediaController {
-// public:
-//     MediaPipeline();
-//     MediaPipeline(const MediaPipeline &) = delete;
-//     ~MediaPipeline();
-
-//     void setGraph(View<Graph> graph) override;
-
-//     void addClock(MediaClock *clock) override;
-//     void removeClock(MediaClock *clock) override;
-//     auto masterClock() const -> MediaClock * override;
-//     auto position() const noexcept {
-//         return mPosition.load();
-//     }
-
-//     void seek(double pos);
-// protected:
-//     void stateChanged(State newState) override;
-// private:
-//     void _run();
-//     std::vector<MediaClock *> mClocks;
-//     mutable std::mutex        mClockMutex;
-//     MediaClock               *mMasterClock = nullptr;
-//     ExternalClock             mExternalClock;
-//     Thread                   *mThread = nullptr;
-//     Atomic<double>            mPosition {0}; //< Current media playing position
-// };
-
 
 /**
  * @brief Create a Audio Frame object

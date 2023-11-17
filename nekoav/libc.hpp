@@ -13,7 +13,7 @@ namespace libc {
      * @param type The type_info ref
      * @return The string of this name, you can not free it
      */
-    extern NEKO_API const char *      typenameof(const std::type_info &type);
+    extern NEKO_API const char *typenameof(const std::type_info &type);
     /**
      * @brief Format string by fmt and args
      * 
@@ -21,7 +21,7 @@ namespace libc {
      * @param ... 
      * @return Box<char>
      */
-    extern NEKO_API Box<char []>       asprintf(const char *fmt, ...);
+    extern NEKO_API std::string asprintf(const char *fmt, ...);
     /**
      * @brief Map a readonly file
      * 

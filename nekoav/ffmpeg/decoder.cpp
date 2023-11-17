@@ -23,6 +23,13 @@ public:
             }
             return process(v);
         });
+        mSink->setEventCallback([this](View<Event> eventView) {
+            if (eventView->type() ==Event::FlushRequested) {
+                avcodec_flush_buffers(mCtxt);
+            }
+            // Forward to next
+            return mSrc->pushEvent(eventView);
+        });
     }
     ~FFDecoder() {
         avcodec_free_context(&mCtxt);

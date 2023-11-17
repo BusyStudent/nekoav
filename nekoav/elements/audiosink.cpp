@@ -24,6 +24,19 @@ public:
             SampleFormat::FLT
         });
         pad->setCallback(std::bind(&AudioSinkImpl::processInput, this, std::placeholders::_1));
+        pad->setEventCallback([this](View<Event> event) {
+            if (event->type() == Event::FlushRequested) {
+                std::lock_guard locker(mMutex);
+                while (!mFrames.empty()) {
+                    mFrames.pop();
+                }
+                return Error::Ok;
+            }
+            else if (event->type() == Event::SeekRequested) {
+                mPosition = event.viewAs<SeekEvent>()->time();
+            }
+            return Error::Ok;
+        });
     }
     ~AudioSinkImpl() {
 

@@ -16,6 +16,7 @@ public:
         mSinkPad = addInput("sink");
         mSourcePad = addOutput("src");
         mSinkPad->setCallback(std::bind(&FFAudioConverter::processInput, this, std::placeholders::_1));
+        mSinkPad->setEventCallback(std::bind(&Pad::pushEvent, mSourcePad, std::placeholders::_1));
     }
     Error onInitialize() override {
         return Error::Ok;

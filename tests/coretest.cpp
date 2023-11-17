@@ -91,7 +91,7 @@ TEST(CoreTest, TimeTest) {
     NEKO_DEBUG(offset);
     NEKO_DEBUG(GetTimeCostFor(SleepFor, 10));
 
-    NEKO_TRACE_TIME {
+    NEKO_TRACE_TIME(duration) {
         SleepFor(10);
     }
 }

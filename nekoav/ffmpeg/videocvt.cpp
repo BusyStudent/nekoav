@@ -17,6 +17,7 @@ public:
         mSinkPad = addInput("sink");
         mSourcePad = addOutput("src");
         mSinkPad->setCallback(std::bind(&FFVideoConverter::processInput, this, std::placeholders::_1));
+        mSinkPad->setEventCallback(std::bind(&Pad::pushEvent, mSourcePad, std::placeholders::_1));
     }
     // void setPixelFormat(PixelFormat format) override {
     //     mTargetFormat = format;

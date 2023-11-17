@@ -17,6 +17,9 @@ public:
         }
         return mSrc->push(resource);
     }
+    Error onEvent(View<Event> event) override {
+        return mSrc->pushEvent(event);
+    }
 private:
     Pad                          *mSrc = nullptr;
 };

@@ -60,7 +60,7 @@ void  breakpoint() {
 #endif
 }
 
-Box<char []> asprintf(const char *fmt, ...) {
+std::string asprintf(const char *fmt, ...) {
     va_list varg;
     int s;
     
@@ -72,10 +72,11 @@ Box<char []> asprintf(const char *fmt, ...) {
 #endif
     va_end(varg);
 
-    auto buf = std::make_unique<char[]>(s + 1);
+    std::string buf;
+    buf.resize(s);
 
     va_start(varg, fmt);
-    vsprintf(buf.get(), fmt, varg);
+    vsprintf(buf.data(), fmt, varg);
     va_end(varg);
     return buf;
 }

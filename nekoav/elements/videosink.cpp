@@ -296,6 +296,7 @@ public:
     VideoSinkImpl() {
         mSink = addInput("sink");
         mSink->setCallback(std::bind(&VideoSinkImpl::onSink, this, std::placeholders::_1));
+        mSink->setEventCallback(std::bind(&VideoSinkImpl::onSinkEvent, this, std::placeholders::_1));
     }
     ~VideoSinkImpl() {
 
@@ -329,6 +330,9 @@ public:
         mController = nullptr;
         return Error::Ok;
     }
+    Error sendEvent(View<Event> event) override {
+        return Error::Ok;
+    }
     Error onSink(View<Resource> resource) {
         auto frame = resource.viewAs<MediaFrame>();
         if (!frame) {
@@ -343,11 +347,34 @@ public:
         }
         // Push one to the task queue
         mFrameSize += 1;
-        thread()->postTask(std::bind(&VideoSinkImpl::onFrameReady, this, frame->shared_from_this<MediaFrame>()));
+        if (!mCancelToken) {
+            mCancelToken = make_shared<bool>(false);
+        }
+        thread()->postTask(std::bind(&VideoSinkImpl::onFrameReady, this, mCancelToken, frame->shared_from_this<MediaFrame>()));
         return Error::Ok;
     }
-    void onFrameReady(const Arc<MediaFrame> &frame) {
+    Error onSinkEvent(View<Event> event) {
+        if (event->type() == Event::FlushRequested) {
+
+        }
+        else if (event->type() == Event::SeekRequested) {
+            NEKO_DEBUG(event.viewAs<SeekEvent>()->time());
+            mPosition = event.viewAs<SeekEvent>()->time();
+        }
+        // Interrupt sleep for worker thread
+        if (mCancelToken) {
+            *mCancelToken = true;
+            mCancelToken = make_shared<bool>(false);
+        }
+        mSleepCond.notify_all();
+        return Error::Ok;
+    }
+    void onFrameReady(const Arc<bool> &cancelToken, const Arc<MediaFrame> &frame) {
         mFrameSize -= 1;
+        if (*cancelToken) {
+            NEKO_DEBUG("Canceled Frame");
+            return;
+        }
         if (!mController) {
             mRenderer->setFrame(frame);
             return;
@@ -358,9 +385,10 @@ public:
         auto diff = current - pts;
 
         mPosition = pts;
-        if (diff < -0.01) {
+        if (diff < -0.01 && diff > -10.0) {
             // Too fast
-            std::this_thread::sleep_for(std::chrono::milliseconds(int64_t(-diff * 1000)));
+            std::unique_lock lock(mSleepMutex);
+            mSleepCond.wait_for(lock, std::chrono::milliseconds(int64_t(-diff * 1000)));
         }
         else if (diff > 0.3) {
             // Too slow, drop
@@ -384,6 +412,10 @@ private:
     // Vec<PixelFormat> mFormats;
     VideoRenderer   *mRenderer = nullptr;
     Pad             *mSink;
+
+    std::condition_variable mSleepCond; //< Cond used for interruptable sleep
+    std::mutex              mSleepMutex; 
+    Arc<bool>               mCancelToken; //< Cancel token for each task, false on cancel
 
     Atomic<size_t> mFrameSize {0}; //< Num of frames in thread queue
     Atomic<double> mPosition {0.0}; //< Current time

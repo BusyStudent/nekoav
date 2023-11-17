@@ -4,6 +4,7 @@
 #include "../factory.hpp"
 #include "../media.hpp"
 #include "../pad.hpp"
+#include "../log.hpp"
 #include "common.hpp"
 #include "ffmpeg.hpp"
 
@@ -43,11 +44,13 @@ public:
         int ret = avformat_open_input(&mFormatContext, mSource.c_str(), nullptr, nullptr);
         if (ret < 0) {
             avformat_close_input(&mFormatContext);
+            NEKO_DEBUG(FormatErrorCode(ret));
             return ToError(ret);
         }
         ret = avformat_find_stream_info(mFormatContext, nullptr);
         if (ret < 0) {
             avformat_close_input(&mFormatContext);
+            NEKO_DEBUG(FormatErrorCode(ret));
             return ToError(ret);
         }
 
@@ -88,19 +91,24 @@ public:
                 AVSEEK_FLAG_BACKWARD
             );
             if (ret < 0) {
+                NEKO_DEBUG(FormatErrorCode(ret));
                 return ToError(ret);
             }
 
             // Send pad with event
-            // for (auto out : outputs()) {
-            //     out->push(std::make_shared<Event>(Event::FlushRequested, this));
-            // }
+            for (auto out : outputs()) {
+                out->pushEvent(std::make_shared<Event>(Event::FlushRequested, this)); //< Push a flush
+                out->pushEvent(event); //< Push a seek
+            }
+
+            mEof = false;
         }
         return Error::Ok;
     }
     Error readFrame() {
         int ret = av_read_frame(mFormatContext, mPacket);
         if (ret < 0) {
+            NEKO_DEBUG(FormatErrorCode(ret));
             if (ret == AVERROR_EOF) {
                 // Read at end of file
                 mEof = true;

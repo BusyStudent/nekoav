@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../pad.hpp"
 #include "../defs.hpp"
 #include "../libc.hpp"
 #include "../event.hpp"
@@ -130,12 +131,12 @@ template <typename ...Ts>
 class GetImpl : public Ts..., protected StateDispatch {
 public:
     Error sendEvent(View<Event> ev) override {
-        return onEevent(ev);
+        return onEvent(ev);
     }
     Error changeState(StateChange change) override {
         return StateDispatch::onChangeState(change);
     }
-    virtual Error onEevent(View<Event> event) {
+    virtual Error onEvent(View<Event> event) {
         return Error::Ok;
     }
     Error raiseError(Error errcode) {
@@ -149,6 +150,13 @@ public:
 };
 
 }
+
+// Template
+inline auto ForwardEventTo(Pad *pad) {
+    NEKO_ASSERT(pad != nullptr);
+    return std::bind(&Pad::pushEvent, pad, std::placeholders::_1);
+}
+
 }
 
 NEKO_NS_END

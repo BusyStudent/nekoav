@@ -81,7 +81,7 @@ private:
 };
 class SeekEvent : public Event {
 public:
-    SeekEvent(double targetSeconds) : Event(SeekRequested, nullptr) { }
+    SeekEvent(double targetSeconds) : Event(SeekRequested, nullptr), mTime(targetSeconds) { }
 
     double time() const noexcept {
         return mTime;

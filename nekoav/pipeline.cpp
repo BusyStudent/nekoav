@@ -103,7 +103,10 @@ public:
     }
     Error sendEvent(View<Event> event) override {
         for (const auto &elem : mElements) {
-            elem->sendEvent(event);
+            NEKO_TRACE_TIME(duration) {
+                elem->sendEvent(event);
+            }
+            NEKO_LOG("Send event {} to {}, costed {} ms", event->type(), elem->name(), duration);
         }
         return Error::Ok;
     }
@@ -232,6 +235,10 @@ private:
                     NEKO_DEBUG(audioClock->position() - videoClock->position());
                     break;
                 }
+            }
+            for (auto v : mClocks) {
+                NEKO_DEBUG(v->type());
+                NEKO_DEBUG(v->position());
             }
 #endif
 

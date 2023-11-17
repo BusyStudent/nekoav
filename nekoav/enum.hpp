@@ -43,6 +43,15 @@ enum class StateChange : int {
 };
 
 
+/**
+ * @brief Retrieves the target state based on the given state change.
+ *
+ * @param stateChange the state change enum value
+ *
+ * @return the target state enum value
+ *
+ * @throws None
+ */
 inline State GetTargetState(StateChange stateChange) noexcept {
     switch (stateChange) {
         case StateChange::NullToReady:
@@ -61,6 +70,15 @@ inline State GetTargetState(StateChange stateChange) noexcept {
             return State::Error;
     }
 }
+/**
+ * @brief Retrieves the previous state based on the given state change.
+ *
+ * @param stateChange the state change to determine the previous state from
+ *
+ * @return the previous state corresponding to the given state change
+ *
+ * @throws None
+ */
 inline State GetPreviousState(StateChange stateChange) noexcept {
     switch (stateChange) {
         case StateChange::NullToReady:
@@ -80,6 +98,16 @@ inline State GetPreviousState(StateChange stateChange) noexcept {
     }
 }
 
+/**
+ * @brief Calculates the state change between two states.
+ *
+ * @param previousState The previous state.
+ * @param targetState The target state.
+ *
+ * @return The state change between the previous state and the target state.
+ *
+ * @throws None
+ */
 inline StateChange GetStateChange(State previousState, State targetState) noexcept {
     if (previousState == State::Null && targetState == State::Ready) {
         return StateChange::NullToReady;

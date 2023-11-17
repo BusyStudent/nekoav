@@ -1,6 +1,7 @@
 #define _NEKO_SOURCE
 #include "../threading.hpp"
 #include "../factory.hpp"
+#include "../event.hpp"
 #include "../media.hpp"
 #include "../pad.hpp"
 #include "mediaqueue.hpp"
@@ -19,6 +20,7 @@ public:
         mSrc = addOutput("src");
 
         mSink->setCallback(std::bind(&MediaQueueImpl::processInput, this, std::placeholders::_1));
+        mSink->setEventCallback(std::bind(&MediaQueueImpl::processEvent, this, std::placeholders::_1));
     }
     ~MediaQueueImpl() {
         delete mThread;
@@ -38,11 +40,7 @@ public:
             delete mThread;
             mThread = nullptr;
 
-            // Clear Queue
-            while (!mQueue.empty()) {
-                mQueue.pop();
-            }
-            mDuration = 0.0;
+            clearQueue();
         }
         return Error::Ok;
     }
@@ -64,7 +62,20 @@ public:
                 mDuration += item.frame->duration();
             }
         }
-
+        return pushItem(std::move(item));
+    }
+    Error processEvent(View<Event> event) {
+        if (!event) {
+            return Error::InvalidArguments;
+        }
+        if (event->type() == Event::FlushRequested) {
+            clearQueue();
+        }
+        Item item;
+        item.event = event->shared_from_this();
+        return pushItem(std::move(item));
+    }
+    Error pushItem(auto &&item) {
         std::unique_lock lock(mMutex);
         mQueue.emplace(std::move(item));
         lock.unlock();
@@ -110,16 +121,29 @@ public:
             mQueue.pop();
             lock.unlock();
 
-            if (item.packet) {
-                mDuration -= item.packet->duration();
+            if (item.event) {
+                mSrc->pushEvent(item.event);
             }
-            else if (item.frame) {
-                mDuration -= item.frame->duration();
+            else {
+                if (item.packet) {
+                    mDuration -= item.packet->duration();
+                }
+                else if (item.frame) {
+                    mDuration -= item.frame->duration();
+                }
+                mSrc->push(item.resource);
             }
-            mSrc->push(item.resource);
 
             lock.lock();
         }
+    }
+    void clearQueue() {
+        // Clear Queue
+        std::lock_guard locker(mMutex);
+        while (!mQueue.empty()) {
+            mQueue.pop();
+        }
+        mDuration = 0.0;
     }
     double duration() const override {
         return mDuration.load();
@@ -133,6 +157,7 @@ private:
         MediaFrame   *frame = nullptr;
         MediaPacket  *packet = nullptr;
         Arc<Resource> resource;
+        Arc<Event>    event;
     };
     std::queue<Item>        mQueue;
     std::condition_variable mCond;

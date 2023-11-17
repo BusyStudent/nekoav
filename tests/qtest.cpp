@@ -147,6 +147,14 @@ int main(int argc, char **argv) {
             pipeline->setState(State::Paused);
         }
     });
+    QObject::connect(progressBar, &QSlider::sliderReleased, [&]() {
+        if (pipeline) {
+            NEKO_TRACE_TIME(duration) {
+                pipeline->sendEvent(SeekEvent::make(progressBar->value()));
+            }
+            NEKO_DEBUG(duration);
+        }
+    });
 
 
     win.show();

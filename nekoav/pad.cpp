@@ -23,7 +23,7 @@ Error Pad::push(View<Resource> resourceView) {
     if (!mNext->mCallback) {
         return Error::InvalidState;
     }
-    // NEKO_TRACE_TIME {
+    // NEKO_TRACE_TIME(duration) {
         return mNext->mCallback(resourceView);
     // }
 }
@@ -38,9 +38,9 @@ Error Pad::pushEvent(View<Event> eventView) {
     if (!mNext->mEventCallback) {
         return Error::InvalidState;
     }
-    // NEKO_TRACE_TIME {
+    NEKO_TRACE_TIME(duration) {
         return mNext->mEventCallback(eventView);
-    // }
+    }
 }
 Error Pad::link(View<Pad> pad) {
     if (!pad) {

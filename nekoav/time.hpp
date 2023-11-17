@@ -6,9 +6,9 @@
 #include <cstdio>
 
 #ifndef NDEBUG
-    #define NEKO_TRACE_TIME if (NEKO_NAMESPACE::TimeTracer t; true)
+    #define NEKO_TRACE_TIME(where) int64_t where; if (NEKO_NAMESPACE::TimeTracer t(where); true)
 #else
-    #define NEKO_TRACE_TIME if (true)
+    #define NEKO_TRACE_TIME(where) int64_t where = 0; if (true)
 #endif
 
 NEKO_NS_BEGIN
@@ -45,15 +45,14 @@ inline int64_t GetTimeCostFor(Callable &&callable, Args &&...args) noexcept(std:
 
 class TimeTracer {
 public:
-    TimeTracer(std::source_location loc = std::source_location::current()) : mLoc(loc) {
-        mStart = GetTicks();
+    TimeTracer(int64_t &output) : mOutput(output), mStart(GetTicks()) {
+
     }
     ~TimeTracer() {
-        auto diff = GetTicks() - mStart;
-        fprintf(stderr, "[%s:%d (%s)] time costed %lld\n", mLoc.file_name(), mLoc.line(), mLoc.function_name(), diff);
+        mOutput = GetTicks() - mStart;
     }
 private:
-    std::source_location mLoc;
+    int64_t             &mOutput;
     int64_t              mStart = 0;
 };
 

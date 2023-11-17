@@ -108,14 +108,14 @@ public:
      * 
      * @return Thread* (nullptr on no-thread worker or in main thread)
      */
-    static Thread *currentThread();
+    static Thread *currentThread() noexcept;
     /**
      * @brief Sleep for millseconds but it will be interrupted if new task comming
      * 
      * @param milliseconds 
      * @return Ok by default, Interrupted on a new task that has arrived to the current thread
      */
-    static Error msleep(int milliseconds);
+    static Error msleep(int milliseconds) noexcept;
 private:
     void run();
 

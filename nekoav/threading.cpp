@@ -121,10 +121,10 @@ std::string_view Thread::name() const noexcept {
     return mName;
 }
 
-Thread *Thread::currentThread() {
+Thread *Thread::currentThread() noexcept {
     return _currentThread;
 }
-Error Thread::msleep(int ms) {
+Error Thread::msleep(int ms) noexcept {
     if (ms <= 0) {
         return Error::Ok;
     }
