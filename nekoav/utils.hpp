@@ -68,7 +68,7 @@
     #define NEKO_GetProcAddress(handle, name) ::dlsym(handle, name)
     #define NEKO_FreeLibrary(handle) ::dlclose(handle)
 
-    #define NEKO_SetThreadName(name) ::pthread_setname_np(::pthread_self(), name)
+    #define NEKO_SetThreadName(name) ::_Neko_SetThreadName(::pthread_self(), name)
     #define NEKO_GetThreadName()     ::_Neko_GetThreadName(::pthread_self()).data()
 
     inline auto _Neko_GetThreadName(pthread_t thread) {
@@ -78,6 +78,9 @@
     }
     inline auto _Neko_SetThreadName(pthread_t thread, const char *name) {
         return ::pthread_setname_np(thread, name);
+    }
+    inline auto _Neko_SetThreadName(pthread_t thread, std::string_view name) {
+        return _Neko_SetThreadName(thread, std::string(name).c_str());
     }
 #endif
 

@@ -7,6 +7,7 @@
 #include "../pad.hpp"
 #include "../log.hpp"
 #include "wavsrc.hpp"
+#include <cstring>
 
 NEKO_NS_BEGIN
 

@@ -57,6 +57,19 @@ void Thread::setPriority(ThreadPriority p) {
         case ThreadPriority::RealTime: priority = THREAD_PRIORITY_TIME_CRITICAL; break;
     }
     ::SetThreadPriority(handle, priority);
+#elif __has_include(<sched.h>)
+    int priority = 0;
+    switch (p) {
+        case ThreadPriority::Lowest: priority = -20; break;
+        case ThreadPriority::Low: priority = -10; break;
+        case ThreadPriority::Normal: priority = 0; break;
+        case ThreadPriority::High: priority = 10; break;
+        case ThreadPriority::Highest: priority = 20; break;
+        case ThreadPriority::RealTime: priority = 1; break;
+    }
+    ::sched_param param;
+    param.sched_priority = priority;
+    ::pthread_setschedparam(handle, SCHED_OTHER, &param);
 #endif
 
 }

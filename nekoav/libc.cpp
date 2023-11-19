@@ -7,15 +7,18 @@
 #include <cstdarg>
 #include <string>
 
-#if NEKO_GCC_ABI
+#ifdef NEKO_GCC_ABI
     #include <cxxabi.h>
 #endif
 
-#if defined(_WIN32)
+#if   defined(_WIN32)
     #include <Windows.h>
     #include <io.h>
     #undef min
     #undef max
+#elif defined(__linux__)
+    #include <sys/stat.h>
+    #include <sys/mman.h>
 #endif
 
 NEKO_NS_BEGIN
@@ -139,12 +142,19 @@ std::span<uint8_t> mmap(const char *path) {
     LPVOID buffer = ::MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0);
     ::CloseHandle(mapping);
     return std::span<uint8_t>(static_cast<uint8_t*>(buffer), filestat.st_size);
+#elif defined(__linux__)
+    // MMAP
+    auto addr = (uint8_t*) ::mmap(nullptr, filestat.st_size, PROT_READ, MAP_SHARED, fd, 0);
+    if (addr == MAP_FAILED) {
+        return std::span<uint8_t>();
+    }
+    return std::span<uint8_t>(addr, filestat.st_size);
 #else
-    auto data = ::malloc(filestat.st_size);
+    auto data = (uint8_t*) ::malloc(filestat.st_size);
     if (data == nullptr) {
         return std::span<uint8_t>();
     }
-    if (::fread(fd, data, 1, filestat.st_size) != filestat.st_size) {
+    if (::fread(data, 1, filestat.st_size, fp.get()) != filestat.st_size) {
         ::free(data);
         return std::span<uint8_t>();
     }
@@ -158,6 +168,8 @@ void munmap(std::span<uint8_t> span) {
     }
 #ifdef _WIN32
     ::UnmapViewOfFile(span.data());
+#elif defined(__linux)
+    ::munmap(span.data(), span.size());
 #else
     ::free(span.data());
 #endif

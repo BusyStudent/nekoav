@@ -14,15 +14,18 @@ enum class Error : int {
     UnsupportedResource, //< Unsupported Resource type 
     InvalidArguments,
     InvalidTopology,
+    InvalidContext,
     InvalidState,
     OutOfMemory,
     Async,                  //< This operation is a asynchronous
     Internal,               //< Internal Error
     TemporarilyUnavailable, //< This operation is TemporarilyUnavailable, try again later
     FileNotFound,           //< This file is not founded
-    Interrupted,
+    FileCorrupted,          //< This file is corrupted
+    Interrupted,            //< This operation is interrupted by some reason
 
-    Unknown,
+    External,               //< External Error, it come from external library
+    Unknown,                //< Unknown Error
     NumberOfErrors, //< Numbers of Error code
 };
 

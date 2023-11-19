@@ -1,6 +1,7 @@
 #include "../nekoav/backtrace.hpp"
 #include "../nekoav/threading.hpp"
 #include "../nekoav/flags.hpp"
+#include "../nekoav/time.hpp"
 #include "../nekoav/log.hpp"
 #include <map>
 
@@ -73,4 +74,8 @@ int main() {
     NEKO_DEBUG(typeid(NekoAV::Thread));
 
     NEKO_DEBUG(TestFlag::A | TestFlag::B);
+
+    NEKO_DEBUG(NekoAV::GetTicks());
+    NEKO_DEBUG(NekoAV::SleepFor(10));
+    NEKO_DEBUG(NekoAV::GetTicks());
 }

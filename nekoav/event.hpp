@@ -93,7 +93,12 @@ private:
     double mTime;
 };
 
-extern NEKO_API Error     DispatchEvent(View<Event> event);
+/**
+ * @brief Register an event type
+ * 
+ * @param count 
+ * @return EventType 
+ */
 extern NEKO_API EventType RegisterEvent(uint32_t count = 1);
 
 NEKO_NS_END

@@ -10,18 +10,26 @@ Context::~Context() {
 
 }
 
-void Context::registerInterface(std::type_index idx, void *inf) {
+bool Context::addObject(std::type_index idx, void *inf) {
+    if (inf == nullptr) {
+        return false;
+    }
     std::lock_guard locker(mMutex);
-    mInterfaces.insert(std::make_pair(idx, inf));
+    mObjects.try_emplace(idx, inf);
+    return true;
 }
-void Context::unregisterInterface(std::type_index idx) {
+bool Context::removeObject(std::type_index idx, void *p) {
+    if (p == nullptr) {
+        return false;
+    }
     std::lock_guard locker(mMutex);
-    mInterfaces.erase(idx);
+    mObjects.erase(idx);
+    return true;
 }
-void *Context::queryInterface(std::type_index idx) const {
-    std::lock_guard locker(mMutex);
-    auto it = mInterfaces.find(idx);
-    if (it != mInterfaces.end()) {
+void *Context::queryObject(std::type_index idx) const {
+    std::shared_lock locker(mMutex);
+    auto it = mObjects.find(idx);
+    if (it != mObjects.end()) {
         return it->second;
     }
     return nullptr;

@@ -1,109 +1,52 @@
 #pragma once
 
 #include "../defs.hpp"
-#include "../utils.hpp"
-
-#ifdef _WIN32
-    #ifdef _MSC_VER
-        #pragma commit(lib, "user32.lib")
-    #endif
-    
-    #include <Windows.h>
-#endif
 
 NEKO_NS_BEGIN
 
-namespace OpenGL {
-
-#ifdef _WIN32
-class WGLContext {
+class Thread;
+/**
+ * @brief Interface for Element who using OpenGL, All OpenGL Element in a pipeline run in the same thread
+ * 
+ */
+class GLElement {
 public:
-    WGLContext() {
-        registerWindow();
-        mHwnd = ::CreateWindowExW(
-            0,
-            L"NekoComputeGLWindow",
-            nullptr,
-            0,
-            0,
-            10,
-            10,
-            10,
-            nullptr,
-            nullptr,
-            GetModuleHandle(nullptr),
-            nullptr
-        );
-        if (!mHwnd) {
-            return;
-        }
-        mDC = GetDC(mHwnd);
-        if (!mDC) {
-            return;
-        }
-        mCtxt = wglCreateContext(mDC);
-    }
-    ~WGLContext() {
-        if (mCtxt) {
-            wglDeleteContext(mCtxt);
-        }
-        if (mDC) {
-            ReleaseDC(mHwnd, mDC);
-        }
-        if (mHwnd) {
-            DestroyWindow(mHwnd);
-        }
-    }
-
-    bool makeCurrent() {
-        return wglMakeCurrent(mDC, mCtxt);
-    }
-    bool isNull() const noexcept {
-        return !mCtxt || !mDC || !mHwnd;
-    }
-    void *getProcAddress(const char *name) const noexcept {
-        auto addr = wglGetProcAddress(name);
-        if (!addr) {
-            addr = GetProcAddress((HMODULE) libraryHandle(), name);
-        }
-        return reinterpret_cast<void*>(addr);
-    }
-    HDC dc() const noexcept {
-        return mDC;
-    }
-    HGLRC glrc() const noexcept {
-        return mCtxt;
-    }
-private:
-    static void registerWindow() {
-        static bool inited = false;
-        if (inited) {
-            return;
-        }
-        WNDCLASSEXW wx { };
-        wx.cbSize = sizeof(wx);
-        wx.hInstance = GetModuleHandle(nullptr);
-        wx.lpszClassName = L"NekoComputeGLWindow";
-        wx.lpfnWndProc = DefWindowProcW;
-        ::RegisterClassExW(&wx);
-    }
-
-    neko_library_path("opengl32.dll");
-    neko_import(wglGetProcAddress);
-    neko_import(wglCreateContext);
-    neko_import(wglDeleteContext);
-    neko_import(wglMakeCurrent);
-
-    HWND mHwnd = nullptr; //< Fake window for OpenGL
-    HGLRC mCtxt = nullptr;
-    HDC   mDC = nullptr;
-};
-using GLContext = WGLContext;
-#endif
 
 };
+class GLContext {
+public:
+    virtual ~GLContext() = default;
+    
+    virtual void  makeCurrent() = 0;
+    virtual void  doneCurrent() = 0;
+    virtual void *getProcAddress(const char *name) = 0;
+};
+class GLDisplay {
+public:
+    virtual Arc<GLContext> createContext() = 0;
+};
 
-using GLComputeContext = OpenGL::GLContext;
+/**
+ * @brief A Controller for OpenGL, you need to register the Controller to the Context, otherwise, The pipeline will fail on setState
+ * 
+ * @code {.cpp}
+ *  auto ctxt = pipeline->context();
+ *  ctxt.addObject<GLController>(controller);
+ * @endcode
+ * 
+ * 
+ */
+class GLController {
+public:
+ 
+};
 
+
+/**
+ * @brief Create a GLDisplay by local platform opengl interface
+ * 
+ * @return Box<GLDisplay> 
+ */
+extern NEKO_API Box<GLDisplay> CreateGLDisplay();
 
 NEKO_NS_END

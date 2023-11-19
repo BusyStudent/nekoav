@@ -54,6 +54,12 @@ public:
      */
     Context   * context() const noexcept;
     /**
+     * @brief Get the flags of this element
+     * 
+     * @return ElementFlags 
+     */
+    ElementFlags flags() const noexcept;
+    /**
      * @brief Get the name of this element
      * 
      * @return std::string 
@@ -140,6 +146,7 @@ protected:
     void removePad(Pad *pad);
     void removeAllInputs();
     void removeAllOutputs();
+    void setFlags(ElementFlags flags);
 
     Pad *addInput(std::string_view name);
     Pad *addOutput(std::string_view name);
@@ -184,6 +191,9 @@ inline EventSink *Element::bus() const noexcept {
 inline Context   *Element::context() const noexcept {
     return mContext;
 }
+inline ElementFlags Element::flags() const noexcept {
+    return mFlags;
+}
 inline std::span<Pad*> Element::inputs() const {
     return {
         const_cast<Pad**>(mInputs.data()),
@@ -205,7 +215,9 @@ template <typename T>
 inline const T *Element::as() const noexcept {
     return dynamic_cast<const T*>(this);
 }
-
+inline void Element::setFlags(ElementFlags flags) {
+    mFlags = flags;
+}
 
 template <typename ...Args>
 inline Error LinkElements(Args &&...args) {

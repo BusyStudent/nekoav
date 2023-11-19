@@ -6,6 +6,7 @@
 #include "../pad.hpp"
 #include "audiosink.hpp"
 #include "audiodev.hpp"
+#include <cstring>
 
 NEKO_NS_BEGIN
 
@@ -142,7 +143,7 @@ public:
                            mCurrentFrame->channels() * 
                            GetBytesPerSample(mCurrentFrame->sampleFormat());
             int bytes = std::min(len, frameLen - mCurrentFramePosition);
-            memcpy(buf, (uint8_t*) frameData + mCurrentFramePosition, bytes);
+            ::memcpy(buf, (uint8_t*) frameData + mCurrentFramePosition, bytes);
 
             mCurrentFramePosition += bytes;
             buf += bytes;
