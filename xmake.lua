@@ -43,6 +43,9 @@ target("nekoav")
         add_files("nekoav/ffmpeg/*.cpp")
     end
 
+    -- detail
+    add_files("nekoav/detail/*.cpp")
+
     add_files("nekoav/*.cpp")
     add_files("nekoav/elements/*.cpp")
 target_end()

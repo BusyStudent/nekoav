@@ -54,8 +54,8 @@ int main() {
     en = MyEnum(-1);
     NEKO_DEBUG(en);
 
-    NEKO_LOG("Enum current value is {}, type is {}", en, typeid(en));
-    NEKO_LOG("Vector is {}, Vector::empty() = {}", str, str.empty());
+    NEKO_LOG_INFO("Enum current value is {}, type is {}", en, typeid(en));
+    NEKO_LOG_INFO("Vector is {}, Vector::empty() = {}", str, str.empty());
 
     std::variant<int, float, std::optional<std::string> > var = std::optional<std::string>("A");
     NEKO_DEBUG(var);
