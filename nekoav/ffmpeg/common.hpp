@@ -55,9 +55,9 @@ public:
         }
         return mFrame->pkt_duration * av_q2d(mTimebase);
     }
-    bool isKeyFrame() const override {
-        return mFrame->key_frame;
-    }
+    // bool isKeyFrame() const override {
+    //     return mFrame->key_frame;
+    // }
 
     int linesize(int idx) const override {
         if (idx >= 8 || idx < 0) {

@@ -30,9 +30,9 @@ public:
     double timestamp() const override {
         return mTimestamp;
     }
-    bool isKeyFrame() const override {
-        return true;
-    }
+    // bool isKeyFrame() const override {
+        // return true;
+    // }
 
     int linesize(int p) const override {
         if (p == 0) {

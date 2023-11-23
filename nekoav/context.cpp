@@ -7,15 +7,19 @@ Context::Context() {
 
 }
 Context::~Context() {
-
+    for (auto &it : mObjects) {
+        if (it.second.cleanup) {
+            it.second.cleanup();
+        }
+    }
 }
 
-bool Context::addObject(std::type_index idx, void *inf) {
+bool Context::addObject(std::type_index idx, void *inf, std::function<void()> &&cleanup) {
     if (inf == nullptr) {
         return false;
     }
     std::lock_guard locker(mMutex);
-    mObjects.try_emplace(idx, inf);
+    mObjects.try_emplace(idx, inf, std::move(cleanup));
     return true;
 }
 bool Context::removeObject(std::type_index idx, void *p) {
@@ -23,14 +27,24 @@ bool Context::removeObject(std::type_index idx, void *p) {
         return false;
     }
     std::lock_guard locker(mMutex);
-    mObjects.erase(idx);
+    auto iter = mObjects.find(idx);
+    if (iter == mObjects.end()) {
+        return false;
+    }
+    if (iter->second.value != p) {
+        return false;
+    }
+    if (iter->second.cleanup) {
+        iter->second.cleanup();
+    }
+    mObjects.erase(iter);
     return true;
 }
 void *Context::queryObject(std::type_index idx) const {
     std::shared_lock locker(mMutex);
     auto it = mObjects.find(idx);
     if (it != mObjects.end()) {
-        return it->second;
+        return it->second.value;
     }
     return nullptr;
 }

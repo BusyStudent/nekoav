@@ -101,14 +101,16 @@ public:
     /**
      * @brief Send a error event to bus
      * 
-     * @param errcode 
+     * @param errcode The Error code
+     * @param message The message, default is empty
+     * 
      */
-    Error raiseError(Error errcode) {
+    Error raiseError(Error errcode, std::string_view message = { }) {
 #ifndef     NDEBUG
         Backtrace();
 #endif
 
-        auto event = ErrorEvent::make(errcode, this);
+        auto event = ErrorEvent::make(errcode, message, this);
         this->bus()->postEvent(event);
         return errcode;
     }
@@ -139,11 +141,11 @@ public:
     virtual Error onEvent(View<Event> event) {
         return Error::Ok;
     }
-    Error raiseError(Error errcode) {
+    Error raiseError(Error errcode, std::string_view message = { }) {
 #ifndef     NDEBUG
         Backtrace();
 #endif
-        auto event = ErrorEvent::make(errcode, this);
+        auto event = ErrorEvent::make(errcode, message, this);
         this->bus()->postEvent(event);
         return errcode;
     }

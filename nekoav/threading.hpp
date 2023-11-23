@@ -8,7 +8,6 @@
 #include <string>
 #include <queue>
 #include <mutex>
-#include <list>
 
 NEKO_NS_BEGIN
 

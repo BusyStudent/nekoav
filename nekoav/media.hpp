@@ -19,7 +19,7 @@ public:
     virtual auto format() const -> int = 0;
     virtual auto duration() const -> double = 0;
     virtual auto timestamp() const -> double = 0;
-    virtual auto isKeyFrame() const -> bool = 0;
+    // virtual auto isKeyFrame() const -> bool = 0;
 
     virtual auto linesize(int plane) const -> int = 0;
     virtual auto data(int plane) const -> void * = 0;

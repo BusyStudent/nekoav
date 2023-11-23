@@ -20,7 +20,7 @@ public:
         setContext(&mContext);
         addClock(&mExternalClock);
 
-        mContext.addObject<MediaController>(this);
+        mContext.addObjectView<MediaController>(this);
     }
     ~PipelineImpl() {
         setState(State::Null);

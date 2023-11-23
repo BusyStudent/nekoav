@@ -17,6 +17,12 @@ option("qt_interop")
    set_description("Qt support for nekoav")
 option_end()
 
+option("opengl")
+    set_default(false)
+    set_showmenu(true)
+    set_description("OpenGL support")
+option_end()
+
 if is_plat("windows") then 
     add_cxxflags("cl::/utf-8")
     add_cxxflags("cl::/Zc:__cplusplus")
@@ -35,6 +41,11 @@ target("nekoav")
 
     if has_package("miniaudio") then
         add_files("nekoav/elements/audiodev/miniaudio.cpp")
+    end
+
+    -- OpenGL
+    if has_config("opengl") then 
+        add_files("nekoav/opengl/*.cpp")
     end
 
     -- FFmpeg

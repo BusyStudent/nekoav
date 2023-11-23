@@ -2,6 +2,7 @@
 
 #include "defs.hpp"
 #include <shared_mutex>
+#include <functional>
 #include <typeindex>
 #include <typeinfo>
 #include <map>
@@ -21,19 +22,22 @@ public:
     /**
      * @brief Adds an object to the context.
      * 
-     * @details Note, This method doesnot take the ownship of the object
+     * @details Note, This method doesnot take the ownship of the object by default.
+     * @internal Maybe your should not use this method directly.
      *
      * @param idx the type index of the object
      * @param inf a pointer to the object
+     * @param cleanup a callback for cleanup (set this function of you want to take the ownership of the object)
      *
      * @return true if the object was added successfully, false otherwise
      *
      * @throws None
      */
-    bool  addObject(std::type_index idx, void *inf);
+    bool  addObject(std::type_index idx, void *inf, std::function<void()> &&cleanup = { });
     /**
      * @brief Remove an object from the Context.
-     *
+     * @internal Maybe your should not use this method directly.
+     * 
      * @param idx the type index of the object to be removed
      * @param p a pointer to the object to be removed
      *
@@ -44,7 +48,8 @@ public:
     bool  removeObject(std::type_index idx, void *inf);
     /**
      * @brief Queries an object of the specified type from the context.
-     *
+     * @internal Maybe your should not use this method directly.
+     * 
      * @param idx the type index of the object to query
      *
      * @return a pointer to the queried object, or nullptr if not found
@@ -66,8 +71,33 @@ public:
      * @throws None
      */
     template <typename T>
-    bool  addObject(View<T> object) {
+    bool  addObjectView(View<T> object) {
         return addObject(typeid(T), object.get());
+    }
+    /**
+     * @brief Add an object to the context. it will take the ownership of the object
+     * 
+     * @tparam T The type of the object
+     * @param object Arc<T> containing the object
+     * @return true 
+     * @return false 
+     */
+    template <typename T>
+    bool  addObject(const Arc<T> &object) {
+        return addObject(typeid(T), object.get(), [object]() {});
+    }
+    /**
+     * @brief Add an object to the context. it will take the ownership of the object
+     * 
+     * @tparam T The type of the object
+     * @param object Box<T> containing the object
+     * @return true 
+     * @return false 
+     */
+    template <typename T>
+    bool  addObject(Box<T> &&object) {
+        auto v = object.get();
+        return addObject(typeid(T), v, [obj = std::move(object)]() {});
     }
     /**
      * @brief Remove an object of type T.
@@ -96,7 +126,13 @@ public:
         return static_cast<T*>(queryObject(typeid(T)));
     }
 private:
-    std::map<std::type_index, void *> mObjects;
+    class Object {
+    public:
+        void *value;
+        std::function<void()> cleanup;
+    };
+
+    std::map<std::type_index, Object> mObjects;
     mutable std::shared_mutex         mMutex;
 };
 

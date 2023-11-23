@@ -1,9 +1,10 @@
 #pragma once
 
 #include "defs.hpp"
-#include "resource.hpp"
 #include "time.hpp"
+#include "resource.hpp"
 #include <functional>
+#include <string>
 
 NEKO_NS_BEGIN
 
@@ -51,7 +52,10 @@ using EventType = Event::Type;
 
 class ErrorEvent : public Event {
 public:
-    ErrorEvent(Error error, Element *sender) : Event(ErrorOccurred, sender), mError(error) { }
+    ErrorEvent(Error error, Element *sender) : 
+        Event(ErrorOccurred, sender), mError(error) { }
+    ErrorEvent(Error error, std::string_view message, Element *sender) : 
+        Event(ErrorOccurred, sender), mError(error), mMessage(message) { }
 
     Error error() const noexcept {
         return mError;
@@ -60,8 +64,12 @@ public:
     static Arc<ErrorEvent> make(Error error, Element *sender) {
         return std::make_shared<ErrorEvent>(error, sender);
     }
+    static Arc<ErrorEvent> make(Error error, std::string_view message, Element *sender) {
+        return std::make_shared<ErrorEvent>(error, message, sender);
+    }
 private:
     Error mError;
+    std::string mMessage;
 };
 
 class MediaClock;

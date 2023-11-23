@@ -1,0 +1,1144 @@
+#pragma once
+
+#define GL_FUNCTIONS_1_0 \
+    GL_FUNCTIONS_1_0_PART
+#define GL_FUNCTIONS_1_0_PART                                             \
+                                                                          \
+    GL_PROCESS(glCullFace, PFNGLCULLFACEPROC)                             \
+    GL_PROCESS(glFrontFace, PFNGLFRONTFACEPROC)                           \
+    GL_PROCESS(glHint, PFNGLHINTPROC)                                     \
+    GL_PROCESS(glLineWidth, PFNGLLINEWIDTHPROC)                           \
+    GL_PROCESS(glPointSize, PFNGLPOINTSIZEPROC)                           \
+    GL_PROCESS(glPolygonMode, PFNGLPOLYGONMODEPROC)                       \
+    GL_PROCESS(glScissor, PFNGLSCISSORPROC)                               \
+    GL_PROCESS(glTexParameterf, PFNGLTEXPARAMETERFPROC)                   \
+    GL_PROCESS(glTexParameterfv, PFNGLTEXPARAMETERFVPROC)                 \
+    GL_PROCESS(glTexParameteri, PFNGLTEXPARAMETERIPROC)                   \
+    GL_PROCESS(glTexParameteriv, PFNGLTEXPARAMETERIVPROC)                 \
+    GL_PROCESS(glTexImage1D, PFNGLTEXIMAGE1DPROC)                         \
+    GL_PROCESS(glTexImage2D, PFNGLTEXIMAGE2DPROC)                         \
+    GL_PROCESS(glDrawBuffer, PFNGLDRAWBUFFERPROC)                         \
+    GL_PROCESS(glClear, PFNGLCLEARPROC)                                   \
+    GL_PROCESS(glClearColor, PFNGLCLEARCOLORPROC)                         \
+    GL_PROCESS(glClearStencil, PFNGLCLEARSTENCILPROC)                     \
+    GL_PROCESS(glClearDepth, PFNGLCLEARDEPTHPROC)                         \
+    GL_PROCESS(glStencilMask, PFNGLSTENCILMASKPROC)                       \
+    GL_PROCESS(glColorMask, PFNGLCOLORMASKPROC)                           \
+    GL_PROCESS(glDepthMask, PFNGLDEPTHMASKPROC)                           \
+    GL_PROCESS(glDisable, PFNGLDISABLEPROC)                               \
+    GL_PROCESS(glEnable, PFNGLENABLEPROC)                                 \
+    GL_PROCESS(glFinish, PFNGLFINISHPROC)                                 \
+    GL_PROCESS(glFlush, PFNGLFLUSHPROC)                                   \
+    GL_PROCESS(glBlendFunc, PFNGLBLENDFUNCPROC)                           \
+    GL_PROCESS(glLogicOp, PFNGLLOGICOPPROC)                               \
+    GL_PROCESS(glStencilFunc, PFNGLSTENCILFUNCPROC)                       \
+    GL_PROCESS(glStencilOp, PFNGLSTENCILOPPROC)                           \
+    GL_PROCESS(glDepthFunc, PFNGLDEPTHFUNCPROC)                           \
+    GL_PROCESS(glPixelStoref, PFNGLPIXELSTOREFPROC)                       \
+    GL_PROCESS(glPixelStorei, PFNGLPIXELSTOREIPROC)                       \
+    GL_PROCESS(glReadBuffer, PFNGLREADBUFFERPROC)                         \
+    GL_PROCESS(glReadPixels, PFNGLREADPIXELSPROC)                         \
+    GL_PROCESS(glGetBooleanv, PFNGLGETBOOLEANVPROC)                       \
+    GL_PROCESS(glGetDoublev, PFNGLGETDOUBLEVPROC)                         \
+    GL_PROCESS(glGetError, PFNGLGETERRORPROC)                             \
+    GL_PROCESS(glGetFloatv, PFNGLGETFLOATVPROC)                           \
+    GL_PROCESS(glGetIntegerv, PFNGLGETINTEGERVPROC)                       \
+    GL_PROCESS(glGetString, PFNGLGETSTRINGPROC)                           \
+    GL_PROCESS(glGetTexImage, PFNGLGETTEXIMAGEPROC)                       \
+    GL_PROCESS(glGetTexParameterfv, PFNGLGETTEXPARAMETERFVPROC)           \
+    GL_PROCESS(glGetTexParameteriv, PFNGLGETTEXPARAMETERIVPROC)           \
+    GL_PROCESS(glGetTexLevelParameterfv, PFNGLGETTEXLEVELPARAMETERFVPROC) \
+    GL_PROCESS(glGetTexLevelParameteriv, PFNGLGETTEXLEVELPARAMETERIVPROC) \
+    GL_PROCESS(glIsEnabled, PFNGLISENABLEDPROC)                           \
+    GL_PROCESS(glDepthRange, PFNGLDEPTHRANGEPROC)                         \
+    GL_PROCESS(glViewport, PFNGLVIEWPORTPROC)                             \
+    GL_PROCESS(glNewList, PFNGLNEWLISTPROC)                               \
+    GL_PROCESS(glEndList, PFNGLENDLISTPROC)                               \
+    GL_PROCESS(glCallList, PFNGLCALLLISTPROC)                             \
+    GL_PROCESS(glCallLists, PFNGLCALLLISTSPROC)                           \
+    GL_PROCESS(glDeleteLists, PFNGLDELETELISTSPROC)                       \
+    GL_PROCESS(glGenLists, PFNGLGENLISTSPROC)                             \
+    GL_PROCESS(glListBase, PFNGLLISTBASEPROC)                             \
+    GL_PROCESS(glBegin, PFNGLBEGINPROC)                                   \
+    GL_PROCESS(glBitmap, PFNGLBITMAPPROC)                                 \
+    GL_PROCESS(glColor3b, PFNGLCOLOR3BPROC)                               \
+    GL_PROCESS(glColor3bv, PFNGLCOLOR3BVPROC)                             \
+    GL_PROCESS(glColor3d, PFNGLCOLOR3DPROC)                               \
+    GL_PROCESS(glColor3dv, PFNGLCOLOR3DVPROC)                             \
+    GL_PROCESS(glColor3f, PFNGLCOLOR3FPROC)                               \
+    GL_PROCESS(glColor3fv, PFNGLCOLOR3FVPROC)                             \
+    GL_PROCESS(glColor3i, PFNGLCOLOR3IPROC)                               \
+    GL_PROCESS(glColor3iv, PFNGLCOLOR3IVPROC)                             \
+    GL_PROCESS(glColor3s, PFNGLCOLOR3SPROC)                               \
+    GL_PROCESS(glColor3sv, PFNGLCOLOR3SVPROC)                             \
+    GL_PROCESS(glColor3ub, PFNGLCOLOR3UBPROC)                             \
+    GL_PROCESS(glColor3ubv, PFNGLCOLOR3UBVPROC)                           \
+    GL_PROCESS(glColor3ui, PFNGLCOLOR3UIPROC)                             \
+    GL_PROCESS(glColor3uiv, PFNGLCOLOR3UIVPROC)                           \
+    GL_PROCESS(glColor3us, PFNGLCOLOR3USPROC)                             \
+    GL_PROCESS(glColor3usv, PFNGLCOLOR3USVPROC)                           \
+    GL_PROCESS(glColor4b, PFNGLCOLOR4BPROC)                               \
+    GL_PROCESS(glColor4bv, PFNGLCOLOR4BVPROC)                             \
+    GL_PROCESS(glColor4d, PFNGLCOLOR4DPROC)                               \
+    GL_PROCESS(glColor4dv, PFNGLCOLOR4DVPROC)                             \
+    GL_PROCESS(glColor4f, PFNGLCOLOR4FPROC)                               \
+    GL_PROCESS(glColor4fv, PFNGLCOLOR4FVPROC)                             \
+    GL_PROCESS(glColor4i, PFNGLCOLOR4IPROC)                               \
+    GL_PROCESS(glColor4iv, PFNGLCOLOR4IVPROC)                             \
+    GL_PROCESS(glColor4s, PFNGLCOLOR4SPROC)                               \
+    GL_PROCESS(glColor4sv, PFNGLCOLOR4SVPROC)                             \
+    GL_PROCESS(glColor4ub, PFNGLCOLOR4UBPROC)                             \
+    GL_PROCESS(glColor4ubv, PFNGLCOLOR4UBVPROC)                           \
+    GL_PROCESS(glColor4ui, PFNGLCOLOR4UIPROC)                             \
+    GL_PROCESS(glColor4uiv, PFNGLCOLOR4UIVPROC)                           \
+    GL_PROCESS(glColor4us, PFNGLCOLOR4USPROC)                             \
+    GL_PROCESS(glColor4usv, PFNGLCOLOR4USVPROC)                           \
+    GL_PROCESS(glEdgeFlag, PFNGLEDGEFLAGPROC)                             \
+    GL_PROCESS(glEdgeFlagv, PFNGLEDGEFLAGVPROC)                           \
+    GL_PROCESS(glEnd, PFNGLENDPROC)                                       \
+    GL_PROCESS(glIndexd, PFNGLINDEXDPROC)                                 \
+    GL_PROCESS(glIndexdv, PFNGLINDEXDVPROC)                               \
+    GL_PROCESS(glIndexf, PFNGLINDEXFPROC)                                 \
+    GL_PROCESS(glIndexfv, PFNGLINDEXFVPROC)                               \
+    GL_PROCESS(glIndexi, PFNGLINDEXIPROC)                                 \
+    GL_PROCESS(glIndexiv, PFNGLINDEXIVPROC)                               \
+    GL_PROCESS(glIndexs, PFNGLINDEXSPROC)                                 \
+    GL_PROCESS(glIndexsv, PFNGLINDEXSVPROC)                               \
+    GL_PROCESS(glNormal3b, PFNGLNORMAL3BPROC)                             \
+    GL_PROCESS(glNormal3bv, PFNGLNORMAL3BVPROC)                           \
+    GL_PROCESS(glNormal3d, PFNGLNORMAL3DPROC)                             \
+    GL_PROCESS(glNormal3dv, PFNGLNORMAL3DVPROC)                           \
+    GL_PROCESS(glNormal3f, PFNGLNORMAL3FPROC)                             \
+    GL_PROCESS(glNormal3fv, PFNGLNORMAL3FVPROC)                           \
+    GL_PROCESS(glNormal3i, PFNGLNORMAL3IPROC)                             \
+    GL_PROCESS(glNormal3iv, PFNGLNORMAL3IVPROC)                           \
+    GL_PROCESS(glNormal3s, PFNGLNORMAL3SPROC)                             \
+    GL_PROCESS(glNormal3sv, PFNGLNORMAL3SVPROC)                           \
+    GL_PROCESS(glRasterPos2d, PFNGLRASTERPOS2DPROC)                       \
+    GL_PROCESS(glRasterPos2dv, PFNGLRASTERPOS2DVPROC)                     \
+    GL_PROCESS(glRasterPos2f, PFNGLRASTERPOS2FPROC)                       \
+    GL_PROCESS(glRasterPos2fv, PFNGLRASTERPOS2FVPROC)                     \
+    GL_PROCESS(glRasterPos2i, PFNGLRASTERPOS2IPROC)                       \
+    GL_PROCESS(glRasterPos2iv, PFNGLRASTERPOS2IVPROC)                     \
+    GL_PROCESS(glRasterPos2s, PFNGLRASTERPOS2SPROC)                       \
+    GL_PROCESS(glRasterPos2sv, PFNGLRASTERPOS2SVPROC)                     \
+    GL_PROCESS(glRasterPos3d, PFNGLRASTERPOS3DPROC)                       \
+    GL_PROCESS(glRasterPos3dv, PFNGLRASTERPOS3DVPROC)                     \
+    GL_PROCESS(glRasterPos3f, PFNGLRASTERPOS3FPROC)                       \
+    GL_PROCESS(glRasterPos3fv, PFNGLRASTERPOS3FVPROC)                     \
+    GL_PROCESS(glRasterPos3i, PFNGLRASTERPOS3IPROC)                       \
+    GL_PROCESS(glRasterPos3iv, PFNGLRASTERPOS3IVPROC)                     \
+    GL_PROCESS(glRasterPos3s, PFNGLRASTERPOS3SPROC)                       \
+    GL_PROCESS(glRasterPos3sv, PFNGLRASTERPOS3SVPROC)                     \
+    GL_PROCESS(glRasterPos4d, PFNGLRASTERPOS4DPROC)                       \
+    GL_PROCESS(glRasterPos4dv, PFNGLRASTERPOS4DVPROC)                     \
+    GL_PROCESS(glRasterPos4f, PFNGLRASTERPOS4FPROC)                       \
+    GL_PROCESS(glRasterPos4fv, PFNGLRASTERPOS4FVPROC)                     \
+    GL_PROCESS(glRasterPos4i, PFNGLRASTERPOS4IPROC)                       \
+    GL_PROCESS(glRasterPos4iv, PFNGLRASTERPOS4IVPROC)                     \
+    GL_PROCESS(glRasterPos4s, PFNGLRASTERPOS4SPROC)                       \
+    GL_PROCESS(glRasterPos4sv, PFNGLRASTERPOS4SVPROC)                     \
+    GL_PROCESS(glRectd, PFNGLRECTDPROC)                                   \
+    GL_PROCESS(glRectdv, PFNGLRECTDVPROC)                                 \
+    GL_PROCESS(glRectf, PFNGLRECTFPROC)                                   \
+    GL_PROCESS(glRectfv, PFNGLRECTFVPROC)                                 \
+    GL_PROCESS(glRecti, PFNGLRECTIPROC)                                   \
+    GL_PROCESS(glRectiv, PFNGLRECTIVPROC)                                 \
+    GL_PROCESS(glRects, PFNGLRECTSPROC)                                   \
+    GL_PROCESS(glRectsv, PFNGLRECTSVPROC)                                 \
+    GL_PROCESS(glTexCoord1d, PFNGLTEXCOORD1DPROC)                         \
+    GL_PROCESS(glTexCoord1dv, PFNGLTEXCOORD1DVPROC)                       \
+    GL_PROCESS(glTexCoord1f, PFNGLTEXCOORD1FPROC)                         \
+    GL_PROCESS(glTexCoord1fv, PFNGLTEXCOORD1FVPROC)                       \
+    GL_PROCESS(glTexCoord1i, PFNGLTEXCOORD1IPROC)                         \
+    GL_PROCESS(glTexCoord1iv, PFNGLTEXCOORD1IVPROC)                       \
+    GL_PROCESS(glTexCoord1s, PFNGLTEXCOORD1SPROC)                         \
+    GL_PROCESS(glTexCoord1sv, PFNGLTEXCOORD1SVPROC)                       \
+    GL_PROCESS(glTexCoord2d, PFNGLTEXCOORD2DPROC)                         \
+    GL_PROCESS(glTexCoord2dv, PFNGLTEXCOORD2DVPROC)                       \
+    GL_PROCESS(glTexCoord2f, PFNGLTEXCOORD2FPROC)                         \
+    GL_PROCESS(glTexCoord2fv, PFNGLTEXCOORD2FVPROC)                       \
+    GL_PROCESS(glTexCoord2i, PFNGLTEXCOORD2IPROC)                         \
+    GL_PROCESS(glTexCoord2iv, PFNGLTEXCOORD2IVPROC)                       \
+    GL_PROCESS(glTexCoord2s, PFNGLTEXCOORD2SPROC)                         \
+    GL_PROCESS(glTexCoord2sv, PFNGLTEXCOORD2SVPROC)                       \
+    GL_PROCESS(glTexCoord3d, PFNGLTEXCOORD3DPROC)                         \
+    GL_PROCESS(glTexCoord3dv, PFNGLTEXCOORD3DVPROC)                       \
+    GL_PROCESS(glTexCoord3f, PFNGLTEXCOORD3FPROC)                         \
+    GL_PROCESS(glTexCoord3fv, PFNGLTEXCOORD3FVPROC)                       \
+    GL_PROCESS(glTexCoord3i, PFNGLTEXCOORD3IPROC)                         \
+    GL_PROCESS(glTexCoord3iv, PFNGLTEXCOORD3IVPROC)                       \
+    GL_PROCESS(glTexCoord3s, PFNGLTEXCOORD3SPROC)                         \
+    GL_PROCESS(glTexCoord3sv, PFNGLTEXCOORD3SVPROC)                       \
+    GL_PROCESS(glTexCoord4d, PFNGLTEXCOORD4DPROC)                         \
+    GL_PROCESS(glTexCoord4dv, PFNGLTEXCOORD4DVPROC)                       \
+    GL_PROCESS(glTexCoord4f, PFNGLTEXCOORD4FPROC)                         \
+    GL_PROCESS(glTexCoord4fv, PFNGLTEXCOORD4FVPROC)                       \
+    GL_PROCESS(glTexCoord4i, PFNGLTEXCOORD4IPROC)                         \
+    GL_PROCESS(glTexCoord4iv, PFNGLTEXCOORD4IVPROC)                       \
+    GL_PROCESS(glTexCoord4s, PFNGLTEXCOORD4SPROC)                         \
+    GL_PROCESS(glTexCoord4sv, PFNGLTEXCOORD4SVPROC)                       \
+    GL_PROCESS(glVertex2d, PFNGLVERTEX2DPROC)                             \
+    GL_PROCESS(glVertex2dv, PFNGLVERTEX2DVPROC)                           \
+    GL_PROCESS(glVertex2f, PFNGLVERTEX2FPROC)                             \
+    GL_PROCESS(glVertex2fv, PFNGLVERTEX2FVPROC)                           \
+    GL_PROCESS(glVertex2i, PFNGLVERTEX2IPROC)                             \
+    GL_PROCESS(glVertex2iv, PFNGLVERTEX2IVPROC)                           \
+    GL_PROCESS(glVertex2s, PFNGLVERTEX2SPROC)                             \
+    GL_PROCESS(glVertex2sv, PFNGLVERTEX2SVPROC)                           \
+    GL_PROCESS(glVertex3d, PFNGLVERTEX3DPROC)                             \
+    GL_PROCESS(glVertex3dv, PFNGLVERTEX3DVPROC)                           \
+    GL_PROCESS(glVertex3f, PFNGLVERTEX3FPROC)                             \
+    GL_PROCESS(glVertex3fv, PFNGLVERTEX3FVPROC)                           \
+    GL_PROCESS(glVertex3i, PFNGLVERTEX3IPROC)                             \
+    GL_PROCESS(glVertex3iv, PFNGLVERTEX3IVPROC)                           \
+    GL_PROCESS(glVertex3s, PFNGLVERTEX3SPROC)                             \
+    GL_PROCESS(glVertex3sv, PFNGLVERTEX3SVPROC)                           \
+    GL_PROCESS(glVertex4d, PFNGLVERTEX4DPROC)                             \
+    GL_PROCESS(glVertex4dv, PFNGLVERTEX4DVPROC)                           \
+    GL_PROCESS(glVertex4f, PFNGLVERTEX4FPROC)                             \
+    GL_PROCESS(glVertex4fv, PFNGLVERTEX4FVPROC)                           \
+    GL_PROCESS(glVertex4i, PFNGLVERTEX4IPROC)                             \
+    GL_PROCESS(glVertex4iv, PFNGLVERTEX4IVPROC)                           \
+    GL_PROCESS(glVertex4s, PFNGLVERTEX4SPROC)                             \
+    GL_PROCESS(glVertex4sv, PFNGLVERTEX4SVPROC)                           \
+    GL_PROCESS(glClipPlane, PFNGLCLIPPLANEPROC)                           \
+    GL_PROCESS(glColorMaterial, PFNGLCOLORMATERIALPROC)                   \
+    GL_PROCESS(glFogf, PFNGLFOGFPROC)                                     \
+    GL_PROCESS(glFogfv, PFNGLFOGFVPROC)                                   \
+    GL_PROCESS(glFogi, PFNGLFOGIPROC)                                     \
+    GL_PROCESS(glFogiv, PFNGLFOGIVPROC)                                   \
+    GL_PROCESS(glLightf, PFNGLLIGHTFPROC)                                 \
+    GL_PROCESS(glLightfv, PFNGLLIGHTFVPROC)                               \
+    GL_PROCESS(glLighti, PFNGLLIGHTIPROC)                                 \
+    GL_PROCESS(glLightiv, PFNGLLIGHTIVPROC)                               \
+    GL_PROCESS(glLightModelf, PFNGLLIGHTMODELFPROC)                       \
+    GL_PROCESS(glLightModelfv, PFNGLLIGHTMODELFVPROC)                     \
+    GL_PROCESS(glLightModeli, PFNGLLIGHTMODELIPROC)                       \
+    GL_PROCESS(glLightModeliv, PFNGLLIGHTMODELIVPROC)                     \
+    GL_PROCESS(glLineStipple, PFNGLLINESTIPPLEPROC)                       \
+    GL_PROCESS(glMaterialf, PFNGLMATERIALFPROC)                           \
+    GL_PROCESS(glMaterialfv, PFNGLMATERIALFVPROC)                         \
+    GL_PROCESS(glMateriali, PFNGLMATERIALIPROC)                           \
+    GL_PROCESS(glMaterialiv, PFNGLMATERIALIVPROC)                         \
+    GL_PROCESS(glPolygonStipple, PFNGLPOLYGONSTIPPLEPROC)                 \
+    GL_PROCESS(glShadeModel, PFNGLSHADEMODELPROC)                         \
+    GL_PROCESS(glTexEnvf, PFNGLTEXENVFPROC)                               \
+    GL_PROCESS(glTexEnvfv, PFNGLTEXENVFVPROC)                             \
+    GL_PROCESS(glTexEnvi, PFNGLTEXENVIPROC)                               \
+    GL_PROCESS(glTexEnviv, PFNGLTEXENVIVPROC)                             \
+    GL_PROCESS(glTexGend, PFNGLTEXGENDPROC)                               \
+    GL_PROCESS(glTexGendv, PFNGLTEXGENDVPROC)                             \
+    GL_PROCESS(glTexGenf, PFNGLTEXGENFPROC)                               \
+    GL_PROCESS(glTexGenfv, PFNGLTEXGENFVPROC)                             \
+    GL_PROCESS(glTexGeni, PFNGLTEXGENIPROC)                               \
+    GL_PROCESS(glTexGeniv, PFNGLTEXGENIVPROC)                             \
+    GL_PROCESS(glFeedbackBuffer, PFNGLFEEDBACKBUFFERPROC)                 \
+    GL_PROCESS(glSelectBuffer, PFNGLSELECTBUFFERPROC)                     \
+    GL_PROCESS(glRenderMode, PFNGLRENDERMODEPROC)                         \
+    GL_PROCESS(glInitNames, PFNGLINITNAMESPROC)                           \
+    GL_PROCESS(glLoadName, PFNGLLOADNAMEPROC)                             \
+    GL_PROCESS(glPassThrough, PFNGLPASSTHROUGHPROC)                       \
+    GL_PROCESS(glPopName, PFNGLPOPNAMEPROC)                               \
+    GL_PROCESS(glPushName, PFNGLPUSHNAMEPROC)                             \
+    GL_PROCESS(glClearAccum, PFNGLCLEARACCUMPROC)                         \
+    GL_PROCESS(glClearIndex, PFNGLCLEARINDEXPROC)                         \
+    GL_PROCESS(glIndexMask, PFNGLINDEXMASKPROC)                           \
+    GL_PROCESS(glAccum, PFNGLACCUMPROC)                                   \
+    GL_PROCESS(glPopAttrib, PFNGLPOPATTRIBPROC)                           \
+    GL_PROCESS(glPushAttrib, PFNGLPUSHATTRIBPROC)                         \
+    GL_PROCESS(glMap1d, PFNGLMAP1DPROC)                                   \
+    GL_PROCESS(glMap1f, PFNGLMAP1FPROC)                                   \
+    GL_PROCESS(glMap2d, PFNGLMAP2DPROC)                                   \
+    GL_PROCESS(glMap2f, PFNGLMAP2FPROC)                                   \
+    GL_PROCESS(glMapGrid1d, PFNGLMAPGRID1DPROC)                           \
+    GL_PROCESS(glMapGrid1f, PFNGLMAPGRID1FPROC)                           \
+    GL_PROCESS(glMapGrid2d, PFNGLMAPGRID2DPROC)                           \
+    GL_PROCESS(glMapGrid2f, PFNGLMAPGRID2FPROC)                           \
+    GL_PROCESS(glEvalCoord1d, PFNGLEVALCOORD1DPROC)                       \
+    GL_PROCESS(glEvalCoord1dv, PFNGLEVALCOORD1DVPROC)                     \
+    GL_PROCESS(glEvalCoord1f, PFNGLEVALCOORD1FPROC)                       \
+    GL_PROCESS(glEvalCoord1fv, PFNGLEVALCOORD1FVPROC)                     \
+    GL_PROCESS(glEvalCoord2d, PFNGLEVALCOORD2DPROC)                       \
+    GL_PROCESS(glEvalCoord2dv, PFNGLEVALCOORD2DVPROC)                     \
+    GL_PROCESS(glEvalCoord2f, PFNGLEVALCOORD2FPROC)                       \
+    GL_PROCESS(glEvalCoord2fv, PFNGLEVALCOORD2FVPROC)                     \
+    GL_PROCESS(glEvalMesh1, PFNGLEVALMESH1PROC)                           \
+    GL_PROCESS(glEvalPoint1, PFNGLEVALPOINT1PROC)                         \
+    GL_PROCESS(glEvalMesh2, PFNGLEVALMESH2PROC)                           \
+    GL_PROCESS(glEvalPoint2, PFNGLEVALPOINT2PROC)                         \
+    GL_PROCESS(glAlphaFunc, PFNGLALPHAFUNCPROC)                           \
+    GL_PROCESS(glPixelZoom, PFNGLPIXELZOOMPROC)                           \
+    GL_PROCESS(glPixelTransferf, PFNGLPIXELTRANSFERFPROC)                 \
+    GL_PROCESS(glPixelTransferi, PFNGLPIXELTRANSFERIPROC)                 \
+    GL_PROCESS(glPixelMapfv, PFNGLPIXELMAPFVPROC)                         \
+    GL_PROCESS(glPixelMapuiv, PFNGLPIXELMAPUIVPROC)                       \
+    GL_PROCESS(glPixelMapusv, PFNGLPIXELMAPUSVPROC)                       \
+    GL_PROCESS(glCopyPixels, PFNGLCOPYPIXELSPROC)                         \
+    GL_PROCESS(glDrawPixels, PFNGLDRAWPIXELSPROC)                         \
+    GL_PROCESS(glGetClipPlane, PFNGLGETCLIPPLANEPROC)                     \
+    GL_PROCESS(glGetLightfv, PFNGLGETLIGHTFVPROC)                         \
+    GL_PROCESS(glGetLightiv, PFNGLGETLIGHTIVPROC)                         \
+    GL_PROCESS(glGetMapdv, PFNGLGETMAPDVPROC)                             \
+    GL_PROCESS(glGetMapfv, PFNGLGETMAPFVPROC)                             \
+    GL_PROCESS(glGetMapiv, PFNGLGETMAPIVPROC)                             \
+    GL_PROCESS(glGetMaterialfv, PFNGLGETMATERIALFVPROC)                   \
+    GL_PROCESS(glGetMaterialiv, PFNGLGETMATERIALIVPROC)                   \
+    GL_PROCESS(glGetPixelMapfv, PFNGLGETPIXELMAPFVPROC)                   \
+    GL_PROCESS(glGetPixelMapuiv, PFNGLGETPIXELMAPUIVPROC)                 \
+    GL_PROCESS(glGetPixelMapusv, PFNGLGETPIXELMAPUSVPROC)                 \
+    GL_PROCESS(glGetPolygonStipple, PFNGLGETPOLYGONSTIPPLEPROC)           \
+    GL_PROCESS(glGetTexEnvfv, PFNGLGETTEXENVFVPROC)                       \
+    GL_PROCESS(glGetTexEnviv, PFNGLGETTEXENVIVPROC)                       \
+    GL_PROCESS(glGetTexGendv, PFNGLGETTEXGENDVPROC)                       \
+    GL_PROCESS(glGetTexGenfv, PFNGLGETTEXGENFVPROC)                       \
+    GL_PROCESS(glGetTexGeniv, PFNGLGETTEXGENIVPROC)                       \
+    GL_PROCESS(glIsList, PFNGLISLISTPROC)                                 \
+    GL_PROCESS(glFrustum, PFNGLFRUSTUMPROC)                               \
+    GL_PROCESS(glLoadIdentity, PFNGLLOADIDENTITYPROC)                     \
+    GL_PROCESS(glLoadMatrixf, PFNGLLOADMATRIXFPROC)                       \
+    GL_PROCESS(glLoadMatrixd, PFNGLLOADMATRIXDPROC)                       \
+    GL_PROCESS(glMatrixMode, PFNGLMATRIXMODEPROC)                         \
+    GL_PROCESS(glMultMatrixf, PFNGLMULTMATRIXFPROC)                       \
+    GL_PROCESS(glMultMatrixd, PFNGLMULTMATRIXDPROC)                       \
+    GL_PROCESS(glOrtho, PFNGLORTHOPROC)                                   \
+    GL_PROCESS(glPopMatrix, PFNGLPOPMATRIXPROC)                           \
+    GL_PROCESS(glPushMatrix, PFNGLPUSHMATRIXPROC)                         \
+    GL_PROCESS(glRotated, PFNGLROTATEDPROC)                               \
+    GL_PROCESS(glRotatef, PFNGLROTATEFPROC)                               \
+    GL_PROCESS(glScaled, PFNGLSCALEDPROC)                                 \
+    GL_PROCESS(glScalef, PFNGLSCALEFPROC)                                 \
+    GL_PROCESS(glTranslated, PFNGLTRANSLATEDPROC)                         \
+    GL_PROCESS(glTranslatef, PFNGLTRANSLATEFPROC)
+#define GL_FUNCTIONS_1_1 \
+    GL_FUNCTIONS_1_0     \
+    GL_FUNCTIONS_1_1_PART
+#define GL_FUNCTIONS_1_1_PART                                       \
+                                                                    \
+    GL_PROCESS(glDrawArrays, PFNGLDRAWARRAYSPROC)                   \
+    GL_PROCESS(glDrawElements, PFNGLDRAWELEMENTSPROC)               \
+    GL_PROCESS(glGetPointerv, PFNGLGETPOINTERVPROC)                 \
+    GL_PROCESS(glPolygonOffset, PFNGLPOLYGONOFFSETPROC)             \
+    GL_PROCESS(glCopyTexImage1D, PFNGLCOPYTEXIMAGE1DPROC)           \
+    GL_PROCESS(glCopyTexImage2D, PFNGLCOPYTEXIMAGE2DPROC)           \
+    GL_PROCESS(glCopyTexSubImage1D, PFNGLCOPYTEXSUBIMAGE1DPROC)     \
+    GL_PROCESS(glCopyTexSubImage2D, PFNGLCOPYTEXSUBIMAGE2DPROC)     \
+    GL_PROCESS(glTexSubImage1D, PFNGLTEXSUBIMAGE1DPROC)             \
+    GL_PROCESS(glTexSubImage2D, PFNGLTEXSUBIMAGE2DPROC)             \
+    GL_PROCESS(glBindTexture, PFNGLBINDTEXTUREPROC)                 \
+    GL_PROCESS(glDeleteTextures, PFNGLDELETETEXTURESPROC)           \
+    GL_PROCESS(glGenTextures, PFNGLGENTEXTURESPROC)                 \
+    GL_PROCESS(glIsTexture, PFNGLISTEXTUREPROC)                     \
+    GL_PROCESS(glArrayElement, PFNGLARRAYELEMENTPROC)               \
+    GL_PROCESS(glColorPointer, PFNGLCOLORPOINTERPROC)               \
+    GL_PROCESS(glDisableClientState, PFNGLDISABLECLIENTSTATEPROC)   \
+    GL_PROCESS(glEdgeFlagPointer, PFNGLEDGEFLAGPOINTERPROC)         \
+    GL_PROCESS(glEnableClientState, PFNGLENABLECLIENTSTATEPROC)     \
+    GL_PROCESS(glIndexPointer, PFNGLINDEXPOINTERPROC)               \
+    GL_PROCESS(glInterleavedArrays, PFNGLINTERLEAVEDARRAYSPROC)     \
+    GL_PROCESS(glNormalPointer, PFNGLNORMALPOINTERPROC)             \
+    GL_PROCESS(glTexCoordPointer, PFNGLTEXCOORDPOINTERPROC)         \
+    GL_PROCESS(glVertexPointer, PFNGLVERTEXPOINTERPROC)             \
+    GL_PROCESS(glAreTexturesResident, PFNGLARETEXTURESRESIDENTPROC) \
+    GL_PROCESS(glPrioritizeTextures, PFNGLPRIORITIZETEXTURESPROC)   \
+    GL_PROCESS(glIndexub, PFNGLINDEXUBPROC)                         \
+    GL_PROCESS(glIndexubv, PFNGLINDEXUBVPROC)                       \
+    GL_PROCESS(glPopClientAttrib, PFNGLPOPCLIENTATTRIBPROC)         \
+    GL_PROCESS(glPushClientAttrib, PFNGLPUSHCLIENTATTRIBPROC)
+#define GL_FUNCTIONS_1_2 \
+    GL_FUNCTIONS_1_1     \
+    GL_FUNCTIONS_1_2_PART
+#define GL_FUNCTIONS_1_2_PART                                   \
+                                                                \
+    GL_PROCESS(glDrawRangeElements, PFNGLDRAWRANGEELEMENTSPROC) \
+    GL_PROCESS(glTexImage3D, PFNGLTEXIMAGE3DPROC)               \
+    GL_PROCESS(glTexSubImage3D, PFNGLTEXSUBIMAGE3DPROC)         \
+    GL_PROCESS(glCopyTexSubImage3D, PFNGLCOPYTEXSUBIMAGE3DPROC)
+#define GL_FUNCTIONS_1_3 \
+    GL_FUNCTIONS_1_2     \
+    GL_FUNCTIONS_1_3_PART
+#define GL_FUNCTIONS_1_3_PART                                               \
+                                                                            \
+    GL_PROCESS(glActiveTexture, PFNGLACTIVETEXTUREPROC)                     \
+    GL_PROCESS(glSampleCoverage, PFNGLSAMPLECOVERAGEPROC)                   \
+    GL_PROCESS(glCompressedTexImage3D, PFNGLCOMPRESSEDTEXIMAGE3DPROC)       \
+    GL_PROCESS(glCompressedTexImage2D, PFNGLCOMPRESSEDTEXIMAGE2DPROC)       \
+    GL_PROCESS(glCompressedTexImage1D, PFNGLCOMPRESSEDTEXIMAGE1DPROC)       \
+    GL_PROCESS(glCompressedTexSubImage3D, PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC) \
+    GL_PROCESS(glCompressedTexSubImage2D, PFNGLCOMPRESSEDTEXSUBIMAGE2DPROC) \
+    GL_PROCESS(glCompressedTexSubImage1D, PFNGLCOMPRESSEDTEXSUBIMAGE1DPROC) \
+    GL_PROCESS(glGetCompressedTexImage, PFNGLGETCOMPRESSEDTEXIMAGEPROC)     \
+    GL_PROCESS(glClientActiveTexture, PFNGLCLIENTACTIVETEXTUREPROC)         \
+    GL_PROCESS(glMultiTexCoord1d, PFNGLMULTITEXCOORD1DPROC)                 \
+    GL_PROCESS(glMultiTexCoord1dv, PFNGLMULTITEXCOORD1DVPROC)               \
+    GL_PROCESS(glMultiTexCoord1f, PFNGLMULTITEXCOORD1FPROC)                 \
+    GL_PROCESS(glMultiTexCoord1fv, PFNGLMULTITEXCOORD1FVPROC)               \
+    GL_PROCESS(glMultiTexCoord1i, PFNGLMULTITEXCOORD1IPROC)                 \
+    GL_PROCESS(glMultiTexCoord1iv, PFNGLMULTITEXCOORD1IVPROC)               \
+    GL_PROCESS(glMultiTexCoord1s, PFNGLMULTITEXCOORD1SPROC)                 \
+    GL_PROCESS(glMultiTexCoord1sv, PFNGLMULTITEXCOORD1SVPROC)               \
+    GL_PROCESS(glMultiTexCoord2d, PFNGLMULTITEXCOORD2DPROC)                 \
+    GL_PROCESS(glMultiTexCoord2dv, PFNGLMULTITEXCOORD2DVPROC)               \
+    GL_PROCESS(glMultiTexCoord2f, PFNGLMULTITEXCOORD2FPROC)                 \
+    GL_PROCESS(glMultiTexCoord2fv, PFNGLMULTITEXCOORD2FVPROC)               \
+    GL_PROCESS(glMultiTexCoord2i, PFNGLMULTITEXCOORD2IPROC)                 \
+    GL_PROCESS(glMultiTexCoord2iv, PFNGLMULTITEXCOORD2IVPROC)               \
+    GL_PROCESS(glMultiTexCoord2s, PFNGLMULTITEXCOORD2SPROC)                 \
+    GL_PROCESS(glMultiTexCoord2sv, PFNGLMULTITEXCOORD2SVPROC)               \
+    GL_PROCESS(glMultiTexCoord3d, PFNGLMULTITEXCOORD3DPROC)                 \
+    GL_PROCESS(glMultiTexCoord3dv, PFNGLMULTITEXCOORD3DVPROC)               \
+    GL_PROCESS(glMultiTexCoord3f, PFNGLMULTITEXCOORD3FPROC)                 \
+    GL_PROCESS(glMultiTexCoord3fv, PFNGLMULTITEXCOORD3FVPROC)               \
+    GL_PROCESS(glMultiTexCoord3i, PFNGLMULTITEXCOORD3IPROC)                 \
+    GL_PROCESS(glMultiTexCoord3iv, PFNGLMULTITEXCOORD3IVPROC)               \
+    GL_PROCESS(glMultiTexCoord3s, PFNGLMULTITEXCOORD3SPROC)                 \
+    GL_PROCESS(glMultiTexCoord3sv, PFNGLMULTITEXCOORD3SVPROC)               \
+    GL_PROCESS(glMultiTexCoord4d, PFNGLMULTITEXCOORD4DPROC)                 \
+    GL_PROCESS(glMultiTexCoord4dv, PFNGLMULTITEXCOORD4DVPROC)               \
+    GL_PROCESS(glMultiTexCoord4f, PFNGLMULTITEXCOORD4FPROC)                 \
+    GL_PROCESS(glMultiTexCoord4fv, PFNGLMULTITEXCOORD4FVPROC)               \
+    GL_PROCESS(glMultiTexCoord4i, PFNGLMULTITEXCOORD4IPROC)                 \
+    GL_PROCESS(glMultiTexCoord4iv, PFNGLMULTITEXCOORD4IVPROC)               \
+    GL_PROCESS(glMultiTexCoord4s, PFNGLMULTITEXCOORD4SPROC)                 \
+    GL_PROCESS(glMultiTexCoord4sv, PFNGLMULTITEXCOORD4SVPROC)               \
+    GL_PROCESS(glLoadTransposeMatrixf, PFNGLLOADTRANSPOSEMATRIXFPROC)       \
+    GL_PROCESS(glLoadTransposeMatrixd, PFNGLLOADTRANSPOSEMATRIXDPROC)       \
+    GL_PROCESS(glMultTransposeMatrixf, PFNGLMULTTRANSPOSEMATRIXFPROC)       \
+    GL_PROCESS(glMultTransposeMatrixd, PFNGLMULTTRANSPOSEMATRIXDPROC)
+#define GL_FUNCTIONS_1_4 \
+    GL_FUNCTIONS_1_3     \
+    GL_FUNCTIONS_1_4_PART
+#define GL_FUNCTIONS_1_4_PART                                           \
+                                                                        \
+    GL_PROCESS(glBlendFuncSeparate, PFNGLBLENDFUNCSEPARATEPROC)         \
+    GL_PROCESS(glMultiDrawArrays, PFNGLMULTIDRAWARRAYSPROC)             \
+    GL_PROCESS(glMultiDrawElements, PFNGLMULTIDRAWELEMENTSPROC)         \
+    GL_PROCESS(glPointParameterf, PFNGLPOINTPARAMETERFPROC)             \
+    GL_PROCESS(glPointParameterfv, PFNGLPOINTPARAMETERFVPROC)           \
+    GL_PROCESS(glPointParameteri, PFNGLPOINTPARAMETERIPROC)             \
+    GL_PROCESS(glPointParameteriv, PFNGLPOINTPARAMETERIVPROC)           \
+    GL_PROCESS(glFogCoordf, PFNGLFOGCOORDFPROC)                         \
+    GL_PROCESS(glFogCoordfv, PFNGLFOGCOORDFVPROC)                       \
+    GL_PROCESS(glFogCoordd, PFNGLFOGCOORDDPROC)                         \
+    GL_PROCESS(glFogCoorddv, PFNGLFOGCOORDDVPROC)                       \
+    GL_PROCESS(glFogCoordPointer, PFNGLFOGCOORDPOINTERPROC)             \
+    GL_PROCESS(glSecondaryColor3b, PFNGLSECONDARYCOLOR3BPROC)           \
+    GL_PROCESS(glSecondaryColor3bv, PFNGLSECONDARYCOLOR3BVPROC)         \
+    GL_PROCESS(glSecondaryColor3d, PFNGLSECONDARYCOLOR3DPROC)           \
+    GL_PROCESS(glSecondaryColor3dv, PFNGLSECONDARYCOLOR3DVPROC)         \
+    GL_PROCESS(glSecondaryColor3f, PFNGLSECONDARYCOLOR3FPROC)           \
+    GL_PROCESS(glSecondaryColor3fv, PFNGLSECONDARYCOLOR3FVPROC)         \
+    GL_PROCESS(glSecondaryColor3i, PFNGLSECONDARYCOLOR3IPROC)           \
+    GL_PROCESS(glSecondaryColor3iv, PFNGLSECONDARYCOLOR3IVPROC)         \
+    GL_PROCESS(glSecondaryColor3s, PFNGLSECONDARYCOLOR3SPROC)           \
+    GL_PROCESS(glSecondaryColor3sv, PFNGLSECONDARYCOLOR3SVPROC)         \
+    GL_PROCESS(glSecondaryColor3ub, PFNGLSECONDARYCOLOR3UBPROC)         \
+    GL_PROCESS(glSecondaryColor3ubv, PFNGLSECONDARYCOLOR3UBVPROC)       \
+    GL_PROCESS(glSecondaryColor3ui, PFNGLSECONDARYCOLOR3UIPROC)         \
+    GL_PROCESS(glSecondaryColor3uiv, PFNGLSECONDARYCOLOR3UIVPROC)       \
+    GL_PROCESS(glSecondaryColor3us, PFNGLSECONDARYCOLOR3USPROC)         \
+    GL_PROCESS(glSecondaryColor3usv, PFNGLSECONDARYCOLOR3USVPROC)       \
+    GL_PROCESS(glSecondaryColorPointer, PFNGLSECONDARYCOLORPOINTERPROC) \
+    GL_PROCESS(glWindowPos2d, PFNGLWINDOWPOS2DPROC)                     \
+    GL_PROCESS(glWindowPos2dv, PFNGLWINDOWPOS2DVPROC)                   \
+    GL_PROCESS(glWindowPos2f, PFNGLWINDOWPOS2FPROC)                     \
+    GL_PROCESS(glWindowPos2fv, PFNGLWINDOWPOS2FVPROC)                   \
+    GL_PROCESS(glWindowPos2i, PFNGLWINDOWPOS2IPROC)                     \
+    GL_PROCESS(glWindowPos2iv, PFNGLWINDOWPOS2IVPROC)                   \
+    GL_PROCESS(glWindowPos2s, PFNGLWINDOWPOS2SPROC)                     \
+    GL_PROCESS(glWindowPos2sv, PFNGLWINDOWPOS2SVPROC)                   \
+    GL_PROCESS(glWindowPos3d, PFNGLWINDOWPOS3DPROC)                     \
+    GL_PROCESS(glWindowPos3dv, PFNGLWINDOWPOS3DVPROC)                   \
+    GL_PROCESS(glWindowPos3f, PFNGLWINDOWPOS3FPROC)                     \
+    GL_PROCESS(glWindowPos3fv, PFNGLWINDOWPOS3FVPROC)                   \
+    GL_PROCESS(glWindowPos3i, PFNGLWINDOWPOS3IPROC)                     \
+    GL_PROCESS(glWindowPos3iv, PFNGLWINDOWPOS3IVPROC)                   \
+    GL_PROCESS(glWindowPos3s, PFNGLWINDOWPOS3SPROC)                     \
+    GL_PROCESS(glWindowPos3sv, PFNGLWINDOWPOS3SVPROC)                   \
+    GL_PROCESS(glBlendColor, PFNGLBLENDCOLORPROC)                       \
+    GL_PROCESS(glBlendEquation, PFNGLBLENDEQUATIONPROC)
+#define GL_FUNCTIONS_1_5 \
+    GL_FUNCTIONS_1_4     \
+    GL_FUNCTIONS_1_5_PART
+#define GL_FUNCTIONS_1_5_PART                                         \
+                                                                      \
+    GL_PROCESS(glGenQueries, PFNGLGENQUERIESPROC)                     \
+    GL_PROCESS(glDeleteQueries, PFNGLDELETEQUERIESPROC)               \
+    GL_PROCESS(glIsQuery, PFNGLISQUERYPROC)                           \
+    GL_PROCESS(glBeginQuery, PFNGLBEGINQUERYPROC)                     \
+    GL_PROCESS(glEndQuery, PFNGLENDQUERYPROC)                         \
+    GL_PROCESS(glGetQueryiv, PFNGLGETQUERYIVPROC)                     \
+    GL_PROCESS(glGetQueryObjectiv, PFNGLGETQUERYOBJECTIVPROC)         \
+    GL_PROCESS(glGetQueryObjectuiv, PFNGLGETQUERYOBJECTUIVPROC)       \
+    GL_PROCESS(glBindBuffer, PFNGLBINDBUFFERPROC)                     \
+    GL_PROCESS(glDeleteBuffers, PFNGLDELETEBUFFERSPROC)               \
+    GL_PROCESS(glGenBuffers, PFNGLGENBUFFERSPROC)                     \
+    GL_PROCESS(glIsBuffer, PFNGLISBUFFERPROC)                         \
+    GL_PROCESS(glBufferData, PFNGLBUFFERDATAPROC)                     \
+    GL_PROCESS(glBufferSubData, PFNGLBUFFERSUBDATAPROC)               \
+    GL_PROCESS(glGetBufferSubData, PFNGLGETBUFFERSUBDATAPROC)         \
+    GL_PROCESS(glMapBuffer, PFNGLMAPBUFFERPROC)                       \
+    GL_PROCESS(glUnmapBuffer, PFNGLUNMAPBUFFERPROC)                   \
+    GL_PROCESS(glGetBufferParameteriv, PFNGLGETBUFFERPARAMETERIVPROC) \
+    GL_PROCESS(glGetBufferPointerv, PFNGLGETBUFFERPOINTERVPROC)
+#define GL_FUNCTIONS_2_0 \
+    GL_FUNCTIONS_1_5     \
+    GL_FUNCTIONS_2_0_PART
+#define GL_FUNCTIONS_2_0_PART                                                 \
+                                                                              \
+    GL_PROCESS(glBlendEquationSeparate, PFNGLBLENDEQUATIONSEPARATEPROC)       \
+    GL_PROCESS(glDrawBuffers, PFNGLDRAWBUFFERSPROC)                           \
+    GL_PROCESS(glStencilOpSeparate, PFNGLSTENCILOPSEPARATEPROC)               \
+    GL_PROCESS(glStencilFuncSeparate, PFNGLSTENCILFUNCSEPARATEPROC)           \
+    GL_PROCESS(glStencilMaskSeparate, PFNGLSTENCILMASKSEPARATEPROC)           \
+    GL_PROCESS(glAttachShader, PFNGLATTACHSHADERPROC)                         \
+    GL_PROCESS(glBindAttribLocation, PFNGLBINDATTRIBLOCATIONPROC)             \
+    GL_PROCESS(glCompileShader, PFNGLCOMPILESHADERPROC)                       \
+    GL_PROCESS(glCreateProgram, PFNGLCREATEPROGRAMPROC)                       \
+    GL_PROCESS(glCreateShader, PFNGLCREATESHADERPROC)                         \
+    GL_PROCESS(glDeleteProgram, PFNGLDELETEPROGRAMPROC)                       \
+    GL_PROCESS(glDeleteShader, PFNGLDELETESHADERPROC)                         \
+    GL_PROCESS(glDetachShader, PFNGLDETACHSHADERPROC)                         \
+    GL_PROCESS(glDisableVertexAttribArray, PFNGLDISABLEVERTEXATTRIBARRAYPROC) \
+    GL_PROCESS(glEnableVertexAttribArray, PFNGLENABLEVERTEXATTRIBARRAYPROC)   \
+    GL_PROCESS(glGetActiveAttrib, PFNGLGETACTIVEATTRIBPROC)                   \
+    GL_PROCESS(glGetActiveUniform, PFNGLGETACTIVEUNIFORMPROC)                 \
+    GL_PROCESS(glGetAttachedShaders, PFNGLGETATTACHEDSHADERSPROC)             \
+    GL_PROCESS(glGetAttribLocation, PFNGLGETATTRIBLOCATIONPROC)               \
+    GL_PROCESS(glGetProgramiv, PFNGLGETPROGRAMIVPROC)                         \
+    GL_PROCESS(glGetProgramInfoLog, PFNGLGETPROGRAMINFOLOGPROC)               \
+    GL_PROCESS(glGetShaderiv, PFNGLGETSHADERIVPROC)                           \
+    GL_PROCESS(glGetShaderInfoLog, PFNGLGETSHADERINFOLOGPROC)                 \
+    GL_PROCESS(glGetShaderSource, PFNGLGETSHADERSOURCEPROC)                   \
+    GL_PROCESS(glGetUniformLocation, PFNGLGETUNIFORMLOCATIONPROC)             \
+    GL_PROCESS(glGetUniformfv, PFNGLGETUNIFORMFVPROC)                         \
+    GL_PROCESS(glGetUniformiv, PFNGLGETUNIFORMIVPROC)                         \
+    GL_PROCESS(glGetVertexAttribdv, PFNGLGETVERTEXATTRIBDVPROC)               \
+    GL_PROCESS(glGetVertexAttribfv, PFNGLGETVERTEXATTRIBFVPROC)               \
+    GL_PROCESS(glGetVertexAttribiv, PFNGLGETVERTEXATTRIBIVPROC)               \
+    GL_PROCESS(glGetVertexAttribPointerv, PFNGLGETVERTEXATTRIBPOINTERVPROC)   \
+    GL_PROCESS(glIsProgram, PFNGLISPROGRAMPROC)                               \
+    GL_PROCESS(glIsShader, PFNGLISSHADERPROC)                                 \
+    GL_PROCESS(glLinkProgram, PFNGLLINKPROGRAMPROC)                           \
+    GL_PROCESS(glShaderSource, PFNGLSHADERSOURCEPROC)                         \
+    GL_PROCESS(glUseProgram, PFNGLUSEPROGRAMPROC)                             \
+    GL_PROCESS(glUniform1f, PFNGLUNIFORM1FPROC)                               \
+    GL_PROCESS(glUniform2f, PFNGLUNIFORM2FPROC)                               \
+    GL_PROCESS(glUniform3f, PFNGLUNIFORM3FPROC)                               \
+    GL_PROCESS(glUniform4f, PFNGLUNIFORM4FPROC)                               \
+    GL_PROCESS(glUniform1i, PFNGLUNIFORM1IPROC)                               \
+    GL_PROCESS(glUniform2i, PFNGLUNIFORM2IPROC)                               \
+    GL_PROCESS(glUniform3i, PFNGLUNIFORM3IPROC)                               \
+    GL_PROCESS(glUniform4i, PFNGLUNIFORM4IPROC)                               \
+    GL_PROCESS(glUniform1fv, PFNGLUNIFORM1FVPROC)                             \
+    GL_PROCESS(glUniform2fv, PFNGLUNIFORM2FVPROC)                             \
+    GL_PROCESS(glUniform3fv, PFNGLUNIFORM3FVPROC)                             \
+    GL_PROCESS(glUniform4fv, PFNGLUNIFORM4FVPROC)                             \
+    GL_PROCESS(glUniform1iv, PFNGLUNIFORM1IVPROC)                             \
+    GL_PROCESS(glUniform2iv, PFNGLUNIFORM2IVPROC)                             \
+    GL_PROCESS(glUniform3iv, PFNGLUNIFORM3IVPROC)                             \
+    GL_PROCESS(glUniform4iv, PFNGLUNIFORM4IVPROC)                             \
+    GL_PROCESS(glUniformMatrix2fv, PFNGLUNIFORMMATRIX2FVPROC)                 \
+    GL_PROCESS(glUniformMatrix3fv, PFNGLUNIFORMMATRIX3FVPROC)                 \
+    GL_PROCESS(glUniformMatrix4fv, PFNGLUNIFORMMATRIX4FVPROC)                 \
+    GL_PROCESS(glValidateProgram, PFNGLVALIDATEPROGRAMPROC)                   \
+    GL_PROCESS(glVertexAttrib1d, PFNGLVERTEXATTRIB1DPROC)                     \
+    GL_PROCESS(glVertexAttrib1dv, PFNGLVERTEXATTRIB1DVPROC)                   \
+    GL_PROCESS(glVertexAttrib1f, PFNGLVERTEXATTRIB1FPROC)                     \
+    GL_PROCESS(glVertexAttrib1fv, PFNGLVERTEXATTRIB1FVPROC)                   \
+    GL_PROCESS(glVertexAttrib1s, PFNGLVERTEXATTRIB1SPROC)                     \
+    GL_PROCESS(glVertexAttrib1sv, PFNGLVERTEXATTRIB1SVPROC)                   \
+    GL_PROCESS(glVertexAttrib2d, PFNGLVERTEXATTRIB2DPROC)                     \
+    GL_PROCESS(glVertexAttrib2dv, PFNGLVERTEXATTRIB2DVPROC)                   \
+    GL_PROCESS(glVertexAttrib2f, PFNGLVERTEXATTRIB2FPROC)                     \
+    GL_PROCESS(glVertexAttrib2fv, PFNGLVERTEXATTRIB2FVPROC)                   \
+    GL_PROCESS(glVertexAttrib2s, PFNGLVERTEXATTRIB2SPROC)                     \
+    GL_PROCESS(glVertexAttrib2sv, PFNGLVERTEXATTRIB2SVPROC)                   \
+    GL_PROCESS(glVertexAttrib3d, PFNGLVERTEXATTRIB3DPROC)                     \
+    GL_PROCESS(glVertexAttrib3dv, PFNGLVERTEXATTRIB3DVPROC)                   \
+    GL_PROCESS(glVertexAttrib3f, PFNGLVERTEXATTRIB3FPROC)                     \
+    GL_PROCESS(glVertexAttrib3fv, PFNGLVERTEXATTRIB3FVPROC)                   \
+    GL_PROCESS(glVertexAttrib3s, PFNGLVERTEXATTRIB3SPROC)                     \
+    GL_PROCESS(glVertexAttrib3sv, PFNGLVERTEXATTRIB3SVPROC)                   \
+    GL_PROCESS(glVertexAttrib4Nbv, PFNGLVERTEXATTRIB4NBVPROC)                 \
+    GL_PROCESS(glVertexAttrib4Niv, PFNGLVERTEXATTRIB4NIVPROC)                 \
+    GL_PROCESS(glVertexAttrib4Nsv, PFNGLVERTEXATTRIB4NSVPROC)                 \
+    GL_PROCESS(glVertexAttrib4Nub, PFNGLVERTEXATTRIB4NUBPROC)                 \
+    GL_PROCESS(glVertexAttrib4Nubv, PFNGLVERTEXATTRIB4NUBVPROC)               \
+    GL_PROCESS(glVertexAttrib4Nuiv, PFNGLVERTEXATTRIB4NUIVPROC)               \
+    GL_PROCESS(glVertexAttrib4Nusv, PFNGLVERTEXATTRIB4NUSVPROC)               \
+    GL_PROCESS(glVertexAttrib4bv, PFNGLVERTEXATTRIB4BVPROC)                   \
+    GL_PROCESS(glVertexAttrib4d, PFNGLVERTEXATTRIB4DPROC)                     \
+    GL_PROCESS(glVertexAttrib4dv, PFNGLVERTEXATTRIB4DVPROC)                   \
+    GL_PROCESS(glVertexAttrib4f, PFNGLVERTEXATTRIB4FPROC)                     \
+    GL_PROCESS(glVertexAttrib4fv, PFNGLVERTEXATTRIB4FVPROC)                   \
+    GL_PROCESS(glVertexAttrib4iv, PFNGLVERTEXATTRIB4IVPROC)                   \
+    GL_PROCESS(glVertexAttrib4s, PFNGLVERTEXATTRIB4SPROC)                     \
+    GL_PROCESS(glVertexAttrib4sv, PFNGLVERTEXATTRIB4SVPROC)                   \
+    GL_PROCESS(glVertexAttrib4ubv, PFNGLVERTEXATTRIB4UBVPROC)                 \
+    GL_PROCESS(glVertexAttrib4uiv, PFNGLVERTEXATTRIB4UIVPROC)                 \
+    GL_PROCESS(glVertexAttrib4usv, PFNGLVERTEXATTRIB4USVPROC)                 \
+    GL_PROCESS(glVertexAttribPointer, PFNGLVERTEXATTRIBPOINTERPROC)
+#define GL_FUNCTIONS_2_1 \
+    GL_FUNCTIONS_2_0     \
+    GL_FUNCTIONS_2_1_PART
+#define GL_FUNCTIONS_2_1_PART                                     \
+                                                                  \
+    GL_PROCESS(glUniformMatrix2x3fv, PFNGLUNIFORMMATRIX2X3FVPROC) \
+    GL_PROCESS(glUniformMatrix3x2fv, PFNGLUNIFORMMATRIX3X2FVPROC) \
+    GL_PROCESS(glUniformMatrix2x4fv, PFNGLUNIFORMMATRIX2X4FVPROC) \
+    GL_PROCESS(glUniformMatrix4x2fv, PFNGLUNIFORMMATRIX4X2FVPROC) \
+    GL_PROCESS(glUniformMatrix3x4fv, PFNGLUNIFORMMATRIX3X4FVPROC) \
+    GL_PROCESS(glUniformMatrix4x3fv, PFNGLUNIFORMMATRIX4X3FVPROC)
+#define GL_FUNCTIONS_3_0 \
+    GL_FUNCTIONS_2_1     \
+    GL_FUNCTIONS_3_0_PART
+#define GL_FUNCTIONS_3_0_PART                                                                       \
+                                                                                                    \
+    GL_PROCESS(glColorMaski, PFNGLCOLORMASKIPROC)                                                   \
+    GL_PROCESS(glGetBooleani_v, PFNGLGETBOOLEANI_VPROC)                                             \
+    GL_PROCESS(glGetIntegeri_v, PFNGLGETINTEGERI_VPROC)                                             \
+    GL_PROCESS(glEnablei, PFNGLENABLEIPROC)                                                         \
+    GL_PROCESS(glDisablei, PFNGLDISABLEIPROC)                                                       \
+    GL_PROCESS(glIsEnabledi, PFNGLISENABLEDIPROC)                                                   \
+    GL_PROCESS(glBeginTransformFeedback, PFNGLBEGINTRANSFORMFEEDBACKPROC)                           \
+    GL_PROCESS(glEndTransformFeedback, PFNGLENDTRANSFORMFEEDBACKPROC)                               \
+    GL_PROCESS(glBindBufferRange, PFNGLBINDBUFFERRANGEPROC)                                         \
+    GL_PROCESS(glBindBufferBase, PFNGLBINDBUFFERBASEPROC)                                           \
+    GL_PROCESS(glTransformFeedbackVaryings, PFNGLTRANSFORMFEEDBACKVARYINGSPROC)                     \
+    GL_PROCESS(glGetTransformFeedbackVarying, PFNGLGETTRANSFORMFEEDBACKVARYINGPROC)                 \
+    GL_PROCESS(glClampColor, PFNGLCLAMPCOLORPROC)                                                   \
+    GL_PROCESS(glBeginConditionalRender, PFNGLBEGINCONDITIONALRENDERPROC)                           \
+    GL_PROCESS(glEndConditionalRender, PFNGLENDCONDITIONALRENDERPROC)                               \
+    GL_PROCESS(glVertexAttribIPointer, PFNGLVERTEXATTRIBIPOINTERPROC)                               \
+    GL_PROCESS(glGetVertexAttribIiv, PFNGLGETVERTEXATTRIBIIVPROC)                                   \
+    GL_PROCESS(glGetVertexAttribIuiv, PFNGLGETVERTEXATTRIBIUIVPROC)                                 \
+    GL_PROCESS(glVertexAttribI1i, PFNGLVERTEXATTRIBI1IPROC)                                         \
+    GL_PROCESS(glVertexAttribI2i, PFNGLVERTEXATTRIBI2IPROC)                                         \
+    GL_PROCESS(glVertexAttribI3i, PFNGLVERTEXATTRIBI3IPROC)                                         \
+    GL_PROCESS(glVertexAttribI4i, PFNGLVERTEXATTRIBI4IPROC)                                         \
+    GL_PROCESS(glVertexAttribI1ui, PFNGLVERTEXATTRIBI1UIPROC)                                       \
+    GL_PROCESS(glVertexAttribI2ui, PFNGLVERTEXATTRIBI2UIPROC)                                       \
+    GL_PROCESS(glVertexAttribI3ui, PFNGLVERTEXATTRIBI3UIPROC)                                       \
+    GL_PROCESS(glVertexAttribI4ui, PFNGLVERTEXATTRIBI4UIPROC)                                       \
+    GL_PROCESS(glVertexAttribI1iv, PFNGLVERTEXATTRIBI1IVPROC)                                       \
+    GL_PROCESS(glVertexAttribI2iv, PFNGLVERTEXATTRIBI2IVPROC)                                       \
+    GL_PROCESS(glVertexAttribI3iv, PFNGLVERTEXATTRIBI3IVPROC)                                       \
+    GL_PROCESS(glVertexAttribI4iv, PFNGLVERTEXATTRIBI4IVPROC)                                       \
+    GL_PROCESS(glVertexAttribI1uiv, PFNGLVERTEXATTRIBI1UIVPROC)                                     \
+    GL_PROCESS(glVertexAttribI2uiv, PFNGLVERTEXATTRIBI2UIVPROC)                                     \
+    GL_PROCESS(glVertexAttribI3uiv, PFNGLVERTEXATTRIBI3UIVPROC)                                     \
+    GL_PROCESS(glVertexAttribI4uiv, PFNGLVERTEXATTRIBI4UIVPROC)                                     \
+    GL_PROCESS(glVertexAttribI4bv, PFNGLVERTEXATTRIBI4BVPROC)                                       \
+    GL_PROCESS(glVertexAttribI4sv, PFNGLVERTEXATTRIBI4SVPROC)                                       \
+    GL_PROCESS(glVertexAttribI4ubv, PFNGLVERTEXATTRIBI4UBVPROC)                                     \
+    GL_PROCESS(glVertexAttribI4usv, PFNGLVERTEXATTRIBI4USVPROC)                                     \
+    GL_PROCESS(glGetUniformuiv, PFNGLGETUNIFORMUIVPROC)                                             \
+    GL_PROCESS(glBindFragDataLocation, PFNGLBINDFRAGDATALOCATIONPROC)                               \
+    GL_PROCESS(glGetFragDataLocation, PFNGLGETFRAGDATALOCATIONPROC)                                 \
+    GL_PROCESS(glUniform1ui, PFNGLUNIFORM1UIPROC)                                                   \
+    GL_PROCESS(glUniform2ui, PFNGLUNIFORM2UIPROC)                                                   \
+    GL_PROCESS(glUniform3ui, PFNGLUNIFORM3UIPROC)                                                   \
+    GL_PROCESS(glUniform4ui, PFNGLUNIFORM4UIPROC)                                                   \
+    GL_PROCESS(glUniform1uiv, PFNGLUNIFORM1UIVPROC)                                                 \
+    GL_PROCESS(glUniform2uiv, PFNGLUNIFORM2UIVPROC)                                                 \
+    GL_PROCESS(glUniform3uiv, PFNGLUNIFORM3UIVPROC)                                                 \
+    GL_PROCESS(glUniform4uiv, PFNGLUNIFORM4UIVPROC)                                                 \
+    GL_PROCESS(glTexParameterIiv, PFNGLTEXPARAMETERIIVPROC)                                         \
+    GL_PROCESS(glTexParameterIuiv, PFNGLTEXPARAMETERIUIVPROC)                                       \
+    GL_PROCESS(glGetTexParameterIiv, PFNGLGETTEXPARAMETERIIVPROC)                                   \
+    GL_PROCESS(glGetTexParameterIuiv, PFNGLGETTEXPARAMETERIUIVPROC)                                 \
+    GL_PROCESS(glClearBufferiv, PFNGLCLEARBUFFERIVPROC)                                             \
+    GL_PROCESS(glClearBufferuiv, PFNGLCLEARBUFFERUIVPROC)                                           \
+    GL_PROCESS(glClearBufferfv, PFNGLCLEARBUFFERFVPROC)                                             \
+    GL_PROCESS(glClearBufferfi, PFNGLCLEARBUFFERFIPROC)                                             \
+    GL_PROCESS(glGetStringi, PFNGLGETSTRINGIPROC)                                                   \
+    GL_PROCESS(glIsRenderbuffer, PFNGLISRENDERBUFFERPROC)                                           \
+    GL_PROCESS(glBindRenderbuffer, PFNGLBINDRENDERBUFFERPROC)                                       \
+    GL_PROCESS(glDeleteRenderbuffers, PFNGLDELETERENDERBUFFERSPROC)                                 \
+    GL_PROCESS(glGenRenderbuffers, PFNGLGENRENDERBUFFERSPROC)                                       \
+    GL_PROCESS(glRenderbufferStorage, PFNGLRENDERBUFFERSTORAGEPROC)                                 \
+    GL_PROCESS(glGetRenderbufferParameteriv, PFNGLGETRENDERBUFFERPARAMETERIVPROC)                   \
+    GL_PROCESS(glIsFramebuffer, PFNGLISFRAMEBUFFERPROC)                                             \
+    GL_PROCESS(glBindFramebuffer, PFNGLBINDFRAMEBUFFERPROC)                                         \
+    GL_PROCESS(glDeleteFramebuffers, PFNGLDELETEFRAMEBUFFERSPROC)                                   \
+    GL_PROCESS(glGenFramebuffers, PFNGLGENFRAMEBUFFERSPROC)                                         \
+    GL_PROCESS(glCheckFramebufferStatus, PFNGLCHECKFRAMEBUFFERSTATUSPROC)                           \
+    GL_PROCESS(glFramebufferTexture1D, PFNGLFRAMEBUFFERTEXTURE1DPROC)                               \
+    GL_PROCESS(glFramebufferTexture2D, PFNGLFRAMEBUFFERTEXTURE2DPROC)                               \
+    GL_PROCESS(glFramebufferTexture3D, PFNGLFRAMEBUFFERTEXTURE3DPROC)                               \
+    GL_PROCESS(glFramebufferRenderbuffer, PFNGLFRAMEBUFFERRENDERBUFFERPROC)                         \
+    GL_PROCESS(glGetFramebufferAttachmentParameteriv, PFNGLGETFRAMEBUFFERATTACHMENTPARAMETERIVPROC) \
+    GL_PROCESS(glGenerateMipmap, PFNGLGENERATEMIPMAPPROC)                                           \
+    GL_PROCESS(glBlitFramebuffer, PFNGLBLITFRAMEBUFFERPROC)                                         \
+    GL_PROCESS(glRenderbufferStorageMultisample, PFNGLRENDERBUFFERSTORAGEMULTISAMPLEPROC)           \
+    GL_PROCESS(glFramebufferTextureLayer, PFNGLFRAMEBUFFERTEXTURELAYERPROC)                         \
+    GL_PROCESS(glMapBufferRange, PFNGLMAPBUFFERRANGEPROC)                                           \
+    GL_PROCESS(glFlushMappedBufferRange, PFNGLFLUSHMAPPEDBUFFERRANGEPROC)                           \
+    GL_PROCESS(glBindVertexArray, PFNGLBINDVERTEXARRAYPROC)                                         \
+    GL_PROCESS(glDeleteVertexArrays, PFNGLDELETEVERTEXARRAYSPROC)                                   \
+    GL_PROCESS(glGenVertexArrays, PFNGLGENVERTEXARRAYSPROC)                                         \
+    GL_PROCESS(glIsVertexArray, PFNGLISVERTEXARRAYPROC)
+#define GL_FUNCTIONS_3_1 \
+    GL_FUNCTIONS_3_0     \
+    GL_FUNCTIONS_3_1_PART
+#define GL_FUNCTIONS_3_1_PART                                                   \
+                                                                                \
+    GL_PROCESS(glDrawArraysInstanced, PFNGLDRAWARRAYSINSTANCEDPROC)             \
+    GL_PROCESS(glDrawElementsInstanced, PFNGLDRAWELEMENTSINSTANCEDPROC)         \
+    GL_PROCESS(glTexBuffer, PFNGLTEXBUFFERPROC)                                 \
+    GL_PROCESS(glPrimitiveRestartIndex, PFNGLPRIMITIVERESTARTINDEXPROC)         \
+    GL_PROCESS(glCopyBufferSubData, PFNGLCOPYBUFFERSUBDATAPROC)                 \
+    GL_PROCESS(glGetUniformIndices, PFNGLGETUNIFORMINDICESPROC)                 \
+    GL_PROCESS(glGetActiveUniformsiv, PFNGLGETACTIVEUNIFORMSIVPROC)             \
+    GL_PROCESS(glGetActiveUniformName, PFNGLGETACTIVEUNIFORMNAMEPROC)           \
+    GL_PROCESS(glGetUniformBlockIndex, PFNGLGETUNIFORMBLOCKINDEXPROC)           \
+    GL_PROCESS(glGetActiveUniformBlockiv, PFNGLGETACTIVEUNIFORMBLOCKIVPROC)     \
+    GL_PROCESS(glGetActiveUniformBlockName, PFNGLGETACTIVEUNIFORMBLOCKNAMEPROC) \
+    GL_PROCESS(glUniformBlockBinding, PFNGLUNIFORMBLOCKBINDINGPROC)
+#define GL_FUNCTIONS_3_2 \
+    GL_FUNCTIONS_3_1     \
+    GL_FUNCTIONS_3_2_PART
+#define GL_FUNCTIONS_3_2_PART                                                               \
+                                                                                            \
+    GL_PROCESS(glDrawElementsBaseVertex, PFNGLDRAWELEMENTSBASEVERTEXPROC)                   \
+    GL_PROCESS(glDrawRangeElementsBaseVertex, PFNGLDRAWRANGEELEMENTSBASEVERTEXPROC)         \
+    GL_PROCESS(glDrawElementsInstancedBaseVertex, PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXPROC) \
+    GL_PROCESS(glMultiDrawElementsBaseVertex, PFNGLMULTIDRAWELEMENTSBASEVERTEXPROC)         \
+    GL_PROCESS(glProvokingVertex, PFNGLPROVOKINGVERTEXPROC)                                 \
+    GL_PROCESS(glFenceSync, PFNGLFENCESYNCPROC)                                             \
+    GL_PROCESS(glIsSync, PFNGLISSYNCPROC)                                                   \
+    GL_PROCESS(glDeleteSync, PFNGLDELETESYNCPROC)                                           \
+    GL_PROCESS(glClientWaitSync, PFNGLCLIENTWAITSYNCPROC)                                   \
+    GL_PROCESS(glWaitSync, PFNGLWAITSYNCPROC)                                               \
+    GL_PROCESS(glGetInteger64v, PFNGLGETINTEGER64VPROC)                                     \
+    GL_PROCESS(glGetSynciv, PFNGLGETSYNCIVPROC)                                             \
+    GL_PROCESS(glGetInteger64i_v, PFNGLGETINTEGER64I_VPROC)                                 \
+    GL_PROCESS(glGetBufferParameteri64v, PFNGLGETBUFFERPARAMETERI64VPROC)                   \
+    GL_PROCESS(glFramebufferTexture, PFNGLFRAMEBUFFERTEXTUREPROC)                           \
+    GL_PROCESS(glTexImage2DMultisample, PFNGLTEXIMAGE2DMULTISAMPLEPROC)                     \
+    GL_PROCESS(glTexImage3DMultisample, PFNGLTEXIMAGE3DMULTISAMPLEPROC)                     \
+    GL_PROCESS(glGetMultisamplefv, PFNGLGETMULTISAMPLEFVPROC)                               \
+    GL_PROCESS(glSampleMaski, PFNGLSAMPLEMASKIPROC)
+#define GL_FUNCTIONS_3_3 \
+    GL_FUNCTIONS_3_2     \
+    GL_FUNCTIONS_3_3_PART
+#define GL_FUNCTIONS_3_3_PART                                                       \
+                                                                                    \
+    GL_PROCESS(glBindFragDataLocationIndexed, PFNGLBINDFRAGDATALOCATIONINDEXEDPROC) \
+    GL_PROCESS(glGetFragDataIndex, PFNGLGETFRAGDATAINDEXPROC)                       \
+    GL_PROCESS(glGenSamplers, PFNGLGENSAMPLERSPROC)                                 \
+    GL_PROCESS(glDeleteSamplers, PFNGLDELETESAMPLERSPROC)                           \
+    GL_PROCESS(glIsSampler, PFNGLISSAMPLERPROC)                                     \
+    GL_PROCESS(glBindSampler, PFNGLBINDSAMPLERPROC)                                 \
+    GL_PROCESS(glSamplerParameteri, PFNGLSAMPLERPARAMETERIPROC)                     \
+    GL_PROCESS(glSamplerParameteriv, PFNGLSAMPLERPARAMETERIVPROC)                   \
+    GL_PROCESS(glSamplerParameterf, PFNGLSAMPLERPARAMETERFPROC)                     \
+    GL_PROCESS(glSamplerParameterfv, PFNGLSAMPLERPARAMETERFVPROC)                   \
+    GL_PROCESS(glSamplerParameterIiv, PFNGLSAMPLERPARAMETERIIVPROC)                 \
+    GL_PROCESS(glSamplerParameterIuiv, PFNGLSAMPLERPARAMETERIUIVPROC)               \
+    GL_PROCESS(glGetSamplerParameteriv, PFNGLGETSAMPLERPARAMETERIVPROC)             \
+    GL_PROCESS(glGetSamplerParameterIiv, PFNGLGETSAMPLERPARAMETERIIVPROC)           \
+    GL_PROCESS(glGetSamplerParameterfv, PFNGLGETSAMPLERPARAMETERFVPROC)             \
+    GL_PROCESS(glGetSamplerParameterIuiv, PFNGLGETSAMPLERPARAMETERIUIVPROC)         \
+    GL_PROCESS(glQueryCounter, PFNGLQUERYCOUNTERPROC)                               \
+    GL_PROCESS(glGetQueryObjecti64v, PFNGLGETQUERYOBJECTI64VPROC)                   \
+    GL_PROCESS(glGetQueryObjectui64v, PFNGLGETQUERYOBJECTUI64VPROC)                 \
+    GL_PROCESS(glVertexAttribDivisor, PFNGLVERTEXATTRIBDIVISORPROC)                 \
+    GL_PROCESS(glVertexAttribP1ui, PFNGLVERTEXATTRIBP1UIPROC)                       \
+    GL_PROCESS(glVertexAttribP1uiv, PFNGLVERTEXATTRIBP1UIVPROC)                     \
+    GL_PROCESS(glVertexAttribP2ui, PFNGLVERTEXATTRIBP2UIPROC)                       \
+    GL_PROCESS(glVertexAttribP2uiv, PFNGLVERTEXATTRIBP2UIVPROC)                     \
+    GL_PROCESS(glVertexAttribP3ui, PFNGLVERTEXATTRIBP3UIPROC)                       \
+    GL_PROCESS(glVertexAttribP3uiv, PFNGLVERTEXATTRIBP3UIVPROC)                     \
+    GL_PROCESS(glVertexAttribP4ui, PFNGLVERTEXATTRIBP4UIPROC)                       \
+    GL_PROCESS(glVertexAttribP4uiv, PFNGLVERTEXATTRIBP4UIVPROC)                     \
+    GL_PROCESS(glVertexP2ui, PFNGLVERTEXP2UIPROC)                                   \
+    GL_PROCESS(glVertexP2uiv, PFNGLVERTEXP2UIVPROC)                                 \
+    GL_PROCESS(glVertexP3ui, PFNGLVERTEXP3UIPROC)                                   \
+    GL_PROCESS(glVertexP3uiv, PFNGLVERTEXP3UIVPROC)                                 \
+    GL_PROCESS(glVertexP4ui, PFNGLVERTEXP4UIPROC)                                   \
+    GL_PROCESS(glVertexP4uiv, PFNGLVERTEXP4UIVPROC)                                 \
+    GL_PROCESS(glTexCoordP1ui, PFNGLTEXCOORDP1UIPROC)                               \
+    GL_PROCESS(glTexCoordP1uiv, PFNGLTEXCOORDP1UIVPROC)                             \
+    GL_PROCESS(glTexCoordP2ui, PFNGLTEXCOORDP2UIPROC)                               \
+    GL_PROCESS(glTexCoordP2uiv, PFNGLTEXCOORDP2UIVPROC)                             \
+    GL_PROCESS(glTexCoordP3ui, PFNGLTEXCOORDP3UIPROC)                               \
+    GL_PROCESS(glTexCoordP3uiv, PFNGLTEXCOORDP3UIVPROC)                             \
+    GL_PROCESS(glTexCoordP4ui, PFNGLTEXCOORDP4UIPROC)                               \
+    GL_PROCESS(glTexCoordP4uiv, PFNGLTEXCOORDP4UIVPROC)                             \
+    GL_PROCESS(glMultiTexCoordP1ui, PFNGLMULTITEXCOORDP1UIPROC)                     \
+    GL_PROCESS(glMultiTexCoordP1uiv, PFNGLMULTITEXCOORDP1UIVPROC)                   \
+    GL_PROCESS(glMultiTexCoordP2ui, PFNGLMULTITEXCOORDP2UIPROC)                     \
+    GL_PROCESS(glMultiTexCoordP2uiv, PFNGLMULTITEXCOORDP2UIVPROC)                   \
+    GL_PROCESS(glMultiTexCoordP3ui, PFNGLMULTITEXCOORDP3UIPROC)                     \
+    GL_PROCESS(glMultiTexCoordP3uiv, PFNGLMULTITEXCOORDP3UIVPROC)                   \
+    GL_PROCESS(glMultiTexCoordP4ui, PFNGLMULTITEXCOORDP4UIPROC)                     \
+    GL_PROCESS(glMultiTexCoordP4uiv, PFNGLMULTITEXCOORDP4UIVPROC)                   \
+    GL_PROCESS(glNormalP3ui, PFNGLNORMALP3UIPROC)                                   \
+    GL_PROCESS(glNormalP3uiv, PFNGLNORMALP3UIVPROC)                                 \
+    GL_PROCESS(glColorP3ui, PFNGLCOLORP3UIPROC)                                     \
+    GL_PROCESS(glColorP3uiv, PFNGLCOLORP3UIVPROC)                                   \
+    GL_PROCESS(glColorP4ui, PFNGLCOLORP4UIPROC)                                     \
+    GL_PROCESS(glColorP4uiv, PFNGLCOLORP4UIVPROC)                                   \
+    GL_PROCESS(glSecondaryColorP3ui, PFNGLSECONDARYCOLORP3UIPROC)                   \
+    GL_PROCESS(glSecondaryColorP3uiv, PFNGLSECONDARYCOLORP3UIVPROC)
+#define GL_FUNCTIONS_4_0 \
+    GL_FUNCTIONS_3_3     \
+    GL_FUNCTIONS_4_0_PART
+#define GL_FUNCTIONS_4_0_PART                                                             \
+                                                                                          \
+    GL_PROCESS(glMinSampleShading, PFNGLMINSAMPLESHADINGPROC)                             \
+    GL_PROCESS(glBlendEquationi, PFNGLBLENDEQUATIONIPROC)                                 \
+    GL_PROCESS(glBlendEquationSeparatei, PFNGLBLENDEQUATIONSEPARATEIPROC)                 \
+    GL_PROCESS(glBlendFunci, PFNGLBLENDFUNCIPROC)                                         \
+    GL_PROCESS(glBlendFuncSeparatei, PFNGLBLENDFUNCSEPARATEIPROC)                         \
+    GL_PROCESS(glDrawArraysIndirect, PFNGLDRAWARRAYSINDIRECTPROC)                         \
+    GL_PROCESS(glDrawElementsIndirect, PFNGLDRAWELEMENTSINDIRECTPROC)                     \
+    GL_PROCESS(glUniform1d, PFNGLUNIFORM1DPROC)                                           \
+    GL_PROCESS(glUniform2d, PFNGLUNIFORM2DPROC)                                           \
+    GL_PROCESS(glUniform3d, PFNGLUNIFORM3DPROC)                                           \
+    GL_PROCESS(glUniform4d, PFNGLUNIFORM4DPROC)                                           \
+    GL_PROCESS(glUniform1dv, PFNGLUNIFORM1DVPROC)                                         \
+    GL_PROCESS(glUniform2dv, PFNGLUNIFORM2DVPROC)                                         \
+    GL_PROCESS(glUniform3dv, PFNGLUNIFORM3DVPROC)                                         \
+    GL_PROCESS(glUniform4dv, PFNGLUNIFORM4DVPROC)                                         \
+    GL_PROCESS(glUniformMatrix2dv, PFNGLUNIFORMMATRIX2DVPROC)                             \
+    GL_PROCESS(glUniformMatrix3dv, PFNGLUNIFORMMATRIX3DVPROC)                             \
+    GL_PROCESS(glUniformMatrix4dv, PFNGLUNIFORMMATRIX4DVPROC)                             \
+    GL_PROCESS(glUniformMatrix2x3dv, PFNGLUNIFORMMATRIX2X3DVPROC)                         \
+    GL_PROCESS(glUniformMatrix2x4dv, PFNGLUNIFORMMATRIX2X4DVPROC)                         \
+    GL_PROCESS(glUniformMatrix3x2dv, PFNGLUNIFORMMATRIX3X2DVPROC)                         \
+    GL_PROCESS(glUniformMatrix3x4dv, PFNGLUNIFORMMATRIX3X4DVPROC)                         \
+    GL_PROCESS(glUniformMatrix4x2dv, PFNGLUNIFORMMATRIX4X2DVPROC)                         \
+    GL_PROCESS(glUniformMatrix4x3dv, PFNGLUNIFORMMATRIX4X3DVPROC)                         \
+    GL_PROCESS(glGetUniformdv, PFNGLGETUNIFORMDVPROC)                                     \
+    GL_PROCESS(glGetSubroutineUniformLocation, PFNGLGETSUBROUTINEUNIFORMLOCATIONPROC)     \
+    GL_PROCESS(glGetSubroutineIndex, PFNGLGETSUBROUTINEINDEXPROC)                         \
+    GL_PROCESS(glGetActiveSubroutineUniformiv, PFNGLGETACTIVESUBROUTINEUNIFORMIVPROC)     \
+    GL_PROCESS(glGetActiveSubroutineUniformName, PFNGLGETACTIVESUBROUTINEUNIFORMNAMEPROC) \
+    GL_PROCESS(glGetActiveSubroutineName, PFNGLGETACTIVESUBROUTINENAMEPROC)               \
+    GL_PROCESS(glUniformSubroutinesuiv, PFNGLUNIFORMSUBROUTINESUIVPROC)                   \
+    GL_PROCESS(glGetUniformSubroutineuiv, PFNGLGETUNIFORMSUBROUTINEUIVPROC)               \
+    GL_PROCESS(glGetProgramStageiv, PFNGLGETPROGRAMSTAGEIVPROC)                           \
+    GL_PROCESS(glPatchParameteri, PFNGLPATCHPARAMETERIPROC)                               \
+    GL_PROCESS(glPatchParameterfv, PFNGLPATCHPARAMETERFVPROC)                             \
+    GL_PROCESS(glBindTransformFeedback, PFNGLBINDTRANSFORMFEEDBACKPROC)                   \
+    GL_PROCESS(glDeleteTransformFeedbacks, PFNGLDELETETRANSFORMFEEDBACKSPROC)             \
+    GL_PROCESS(glGenTransformFeedbacks, PFNGLGENTRANSFORMFEEDBACKSPROC)                   \
+    GL_PROCESS(glIsTransformFeedback, PFNGLISTRANSFORMFEEDBACKPROC)                       \
+    GL_PROCESS(glPauseTransformFeedback, PFNGLPAUSETRANSFORMFEEDBACKPROC)                 \
+    GL_PROCESS(glResumeTransformFeedback, PFNGLRESUMETRANSFORMFEEDBACKPROC)               \
+    GL_PROCESS(glDrawTransformFeedback, PFNGLDRAWTRANSFORMFEEDBACKPROC)                   \
+    GL_PROCESS(glDrawTransformFeedbackStream, PFNGLDRAWTRANSFORMFEEDBACKSTREAMPROC)       \
+    GL_PROCESS(glBeginQueryIndexed, PFNGLBEGINQUERYINDEXEDPROC)                           \
+    GL_PROCESS(glEndQueryIndexed, PFNGLENDQUERYINDEXEDPROC)                               \
+    GL_PROCESS(glGetQueryIndexediv, PFNGLGETQUERYINDEXEDIVPROC)
+#define GL_FUNCTIONS_4_1 \
+    GL_FUNCTIONS_4_0     \
+    GL_FUNCTIONS_4_1_PART
+#define GL_FUNCTIONS_4_1_PART                                                   \
+                                                                                \
+    GL_PROCESS(glReleaseShaderCompiler, PFNGLRELEASESHADERCOMPILERPROC)         \
+    GL_PROCESS(glShaderBinary, PFNGLSHADERBINARYPROC)                           \
+    GL_PROCESS(glGetShaderPrecisionFormat, PFNGLGETSHADERPRECISIONFORMATPROC)   \
+    GL_PROCESS(glDepthRangef, PFNGLDEPTHRANGEFPROC)                             \
+    GL_PROCESS(glClearDepthf, PFNGLCLEARDEPTHFPROC)                             \
+    GL_PROCESS(glGetProgramBinary, PFNGLGETPROGRAMBINARYPROC)                   \
+    GL_PROCESS(glProgramBinary, PFNGLPROGRAMBINARYPROC)                         \
+    GL_PROCESS(glProgramParameteri, PFNGLPROGRAMPARAMETERIPROC)                 \
+    GL_PROCESS(glUseProgramStages, PFNGLUSEPROGRAMSTAGESPROC)                   \
+    GL_PROCESS(glActiveShaderProgram, PFNGLACTIVESHADERPROGRAMPROC)             \
+    GL_PROCESS(glCreateShaderProgramv, PFNGLCREATESHADERPROGRAMVPROC)           \
+    GL_PROCESS(glBindProgramPipeline, PFNGLBINDPROGRAMPIPELINEPROC)             \
+    GL_PROCESS(glDeleteProgramPipelines, PFNGLDELETEPROGRAMPIPELINESPROC)       \
+    GL_PROCESS(glGenProgramPipelines, PFNGLGENPROGRAMPIPELINESPROC)             \
+    GL_PROCESS(glIsProgramPipeline, PFNGLISPROGRAMPIPELINEPROC)                 \
+    GL_PROCESS(glGetProgramPipelineiv, PFNGLGETPROGRAMPIPELINEIVPROC)           \
+    GL_PROCESS(glProgramUniform1i, PFNGLPROGRAMUNIFORM1IPROC)                   \
+    GL_PROCESS(glProgramUniform1iv, PFNGLPROGRAMUNIFORM1IVPROC)                 \
+    GL_PROCESS(glProgramUniform1f, PFNGLPROGRAMUNIFORM1FPROC)                   \
+    GL_PROCESS(glProgramUniform1fv, PFNGLPROGRAMUNIFORM1FVPROC)                 \
+    GL_PROCESS(glProgramUniform1d, PFNGLPROGRAMUNIFORM1DPROC)                   \
+    GL_PROCESS(glProgramUniform1dv, PFNGLPROGRAMUNIFORM1DVPROC)                 \
+    GL_PROCESS(glProgramUniform1ui, PFNGLPROGRAMUNIFORM1UIPROC)                 \
+    GL_PROCESS(glProgramUniform1uiv, PFNGLPROGRAMUNIFORM1UIVPROC)               \
+    GL_PROCESS(glProgramUniform2i, PFNGLPROGRAMUNIFORM2IPROC)                   \
+    GL_PROCESS(glProgramUniform2iv, PFNGLPROGRAMUNIFORM2IVPROC)                 \
+    GL_PROCESS(glProgramUniform2f, PFNGLPROGRAMUNIFORM2FPROC)                   \
+    GL_PROCESS(glProgramUniform2fv, PFNGLPROGRAMUNIFORM2FVPROC)                 \
+    GL_PROCESS(glProgramUniform2d, PFNGLPROGRAMUNIFORM2DPROC)                   \
+    GL_PROCESS(glProgramUniform2dv, PFNGLPROGRAMUNIFORM2DVPROC)                 \
+    GL_PROCESS(glProgramUniform2ui, PFNGLPROGRAMUNIFORM2UIPROC)                 \
+    GL_PROCESS(glProgramUniform2uiv, PFNGLPROGRAMUNIFORM2UIVPROC)               \
+    GL_PROCESS(glProgramUniform3i, PFNGLPROGRAMUNIFORM3IPROC)                   \
+    GL_PROCESS(glProgramUniform3iv, PFNGLPROGRAMUNIFORM3IVPROC)                 \
+    GL_PROCESS(glProgramUniform3f, PFNGLPROGRAMUNIFORM3FPROC)                   \
+    GL_PROCESS(glProgramUniform3fv, PFNGLPROGRAMUNIFORM3FVPROC)                 \
+    GL_PROCESS(glProgramUniform3d, PFNGLPROGRAMUNIFORM3DPROC)                   \
+    GL_PROCESS(glProgramUniform3dv, PFNGLPROGRAMUNIFORM3DVPROC)                 \
+    GL_PROCESS(glProgramUniform3ui, PFNGLPROGRAMUNIFORM3UIPROC)                 \
+    GL_PROCESS(glProgramUniform3uiv, PFNGLPROGRAMUNIFORM3UIVPROC)               \
+    GL_PROCESS(glProgramUniform4i, PFNGLPROGRAMUNIFORM4IPROC)                   \
+    GL_PROCESS(glProgramUniform4iv, PFNGLPROGRAMUNIFORM4IVPROC)                 \
+    GL_PROCESS(glProgramUniform4f, PFNGLPROGRAMUNIFORM4FPROC)                   \
+    GL_PROCESS(glProgramUniform4fv, PFNGLPROGRAMUNIFORM4FVPROC)                 \
+    GL_PROCESS(glProgramUniform4d, PFNGLPROGRAMUNIFORM4DPROC)                   \
+    GL_PROCESS(glProgramUniform4dv, PFNGLPROGRAMUNIFORM4DVPROC)                 \
+    GL_PROCESS(glProgramUniform4ui, PFNGLPROGRAMUNIFORM4UIPROC)                 \
+    GL_PROCESS(glProgramUniform4uiv, PFNGLPROGRAMUNIFORM4UIVPROC)               \
+    GL_PROCESS(glProgramUniformMatrix2fv, PFNGLPROGRAMUNIFORMMATRIX2FVPROC)     \
+    GL_PROCESS(glProgramUniformMatrix3fv, PFNGLPROGRAMUNIFORMMATRIX3FVPROC)     \
+    GL_PROCESS(glProgramUniformMatrix4fv, PFNGLPROGRAMUNIFORMMATRIX4FVPROC)     \
+    GL_PROCESS(glProgramUniformMatrix2dv, PFNGLPROGRAMUNIFORMMATRIX2DVPROC)     \
+    GL_PROCESS(glProgramUniformMatrix3dv, PFNGLPROGRAMUNIFORMMATRIX3DVPROC)     \
+    GL_PROCESS(glProgramUniformMatrix4dv, PFNGLPROGRAMUNIFORMMATRIX4DVPROC)     \
+    GL_PROCESS(glProgramUniformMatrix2x3fv, PFNGLPROGRAMUNIFORMMATRIX2X3FVPROC) \
+    GL_PROCESS(glProgramUniformMatrix3x2fv, PFNGLPROGRAMUNIFORMMATRIX3X2FVPROC) \
+    GL_PROCESS(glProgramUniformMatrix2x4fv, PFNGLPROGRAMUNIFORMMATRIX2X4FVPROC) \
+    GL_PROCESS(glProgramUniformMatrix4x2fv, PFNGLPROGRAMUNIFORMMATRIX4X2FVPROC) \
+    GL_PROCESS(glProgramUniformMatrix3x4fv, PFNGLPROGRAMUNIFORMMATRIX3X4FVPROC) \
+    GL_PROCESS(glProgramUniformMatrix4x3fv, PFNGLPROGRAMUNIFORMMATRIX4X3FVPROC) \
+    GL_PROCESS(glProgramUniformMatrix2x3dv, PFNGLPROGRAMUNIFORMMATRIX2X3DVPROC) \
+    GL_PROCESS(glProgramUniformMatrix3x2dv, PFNGLPROGRAMUNIFORMMATRIX3X2DVPROC) \
+    GL_PROCESS(glProgramUniformMatrix2x4dv, PFNGLPROGRAMUNIFORMMATRIX2X4DVPROC) \
+    GL_PROCESS(glProgramUniformMatrix4x2dv, PFNGLPROGRAMUNIFORMMATRIX4X2DVPROC) \
+    GL_PROCESS(glProgramUniformMatrix3x4dv, PFNGLPROGRAMUNIFORMMATRIX3X4DVPROC) \
+    GL_PROCESS(glProgramUniformMatrix4x3dv, PFNGLPROGRAMUNIFORMMATRIX4X3DVPROC) \
+    GL_PROCESS(glValidateProgramPipeline, PFNGLVALIDATEPROGRAMPIPELINEPROC)     \
+    GL_PROCESS(glGetProgramPipelineInfoLog, PFNGLGETPROGRAMPIPELINEINFOLOGPROC) \
+    GL_PROCESS(glVertexAttribL1d, PFNGLVERTEXATTRIBL1DPROC)                     \
+    GL_PROCESS(glVertexAttribL2d, PFNGLVERTEXATTRIBL2DPROC)                     \
+    GL_PROCESS(glVertexAttribL3d, PFNGLVERTEXATTRIBL3DPROC)                     \
+    GL_PROCESS(glVertexAttribL4d, PFNGLVERTEXATTRIBL4DPROC)                     \
+    GL_PROCESS(glVertexAttribL1dv, PFNGLVERTEXATTRIBL1DVPROC)                   \
+    GL_PROCESS(glVertexAttribL2dv, PFNGLVERTEXATTRIBL2DVPROC)                   \
+    GL_PROCESS(glVertexAttribL3dv, PFNGLVERTEXATTRIBL3DVPROC)                   \
+    GL_PROCESS(glVertexAttribL4dv, PFNGLVERTEXATTRIBL4DVPROC)                   \
+    GL_PROCESS(glVertexAttribLPointer, PFNGLVERTEXATTRIBLPOINTERPROC)           \
+    GL_PROCESS(glGetVertexAttribLdv, PFNGLGETVERTEXATTRIBLDVPROC)               \
+    GL_PROCESS(glViewportArrayv, PFNGLVIEWPORTARRAYVPROC)                       \
+    GL_PROCESS(glViewportIndexedf, PFNGLVIEWPORTINDEXEDFPROC)                   \
+    GL_PROCESS(glViewportIndexedfv, PFNGLVIEWPORTINDEXEDFVPROC)                 \
+    GL_PROCESS(glScissorArrayv, PFNGLSCISSORARRAYVPROC)                         \
+    GL_PROCESS(glScissorIndexed, PFNGLSCISSORINDEXEDPROC)                       \
+    GL_PROCESS(glScissorIndexedv, PFNGLSCISSORINDEXEDVPROC)                     \
+    GL_PROCESS(glDepthRangeArrayv, PFNGLDEPTHRANGEARRAYVPROC)                   \
+    GL_PROCESS(glDepthRangeIndexed, PFNGLDEPTHRANGEINDEXEDPROC)                 \
+    GL_PROCESS(glGetFloati_v, PFNGLGETFLOATI_VPROC)                             \
+    GL_PROCESS(glGetDoublei_v, PFNGLGETDOUBLEI_VPROC)
+#define GL_FUNCTIONS_4_2 \
+    GL_FUNCTIONS_4_1     \
+    GL_FUNCTIONS_4_2_PART
+#define GL_FUNCTIONS_4_2_PART                                                                                       \
+                                                                                                                    \
+    GL_PROCESS(glDrawArraysInstancedBaseInstance, PFNGLDRAWARRAYSINSTANCEDBASEINSTANCEPROC)                         \
+    GL_PROCESS(glDrawElementsInstancedBaseInstance, PFNGLDRAWELEMENTSINSTANCEDBASEINSTANCEPROC)                     \
+    GL_PROCESS(glDrawElementsInstancedBaseVertexBaseInstance, PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXBASEINSTANCEPROC) \
+    GL_PROCESS(glGetInternalformativ, PFNGLGETINTERNALFORMATIVPROC)                                                 \
+    GL_PROCESS(glGetActiveAtomicCounterBufferiv, PFNGLGETACTIVEATOMICCOUNTERBUFFERIVPROC)                           \
+    GL_PROCESS(glBindImageTexture, PFNGLBINDIMAGETEXTUREPROC)                                                       \
+    GL_PROCESS(glMemoryBarrier, PFNGLMEMORYBARRIERPROC)                                                             \
+    GL_PROCESS(glTexStorage1D, PFNGLTEXSTORAGE1DPROC)                                                               \
+    GL_PROCESS(glTexStorage2D, PFNGLTEXSTORAGE2DPROC)                                                               \
+    GL_PROCESS(glTexStorage3D, PFNGLTEXSTORAGE3DPROC)                                                               \
+    GL_PROCESS(glDrawTransformFeedbackInstanced, PFNGLDRAWTRANSFORMFEEDBACKINSTANCEDPROC)                           \
+    GL_PROCESS(glDrawTransformFeedbackStreamInstanced, PFNGLDRAWTRANSFORMFEEDBACKSTREAMINSTANCEDPROC)
+#define GL_FUNCTIONS_4_3 \
+    GL_FUNCTIONS_4_2     \
+    GL_FUNCTIONS_4_3_PART
+#define GL_FUNCTIONS_4_3_PART                                                               \
+                                                                                            \
+    GL_PROCESS(glClearBufferData, PFNGLCLEARBUFFERDATAPROC)                                 \
+    GL_PROCESS(glClearBufferSubData, PFNGLCLEARBUFFERSUBDATAPROC)                           \
+    GL_PROCESS(glDispatchCompute, PFNGLDISPATCHCOMPUTEPROC)                                 \
+    GL_PROCESS(glDispatchComputeIndirect, PFNGLDISPATCHCOMPUTEINDIRECTPROC)                 \
+    GL_PROCESS(glCopyImageSubData, PFNGLCOPYIMAGESUBDATAPROC)                               \
+    GL_PROCESS(glFramebufferParameteri, PFNGLFRAMEBUFFERPARAMETERIPROC)                     \
+    GL_PROCESS(glGetFramebufferParameteriv, PFNGLGETFRAMEBUFFERPARAMETERIVPROC)             \
+    GL_PROCESS(glGetInternalformati64v, PFNGLGETINTERNALFORMATI64VPROC)                     \
+    GL_PROCESS(glInvalidateTexSubImage, PFNGLINVALIDATETEXSUBIMAGEPROC)                     \
+    GL_PROCESS(glInvalidateTexImage, PFNGLINVALIDATETEXIMAGEPROC)                           \
+    GL_PROCESS(glInvalidateBufferSubData, PFNGLINVALIDATEBUFFERSUBDATAPROC)                 \
+    GL_PROCESS(glInvalidateBufferData, PFNGLINVALIDATEBUFFERDATAPROC)                       \
+    GL_PROCESS(glInvalidateFramebuffer, PFNGLINVALIDATEFRAMEBUFFERPROC)                     \
+    GL_PROCESS(glInvalidateSubFramebuffer, PFNGLINVALIDATESUBFRAMEBUFFERPROC)               \
+    GL_PROCESS(glMultiDrawArraysIndirect, PFNGLMULTIDRAWARRAYSINDIRECTPROC)                 \
+    GL_PROCESS(glMultiDrawElementsIndirect, PFNGLMULTIDRAWELEMENTSINDIRECTPROC)             \
+    GL_PROCESS(glGetProgramInterfaceiv, PFNGLGETPROGRAMINTERFACEIVPROC)                     \
+    GL_PROCESS(glGetProgramResourceIndex, PFNGLGETPROGRAMRESOURCEINDEXPROC)                 \
+    GL_PROCESS(glGetProgramResourceName, PFNGLGETPROGRAMRESOURCENAMEPROC)                   \
+    GL_PROCESS(glGetProgramResourceiv, PFNGLGETPROGRAMRESOURCEIVPROC)                       \
+    GL_PROCESS(glGetProgramResourceLocation, PFNGLGETPROGRAMRESOURCELOCATIONPROC)           \
+    GL_PROCESS(glGetProgramResourceLocationIndex, PFNGLGETPROGRAMRESOURCELOCATIONINDEXPROC) \
+    GL_PROCESS(glShaderStorageBlockBinding, PFNGLSHADERSTORAGEBLOCKBINDINGPROC)             \
+    GL_PROCESS(glTexBufferRange, PFNGLTEXBUFFERRANGEPROC)                                   \
+    GL_PROCESS(glTexStorage2DMultisample, PFNGLTEXSTORAGE2DMULTISAMPLEPROC)                 \
+    GL_PROCESS(glTexStorage3DMultisample, PFNGLTEXSTORAGE3DMULTISAMPLEPROC)                 \
+    GL_PROCESS(glTextureView, PFNGLTEXTUREVIEWPROC)                                         \
+    GL_PROCESS(glBindVertexBuffer, PFNGLBINDVERTEXBUFFERPROC)                               \
+    GL_PROCESS(glVertexAttribFormat, PFNGLVERTEXATTRIBFORMATPROC)                           \
+    GL_PROCESS(glVertexAttribIFormat, PFNGLVERTEXATTRIBIFORMATPROC)                         \
+    GL_PROCESS(glVertexAttribLFormat, PFNGLVERTEXATTRIBLFORMATPROC)                         \
+    GL_PROCESS(glVertexAttribBinding, PFNGLVERTEXATTRIBBINDINGPROC)                         \
+    GL_PROCESS(glVertexBindingDivisor, PFNGLVERTEXBINDINGDIVISORPROC)                       \
+    GL_PROCESS(glDebugMessageControl, PFNGLDEBUGMESSAGECONTROLPROC)                         \
+    GL_PROCESS(glDebugMessageInsert, PFNGLDEBUGMESSAGEINSERTPROC)                           \
+    GL_PROCESS(glDebugMessageCallback, PFNGLDEBUGMESSAGECALLBACKPROC)                       \
+    GL_PROCESS(glGetDebugMessageLog, PFNGLGETDEBUGMESSAGELOGPROC)                           \
+    GL_PROCESS(glPushDebugGroup, PFNGLPUSHDEBUGGROUPPROC)                                   \
+    GL_PROCESS(glPopDebugGroup, PFNGLPOPDEBUGGROUPPROC)                                     \
+    GL_PROCESS(glObjectLabel, PFNGLOBJECTLABELPROC)                                         \
+    GL_PROCESS(glGetObjectLabel, PFNGLGETOBJECTLABELPROC)                                   \
+    GL_PROCESS(glObjectPtrLabel, PFNGLOBJECTPTRLABELPROC)                                   \
+    GL_PROCESS(glGetObjectPtrLabel, PFNGLGETOBJECTPTRLABELPROC)
+#define GL_FUNCTIONS_4_4 \
+    GL_FUNCTIONS_4_3     \
+    GL_FUNCTIONS_4_4_PART
+#define GL_FUNCTIONS_4_4_PART                                   \
+                                                                \
+    GL_PROCESS(glBufferStorage, PFNGLBUFFERSTORAGEPROC)         \
+    GL_PROCESS(glClearTexImage, PFNGLCLEARTEXIMAGEPROC)         \
+    GL_PROCESS(glClearTexSubImage, PFNGLCLEARTEXSUBIMAGEPROC)   \
+    GL_PROCESS(glBindBuffersBase, PFNGLBINDBUFFERSBASEPROC)     \
+    GL_PROCESS(glBindBuffersRange, PFNGLBINDBUFFERSRANGEPROC)   \
+    GL_PROCESS(glBindTextures, PFNGLBINDTEXTURESPROC)           \
+    GL_PROCESS(glBindSamplers, PFNGLBINDSAMPLERSPROC)           \
+    GL_PROCESS(glBindImageTextures, PFNGLBINDIMAGETEXTURESPROC) \
+    GL_PROCESS(glBindVertexBuffers, PFNGLBINDVERTEXBUFFERSPROC)
+#define GL_FUNCTIONS_4_5 \
+    GL_FUNCTIONS_4_4     \
+    GL_FUNCTIONS_4_5_PART
+#define GL_FUNCTIONS_4_5_PART                                                                                 \
+                                                                                                              \
+    GL_PROCESS(glClipControl, PFNGLCLIPCONTROLPROC)                                                           \
+    GL_PROCESS(glCreateTransformFeedbacks, PFNGLCREATETRANSFORMFEEDBACKSPROC)                                 \
+    GL_PROCESS(glTransformFeedbackBufferBase, PFNGLTRANSFORMFEEDBACKBUFFERBASEPROC)                           \
+    GL_PROCESS(glTransformFeedbackBufferRange, PFNGLTRANSFORMFEEDBACKBUFFERRANGEPROC)                         \
+    GL_PROCESS(glGetTransformFeedbackiv, PFNGLGETTRANSFORMFEEDBACKIVPROC)                                     \
+    GL_PROCESS(glGetTransformFeedbacki_v, PFNGLGETTRANSFORMFEEDBACKI_VPROC)                                   \
+    GL_PROCESS(glGetTransformFeedbacki64_v, PFNGLGETTRANSFORMFEEDBACKI64_VPROC)                               \
+    GL_PROCESS(glCreateBuffers, PFNGLCREATEBUFFERSPROC)                                                       \
+    GL_PROCESS(glNamedBufferStorage, PFNGLNAMEDBUFFERSTORAGEPROC)                                             \
+    GL_PROCESS(glNamedBufferData, PFNGLNAMEDBUFFERDATAPROC)                                                   \
+    GL_PROCESS(glNamedBufferSubData, PFNGLNAMEDBUFFERSUBDATAPROC)                                             \
+    GL_PROCESS(glCopyNamedBufferSubData, PFNGLCOPYNAMEDBUFFERSUBDATAPROC)                                     \
+    GL_PROCESS(glClearNamedBufferData, PFNGLCLEARNAMEDBUFFERDATAPROC)                                         \
+    GL_PROCESS(glClearNamedBufferSubData, PFNGLCLEARNAMEDBUFFERSUBDATAPROC)                                   \
+    GL_PROCESS(glMapNamedBuffer, PFNGLMAPNAMEDBUFFERPROC)                                                     \
+    GL_PROCESS(glMapNamedBufferRange, PFNGLMAPNAMEDBUFFERRANGEPROC)                                           \
+    GL_PROCESS(glUnmapNamedBuffer, PFNGLUNMAPNAMEDBUFFERPROC)                                                 \
+    GL_PROCESS(glFlushMappedNamedBufferRange, PFNGLFLUSHMAPPEDNAMEDBUFFERRANGEPROC)                           \
+    GL_PROCESS(glGetNamedBufferParameteriv, PFNGLGETNAMEDBUFFERPARAMETERIVPROC)                               \
+    GL_PROCESS(glGetNamedBufferParameteri64v, PFNGLGETNAMEDBUFFERPARAMETERI64VPROC)                           \
+    GL_PROCESS(glGetNamedBufferPointerv, PFNGLGETNAMEDBUFFERPOINTERVPROC)                                     \
+    GL_PROCESS(glGetNamedBufferSubData, PFNGLGETNAMEDBUFFERSUBDATAPROC)                                       \
+    GL_PROCESS(glCreateFramebuffers, PFNGLCREATEFRAMEBUFFERSPROC)                                             \
+    GL_PROCESS(glNamedFramebufferRenderbuffer, PFNGLNAMEDFRAMEBUFFERRENDERBUFFERPROC)                         \
+    GL_PROCESS(glNamedFramebufferParameteri, PFNGLNAMEDFRAMEBUFFERPARAMETERIPROC)                             \
+    GL_PROCESS(glNamedFramebufferTexture, PFNGLNAMEDFRAMEBUFFERTEXTUREPROC)                                   \
+    GL_PROCESS(glNamedFramebufferTextureLayer, PFNGLNAMEDFRAMEBUFFERTEXTURELAYERPROC)                         \
+    GL_PROCESS(glNamedFramebufferDrawBuffer, PFNGLNAMEDFRAMEBUFFERDRAWBUFFERPROC)                             \
+    GL_PROCESS(glNamedFramebufferDrawBuffers, PFNGLNAMEDFRAMEBUFFERDRAWBUFFERSPROC)                           \
+    GL_PROCESS(glNamedFramebufferReadBuffer, PFNGLNAMEDFRAMEBUFFERREADBUFFERPROC)                             \
+    GL_PROCESS(glInvalidateNamedFramebufferData, PFNGLINVALIDATENAMEDFRAMEBUFFERDATAPROC)                     \
+    GL_PROCESS(glInvalidateNamedFramebufferSubData, PFNGLINVALIDATENAMEDFRAMEBUFFERSUBDATAPROC)               \
+    GL_PROCESS(glClearNamedFramebufferiv, PFNGLCLEARNAMEDFRAMEBUFFERIVPROC)                                   \
+    GL_PROCESS(glClearNamedFramebufferuiv, PFNGLCLEARNAMEDFRAMEBUFFERUIVPROC)                                 \
+    GL_PROCESS(glClearNamedFramebufferfv, PFNGLCLEARNAMEDFRAMEBUFFERFVPROC)                                   \
+    GL_PROCESS(glClearNamedFramebufferfi, PFNGLCLEARNAMEDFRAMEBUFFERFIPROC)                                   \
+    GL_PROCESS(glBlitNamedFramebuffer, PFNGLBLITNAMEDFRAMEBUFFERPROC)                                         \
+    GL_PROCESS(glCheckNamedFramebufferStatus, PFNGLCHECKNAMEDFRAMEBUFFERSTATUSPROC)                           \
+    GL_PROCESS(glGetNamedFramebufferParameteriv, PFNGLGETNAMEDFRAMEBUFFERPARAMETERIVPROC)                     \
+    GL_PROCESS(glGetNamedFramebufferAttachmentParameteriv, PFNGLGETNAMEDFRAMEBUFFERATTACHMENTPARAMETERIVPROC) \
+    GL_PROCESS(glCreateRenderbuffers, PFNGLCREATERENDERBUFFERSPROC)                                           \
+    GL_PROCESS(glNamedRenderbufferStorage, PFNGLNAMEDRENDERBUFFERSTORAGEPROC)                                 \
+    GL_PROCESS(glNamedRenderbufferStorageMultisample, PFNGLNAMEDRENDERBUFFERSTORAGEMULTISAMPLEPROC)           \
+    GL_PROCESS(glGetNamedRenderbufferParameteriv, PFNGLGETNAMEDRENDERBUFFERPARAMETERIVPROC)                   \
+    GL_PROCESS(glCreateTextures, PFNGLCREATETEXTURESPROC)                                                     \
+    GL_PROCESS(glTextureBuffer, PFNGLTEXTUREBUFFERPROC)                                                       \
+    GL_PROCESS(glTextureBufferRange, PFNGLTEXTUREBUFFERRANGEPROC)                                             \
+    GL_PROCESS(glTextureStorage1D, PFNGLTEXTURESTORAGE1DPROC)                                                 \
+    GL_PROCESS(glTextureStorage2D, PFNGLTEXTURESTORAGE2DPROC)                                                 \
+    GL_PROCESS(glTextureStorage3D, PFNGLTEXTURESTORAGE3DPROC)                                                 \
+    GL_PROCESS(glTextureStorage2DMultisample, PFNGLTEXTURESTORAGE2DMULTISAMPLEPROC)                           \
+    GL_PROCESS(glTextureStorage3DMultisample, PFNGLTEXTURESTORAGE3DMULTISAMPLEPROC)                           \
+    GL_PROCESS(glTextureSubImage1D, PFNGLTEXTURESUBIMAGE1DPROC)                                               \
+    GL_PROCESS(glTextureSubImage2D, PFNGLTEXTURESUBIMAGE2DPROC)                                               \
+    GL_PROCESS(glTextureSubImage3D, PFNGLTEXTURESUBIMAGE3DPROC)                                               \
+    GL_PROCESS(glCompressedTextureSubImage1D, PFNGLCOMPRESSEDTEXTURESUBIMAGE1DPROC)                           \
+    GL_PROCESS(glCompressedTextureSubImage2D, PFNGLCOMPRESSEDTEXTURESUBIMAGE2DPROC)                           \
+    GL_PROCESS(glCompressedTextureSubImage3D, PFNGLCOMPRESSEDTEXTURESUBIMAGE3DPROC)                           \
+    GL_PROCESS(glCopyTextureSubImage1D, PFNGLCOPYTEXTURESUBIMAGE1DPROC)                                       \
+    GL_PROCESS(glCopyTextureSubImage2D, PFNGLCOPYTEXTURESUBIMAGE2DPROC)                                       \
+    GL_PROCESS(glCopyTextureSubImage3D, PFNGLCOPYTEXTURESUBIMAGE3DPROC)                                       \
+    GL_PROCESS(glTextureParameterf, PFNGLTEXTUREPARAMETERFPROC)                                               \
+    GL_PROCESS(glTextureParameterfv, PFNGLTEXTUREPARAMETERFVPROC)                                             \
+    GL_PROCESS(glTextureParameteri, PFNGLTEXTUREPARAMETERIPROC)                                               \
+    GL_PROCESS(glTextureParameterIiv, PFNGLTEXTUREPARAMETERIIVPROC)                                           \
+    GL_PROCESS(glTextureParameterIuiv, PFNGLTEXTUREPARAMETERIUIVPROC)                                         \
+    GL_PROCESS(glTextureParameteriv, PFNGLTEXTUREPARAMETERIVPROC)                                             \
+    GL_PROCESS(glGenerateTextureMipmap, PFNGLGENERATETEXTUREMIPMAPPROC)                                       \
+    GL_PROCESS(glBindTextureUnit, PFNGLBINDTEXTUREUNITPROC)                                                   \
+    GL_PROCESS(glGetTextureImage, PFNGLGETTEXTUREIMAGEPROC)                                                   \
+    GL_PROCESS(glGetCompressedTextureImage, PFNGLGETCOMPRESSEDTEXTUREIMAGEPROC)                               \
+    GL_PROCESS(glGetTextureLevelParameterfv, PFNGLGETTEXTURELEVELPARAMETERFVPROC)                             \
+    GL_PROCESS(glGetTextureLevelParameteriv, PFNGLGETTEXTURELEVELPARAMETERIVPROC)                             \
+    GL_PROCESS(glGetTextureParameterfv, PFNGLGETTEXTUREPARAMETERFVPROC)                                       \
+    GL_PROCESS(glGetTextureParameterIiv, PFNGLGETTEXTUREPARAMETERIIVPROC)                                     \
+    GL_PROCESS(glGetTextureParameterIuiv, PFNGLGETTEXTUREPARAMETERIUIVPROC)                                   \
+    GL_PROCESS(glGetTextureParameteriv, PFNGLGETTEXTUREPARAMETERIVPROC)                                       \
+    GL_PROCESS(glCreateVertexArrays, PFNGLCREATEVERTEXARRAYSPROC)                                             \
+    GL_PROCESS(glDisableVertexArrayAttrib, PFNGLDISABLEVERTEXARRAYATTRIBPROC)                                 \
+    GL_PROCESS(glEnableVertexArrayAttrib, PFNGLENABLEVERTEXARRAYATTRIBPROC)                                   \
+    GL_PROCESS(glVertexArrayElementBuffer, PFNGLVERTEXARRAYELEMENTBUFFERPROC)                                 \
+    GL_PROCESS(glVertexArrayVertexBuffer, PFNGLVERTEXARRAYVERTEXBUFFERPROC)                                   \
+    GL_PROCESS(glVertexArrayVertexBuffers, PFNGLVERTEXARRAYVERTEXBUFFERSPROC)                                 \
+    GL_PROCESS(glVertexArrayAttribBinding, PFNGLVERTEXARRAYATTRIBBINDINGPROC)                                 \
+    GL_PROCESS(glVertexArrayAttribFormat, PFNGLVERTEXARRAYATTRIBFORMATPROC)                                   \
+    GL_PROCESS(glVertexArrayAttribIFormat, PFNGLVERTEXARRAYATTRIBIFORMATPROC)                                 \
+    GL_PROCESS(glVertexArrayAttribLFormat, PFNGLVERTEXARRAYATTRIBLFORMATPROC)                                 \
+    GL_PROCESS(glVertexArrayBindingDivisor, PFNGLVERTEXARRAYBINDINGDIVISORPROC)                               \
+    GL_PROCESS(glGetVertexArrayiv, PFNGLGETVERTEXARRAYIVPROC)                                                 \
+    GL_PROCESS(glGetVertexArrayIndexediv, PFNGLGETVERTEXARRAYINDEXEDIVPROC)                                   \
+    GL_PROCESS(glGetVertexArrayIndexed64iv, PFNGLGETVERTEXARRAYINDEXED64IVPROC)                               \
+    GL_PROCESS(glCreateSamplers, PFNGLCREATESAMPLERSPROC)                                                     \
+    GL_PROCESS(glCreateProgramPipelines, PFNGLCREATEPROGRAMPIPELINESPROC)                                     \
+    GL_PROCESS(glCreateQueries, PFNGLCREATEQUERIESPROC)                                                       \
+    GL_PROCESS(glGetQueryBufferObjecti64v, PFNGLGETQUERYBUFFEROBJECTI64VPROC)                                 \
+    GL_PROCESS(glGetQueryBufferObjectiv, PFNGLGETQUERYBUFFEROBJECTIVPROC)                                     \
+    GL_PROCESS(glGetQueryBufferObjectui64v, PFNGLGETQUERYBUFFEROBJECTUI64VPROC)                               \
+    GL_PROCESS(glGetQueryBufferObjectuiv, PFNGLGETQUERYBUFFEROBJECTUIVPROC)                                   \
+    GL_PROCESS(glMemoryBarrierByRegion, PFNGLMEMORYBARRIERBYREGIONPROC)                                       \
+    GL_PROCESS(glGetTextureSubImage, PFNGLGETTEXTURESUBIMAGEPROC)                                             \
+    GL_PROCESS(glGetCompressedTextureSubImage, PFNGLGETCOMPRESSEDTEXTURESUBIMAGEPROC)                         \
+    GL_PROCESS(glGetGraphicsResetStatus, PFNGLGETGRAPHICSRESETSTATUSPROC)                                     \
+    GL_PROCESS(glGetnCompressedTexImage, PFNGLGETNCOMPRESSEDTEXIMAGEPROC)                                     \
+    GL_PROCESS(glGetnTexImage, PFNGLGETNTEXIMAGEPROC)                                                         \
+    GL_PROCESS(glGetnUniformdv, PFNGLGETNUNIFORMDVPROC)                                                       \
+    GL_PROCESS(glGetnUniformfv, PFNGLGETNUNIFORMFVPROC)                                                       \
+    GL_PROCESS(glGetnUniformiv, PFNGLGETNUNIFORMIVPROC)                                                       \
+    GL_PROCESS(glGetnUniformuiv, PFNGLGETNUNIFORMUIVPROC)                                                     \
+    GL_PROCESS(glReadnPixels, PFNGLREADNPIXELSPROC)                                                           \
+    GL_PROCESS(glGetnMapdv, PFNGLGETNMAPDVPROC)                                                               \
+    GL_PROCESS(glGetnMapfv, PFNGLGETNMAPFVPROC)                                                               \
+    GL_PROCESS(glGetnMapiv, PFNGLGETNMAPIVPROC)                                                               \
+    GL_PROCESS(glGetnPixelMapfv, PFNGLGETNPIXELMAPFVPROC)                                                     \
+    GL_PROCESS(glGetnPixelMapuiv, PFNGLGETNPIXELMAPUIVPROC)                                                   \
+    GL_PROCESS(glGetnPixelMapusv, PFNGLGETNPIXELMAPUSVPROC)                                                   \
+    GL_PROCESS(glGetnPolygonStipple, PFNGLGETNPOLYGONSTIPPLEPROC)                                             \
+    GL_PROCESS(glGetnColorTable, PFNGLGETNCOLORTABLEPROC)                                                     \
+    GL_PROCESS(glGetnConvolutionFilter, PFNGLGETNCONVOLUTIONFILTERPROC)                                       \
+    GL_PROCESS(glGetnSeparableFilter, PFNGLGETNSEPARABLEFILTERPROC)                                           \
+    GL_PROCESS(glGetnHistogram, PFNGLGETNHISTOGRAMPROC)                                                       \
+    GL_PROCESS(glGetnMinmax, PFNGLGETNMINMAXPROC)                                                             \
+    GL_PROCESS(glTextureBarrier, PFNGLTEXTUREBARRIERPROC)
+#define GL_FUNCTIONS_4_6 \
+    GL_FUNCTIONS_4_5     \
+    GL_FUNCTIONS_4_6_PART
+#define GL_FUNCTIONS_4_6_PART                                                             \
+                                                                                          \
+    GL_PROCESS(glSpecializeShader, PFNGLSPECIALIZESHADERPROC)                             \
+    GL_PROCESS(glMultiDrawArraysIndirectCount, PFNGLMULTIDRAWARRAYSINDIRECTCOUNTPROC)     \
+    GL_PROCESS(glMultiDrawElementsIndirectCount, PFNGLMULTIDRAWELEMENTSINDIRECTCOUNTPROC) \
+    GL_PROCESS(glPolygonOffsetClamp, PFNGLPOLYGONOFFSETCLAMPPROC)
