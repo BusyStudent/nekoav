@@ -34,7 +34,8 @@ public:
                 return Error::Ok;
             }
             else if (event->type() == Event::SeekRequested) {
-                mPosition = event.viewAs<SeekEvent>()->time();
+                // mPosition = event.viewAs<SeekEvent>()->time();
+                // NEKO_DEBUG(mPosition);
             }
             return Error::Ok;
         });
@@ -94,7 +95,7 @@ public:
             // Try open it
             mOpened = mDevice->open(frame->sampleFormat(), frame->sampleRate(), frame->channels());
             if (!mOpened) {
-                return raiseError(Error::UnsupportedFormat);
+                return raiseError(Error::UnsupportedFormat, "Failed to open audio device");
             }
             // Start it
             mDevice->pause(false);

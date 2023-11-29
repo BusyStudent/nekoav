@@ -47,9 +47,11 @@
 #endif
 
 #if !defined(NDEBUG)
+#define NEKO_BREAKPOINT() ::NEKO_NAMESPACE::libc::breakpoint_if_debugging();
 #define NEKO_ASSERT(x) if (!(x)) { ::NEKO_NAMESPACE::libc::painc("Assertion failed: " #x); }
 #define NEKO_PANIC(x) ::NEKO_NAMESPACE::libc::painc(#x);
 #else
+#define NEKO_BREAKPOINT()
 #define NEKO_ASSERT(x)
 #define NEKO_PANIC(x) ::abort()
 #endif
@@ -168,22 +170,31 @@ namespace libc {
      * @brief Allocate memory
      * 
      * @param n 
-     * @return NEKO_API* 
+     * @return void* 
      */
     extern NEKO_API void *malloc(size_t n);
     /**
      * @brief Free memory
      * 
      * @param ptr 
-     * @return NEKO_API 
      */
     extern NEKO_API void free(void *ptr);
     /**
      * @brief Trigger debugger to break
      * 
-     * @return NEKO_API 
      */
     extern NEKO_API void breakpoint();
+    /**
+     * @brief Trigger debugger to break if is debugging
+     * 
+     */
+    extern NEKO_API void breakpoint_if_debugging();
+    /**
+     * @brief Check is debugger attach this process
+     * 
+     * @return True on debugging
+     */
+    extern NEKO_API bool is_debugger_present();
     /**
      * @brief Called on assert failed
      * 

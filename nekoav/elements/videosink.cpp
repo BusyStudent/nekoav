@@ -342,18 +342,22 @@ public:
             return Error::UnsupportedFormat;
         }
         // Wait if too much
-        while (mFrameSize > 2) {
+        std::unique_lock lock(mMutex);
+        while (mFrames.size() > 4) {
+            lock.unlock();
             if (Thread::msleep(10) == Error::Interrupted) {
                 // Is Interrupted, we need return right now
+                lock.lock();
                 break;
             }
+            lock.lock();
         }
-        // Push one to the task queue
-        mFrameSize += 1;
-        if (!mCancelToken) {
-            mCancelToken = make_shared<bool>(false);
-        }
-        thread()->postTask(std::bind(&VideoSinkImpl::onFrameReady, this, mCancelToken, frame->shared_from_this<MediaFrame>()));
+        // Push one to the frame queue
+        // if (!mCancelToken) {
+        //     mCancelToken = make_shared<bool>(false);
+        // }
+        mFrames.emplace(frame->shared_from_this<MediaFrame>());
+        // thread()->postTask(std::bind(&VideoSinkImpl::onFrameReady, this, mCancelToken, frame->shared_from_this<MediaFrame>()));
         return Error::Ok;
     }
     Error onSinkEvent(View<Event> event) {
@@ -361,23 +365,26 @@ public:
 
         }
         else if (event->type() == Event::SeekRequested) {
-            NEKO_DEBUG(event.viewAs<SeekEvent>()->time());
-            mPosition = event.viewAs<SeekEvent>()->time();
+
         }
-        // Interrupt sleep for worker thread
-        if (mCancelToken) {
-            *mCancelToken = true;
-            mCancelToken = make_shared<bool>(false);
+        else {
+            return Error::Ok;
         }
-        mSleepCond.notify_all();
+
+        mNumFramesDropped = 0;
+        // Flush frames
+        std::lock_guard lock(mMutex);
+        while (!mFrames.empty()) {
+            mFrames.pop();
+        }
         return Error::Ok;
     }
-    void onFrameReady(const Arc<bool> &cancelToken, const Arc<MediaFrame> &frame) {
-        mFrameSize -= 1;
-        if (*cancelToken) {
-            NEKO_DEBUG("Canceled Frame");
-            return;
-        }
+    void drawFrame(const Arc<MediaFrame> &frame) {
+        // mFrameSize -= 1;
+        // if (*cancelToken) {
+        //     NEKO_DEBUG("Canceled Frame");
+        //     return;
+        // }
         if (!mController) {
             mRenderer->setFrame(frame);
             return;
@@ -390,16 +397,41 @@ public:
         mPosition = pts;
         if (diff < -0.01 && diff > -10.0) {
             // Too fast
-            std::unique_lock lock(mSleepMutex);
-            mSleepCond.wait_for(lock, std::chrono::milliseconds(int64_t(-diff * 1000)));
+            std::this_thread::sleep_for(std::chrono::milliseconds(int64_t(-diff * 1000)));
         }
         else if (diff > 0.3) {
+            mNumFramesDropped += 1;
+            if (mNumFramesDropped > 10) {
+                NEKO_BREAKPOINT();
+            }
             // Too slow, drop
             NEKO_DEBUG("Too slow, drop");
             NEKO_DEBUG(diff);
             return;
         }
         mRenderer->setFrame(frame);
+    }
+    Error onLoop() override {
+        while (!stopRequested()) {
+            thread()->waitTask();
+            while (state() == State::Running) {
+                thread()->waitTask(3);
+
+                std::unique_lock lock(mMutex);
+                while (!mFrames.empty() && state() == State::Running) {
+                    auto frame = std::move(mFrames.front());
+                    mFrames.pop();
+                    lock.unlock();
+
+                    // Do drawing
+                    drawFrame(frame);
+                    thread()->dispatchTask();
+
+                    lock.lock();
+                }
+            }
+        }
+        return Error::Ok;
     }
     // MediaClock
     double position() const override {
@@ -416,11 +448,10 @@ private:
     VideoRenderer   *mRenderer = nullptr;
     Pad             *mSink;
 
-    std::condition_variable mSleepCond; //< Cond used for interruptable sleep
-    std::mutex              mSleepMutex; 
-    Arc<bool>               mCancelToken; //< Cancel token for each task, false on cancel
-
-    Atomic<size_t> mFrameSize {0}; //< Num of frames in thread queue
+    std::mutex                   mMutex;
+    std::queue<Arc<MediaFrame> > mFrames;
+    
+    Atomic<size_t> mNumFramesDropped {0};
     Atomic<double> mPosition {0.0}; //< Current time
 };
 NEKO_REGISTER_ELEMENT(VideoSink, VideoSinkImpl);

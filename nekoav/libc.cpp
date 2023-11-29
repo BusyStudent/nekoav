@@ -64,6 +64,18 @@ void  breakpoint() {
     ::raise(SIGTRAP);
 #endif
 }
+void breakpoint_if_debugging() {
+    if (is_debugger_present()) {
+        breakpoint();
+    }
+}
+bool is_debugger_present() {
+#ifdef _WIN32
+    return ::IsDebuggerPresent();
+#else
+    return false;
+#endif
+}
 
 std::string asprintf(const char *fmt, ...) {
     va_list varg;
