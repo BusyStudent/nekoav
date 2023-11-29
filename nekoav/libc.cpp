@@ -33,7 +33,7 @@ void  free(void *ptr) {
     return ::free(ptr);
 }
 
-void  assert_fail(const char *cond, std::source_location loc) {
+void  painc(const char *msg, std::source_location loc) {
     // Mark RED
 
 #ifdef _WIN32
@@ -41,7 +41,7 @@ void  assert_fail(const char *cond, std::source_location loc) {
 #endif
 
     fprintf(stderr, "\033[31m");
-    fprintf(stderr, "ASSERTION FAILED '%s'\n", cond);
+    fputs(msg, stderr);
     fprintf(stderr, "FILE: %s:%d FUNCTION: %s\n", loc.file_name(), int(loc.line()), loc.function_name());
     Backtrace();
     fprintf(stderr, "\033[0m");
@@ -52,6 +52,8 @@ void  assert_fail(const char *cond, std::source_location loc) {
 
     // Done
     breakpoint();
+
+    ::abort();
 }
 void  breakpoint() {
 #ifdef _MSC_VER

@@ -62,7 +62,7 @@ void Pad::setCallback(Callback &&callback) {
     mCallback = std::move(callback);
 }
 void Pad::setEventCallback(EventCallback &&callback) {
-    NEKO_ASSERT(mType == Input);
+    // NEKO_ASSERT(mType == Input);
     mEventCallback = std::move(callback);
 }
 void Pad::setName(std::string_view name) {

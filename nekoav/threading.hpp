@@ -9,6 +9,10 @@
 #include <queue>
 #include <mutex>
 
+// #ifdef _WIN32
+//     #define NEKO_WIN_DISPATCHER
+// #endif
+
 NEKO_NS_BEGIN
 
 /**
@@ -116,16 +120,23 @@ public:
      */
     static Error msleep(int milliseconds) noexcept;
 private:
-    void run();
+    void _run(void *latch);
+    void _dispatchWin32();
 
     Atomic<bool> mIdle {true};
     Atomic<bool> mRunning {true};
 
     std::queue<std::function<void()>> mQueue;
+    std::mutex                        mMutex;
+    std::string                       mName {"NekoWorkThread"};
     std::condition_variable           mCondition;
     std::thread                       mThread;
-    std::mutex                        mMutex;
-    std::string                       mName;
+
+#ifdef NEKO_WIN_DISPATCHER
+    uint32_t                          mThreadId = 0;
+    uint32_t                          mWeakupMessage = 0;
+#endif
+
 };
 
 NEKO_NS_END

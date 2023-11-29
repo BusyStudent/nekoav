@@ -8,7 +8,8 @@
 #include "../log.hpp"
 #include "videosink.hpp"
 
-#ifdef _WIN32
+// #ifdef _WIN32
+#if 0
     #include <wrl/client.h>
     #include <d2d1_1.h>
     #include <d2d1.h>
@@ -16,7 +17,9 @@
 
 NEKO_NS_BEGIN
 
-#ifdef _WIN32
+// #ifdef _WIN32
+
+#if 0
 using Microsoft::WRL::ComPtr;
 
 class TestVideoSinkImpl final : public Template::GetThreadImpl<TestVideoSink, MediaClock> {
@@ -215,20 +218,20 @@ public:
 
         mRenderTarget->EndDraw();
     }
-    Error onLoop() {
-        while (!stopRequested()) {
-            thread()->waitTask(10);
+    // Error onLoop() override {
+    //     while (!stopRequested()) {
+    //         thread()->waitTask(10);
 
-            MSG msg;
-            while (::PeekMessageW(&msg, mHwnd, 0, 0, PM_REMOVE)) {
-                ::TranslateMessage(&msg);
-                ::DispatchMessageW(&msg);
-            }
-        }
-        return Error::Ok;
-    }
+    //         MSG msg;
+    //         while (::PeekMessageW(&msg, mHwnd, 0, 0, PM_REMOVE)) {
+    //             ::TranslateMessage(&msg);
+    //             ::DispatchMessageW(&msg);
+    //         }
+    //     }
+    //     return Error::Ok;
+    // }
     LRESULT onMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
-        thread()->dispatchTask();
+        // thread()->dispatchTask();
         switch (msg) {
             case WM_CLOSE: {
                 NEKO_DEBUG("WM_CLOSE");

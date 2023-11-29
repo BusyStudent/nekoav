@@ -9,7 +9,7 @@ NEKO_NS_BEGIN
 class AppSourceImpl final : public Template::GetImpl<AppSource> {
 public:
     AppSourceImpl() {
-        mSrc = addInput("src");
+        mSrc = addOutput("src");
     }
     Error push(View<Resource> resource) override {
         if (!resource) {

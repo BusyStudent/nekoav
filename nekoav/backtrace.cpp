@@ -21,8 +21,8 @@
 
 NEKO_NS_BEGIN
 
-void Backtrace() {
 #ifdef _WIN32
+static IDebugSymbols *GetDebugSymbols() {
     using Microsoft::WRL::ComPtr;
 
     // Import the dbg engine library code
@@ -30,21 +30,22 @@ void Backtrace() {
         neko_library_path("dbgeng.dll");
         neko_import(DebugCreate);
     } dbgeng;
-    if (dbgeng.DebugCreate == nullptr) {
-        return;
-    }
+    static ComPtr<IDebugClient> client;
+    static ComPtr<IDebugControl> control;
+    static ComPtr<IDebugSymbols> symbols;
 
-    ComPtr<IDebugClient> client;
-    ComPtr<IDebugControl> control;
+    if (dbgeng.DebugCreate == nullptr) {
+        return nullptr;
+    }
 
     // Create the debug interface
     auto hr = dbgeng.DebugCreate(IID_PPV_ARGS(&client));
     if (FAILED(hr)) {
-        return;
+        return nullptr;
     }
     hr = client.As(&control);
     if (FAILED(hr)) {
-        return;
+        return nullptr;
     }
 
     // Attach self
@@ -52,15 +53,42 @@ void Backtrace() {
     control->WaitForEvent(DEBUG_WAIT_DEFAULT, INFINITE);
 
     // Get symbols
-    ComPtr<IDebugSymbols> symbols;
     hr = client.As(&symbols);
     if (FAILED(hr)) {
+        return nullptr;
+    }
+    return symbols.Get();
+}
+#endif
+
+Vec<void *> GetCallstack() {
+    Vec<void *> callstack;
+#ifdef _WIN32
+    callstack.resize(1024);
+    auto nframe = CaptureStackBackTrace(0, callstack.size(), callstack.data(), nullptr);
+    callstack.resize(nframe);
+#else
+    ::_Unwind_Backtrace([](_Unwind_Context *ctxt, void *stack) {
+        auto p = static_cast<std::vector<void *> *>(stack);
+        auto ip = reinterpret_cast<void*>(::_Unwind_GetIP(ctxt));
+        if (ip) {
+            p->push_back(ip);
+        }
+        return _URC_NO_REASON;
+    }, &callstack);
+#endif
+    return callstack;
+}
+
+void Backtrace() {
+#ifdef _WIN32
+    // Get Callstack
+    static IDebugSymbols *symbols = GetDebugSymbols();
+    if (!symbols) {
         return;
     }
 
-    // Get Callstack
-    std::array<void*, 1024> callstack;
-    auto nframe = CaptureStackBackTrace(0, callstack.size(), callstack.data(), nullptr);
+    auto callstack = GetCallstack();
 
     char name[256];
     char extraInfo[512];
@@ -69,11 +97,11 @@ void Backtrace() {
     // Print current thread info
     fprintf(stderr, "---BACKTRACE BEGIN--- ThreadID '%d' ThreadName '%s'\n", int(GetCurrentThreadId()), NEKO_GetThreadName());
 
-    for (int n = 0; n < nframe; n++) {
+    for (int n = 0; n < callstack.size(); n++) {
         ::memset(extraInfo, 0, sizeof(extraInfo));
         ::memset(name, 0, sizeof(name));
 
-        hr = symbols->GetNameByOffset(reinterpret_cast<ULONG64>(callstack[n]), name, sizeof(name), &nameLen, nullptr);
+        auto hr = symbols->GetNameByOffset(reinterpret_cast<ULONG64>(callstack[n]), name, sizeof(name), &nameLen, nullptr);
         if (hr == S_OK) {
             name[nameLen] = '\0';
             
@@ -103,16 +131,7 @@ void Backtrace() {
 
     fprintf(stderr, "---BACKTRACE END---\n");
 #elif defined(__linux)
-    std::vector<void *> callstack;
-    ::_Unwind_Backtrace([](_Unwind_Context *ctxt, void *stack) {
-        auto p = static_cast<std::vector<void *> *>(stack);
-        auto ip = reinterpret_cast<void*>(::_Unwind_GetIP(ctxt));
-        if (ip) {
-            p->push_back(ip);
-        }
-        return _URC_NO_REASON;
-    }, &callstack);
-
+    auto callstack = GetCallstack();
     fprintf(stderr, "\033[31m---BACKTRACE START--- ThreadID '%d' ThreadName '%s'\033[0m\n", ::getpid(), NEKO_GetThreadName());
 
     for (size_t n = 0; n < callstack.size(); ++n) {

@@ -47,9 +47,11 @@
 #endif
 
 #if !defined(NDEBUG)
-#define NEKO_ASSERT(x) if (!(x)) { NEKO_NAMESPACE::libc::assert_fail(#x); }
+#define NEKO_ASSERT(x) if (!(x)) { ::NEKO_NAMESPACE::libc::painc("Assertion failed: " #x); }
+#define NEKO_PANIC(x) ::NEKO_NAMESPACE::libc::painc(#x);
 #else
 #define NEKO_ASSERT(x)
+#define NEKO_PANIC(x) ::abort()
 #endif
 
 #define NEKO_CXX17 (__cplusplus >= 201703L)
@@ -185,11 +187,12 @@ namespace libc {
     /**
      * @brief Called on assert failed
      * 
-     * @param cond 
+     * @param msg 
      * @param loc 
      * @return NEKO_API 
      */
-    extern NEKO_API void assert_fail(const char *cond, std::source_location loc = std::source_location::current());
+    [[noreturn]]
+    extern NEKO_API void painc(const char *msg, std::source_location loc = std::source_location::current());
 }
 
 NEKO_NS_END

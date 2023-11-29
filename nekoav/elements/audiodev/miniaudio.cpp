@@ -7,7 +7,7 @@
 #define  MA_API static
 
 #if !defined(NDEBUG)
-    #define  MA_ON_THREAD_ENTRY NEKO_SetThreadName("Miniaudio");
+    #define  MA_ON_THREAD_ENTRY NEKO_SetThreadName("NekoAudioDeviceThread");
     #define  MA_DEBUG_OUTPUT
 #endif
 

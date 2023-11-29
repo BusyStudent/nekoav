@@ -20,8 +20,8 @@ class Pad;
 
 enum class ElementFlags : uint32_t {
     None          = 0,
-    DynamicInput  = 1 << 0,
-    DynamicOutput = 1 << 1,
+    DynamicInput  = 1 << 1,
+    DynamicOutput = 1 << 2,
 };
 NEKO_DECLARE_FLAGS(ElementFlags);
 
@@ -111,6 +111,19 @@ public:
      * @param name 
      */
     void  setName(std::string_view name);
+    /**
+     * @brief Set the Flags object
+     * 
+     * @param flags 
+     */
+    void setFlags(ElementFlags flags);
+    /**
+     * @brief Sets the state flags for the Element to flags, without telling anyone
+
+     * 
+     * @param newState 
+     */
+    void overrideState(State newState);
 
     template <typename T>
     T       *as() noexcept;
@@ -141,20 +154,46 @@ public:
 protected:
     Element();
     Element(const Element &) = delete;
-
+    /**
+     * @brief Add a pad, the ownship of the pad will be transferred
+     * 
+     * @param pad 
+     */
     void addPad(Pad *pad);
+    /**
+     * @brief Remove a pad
+     * 
+     * @param pad 
+     */
     void removePad(Pad *pad);
+    /**
+     * @brief Remove all inputs
+     * 
+     */
     void removeAllInputs();
+    /**
+     * @brief Remove all outputs
+     * 
+     */
     void removeAllOutputs();
-    void setFlags(ElementFlags flags);
-
+    /**
+     * @brief Create a new input pad with name, and return it, The pad's ownship belongs to the element
+     * 
+     * @param name 
+     * @return Pad* 
+     */
     Pad *addInput(std::string_view name);
+    /**
+     * @brief Create a new output pad with name, and return it, The pad's ownship belongs to the element
+     * 
+     * @param name 
+     * @return Pad* 
+     */
     Pad *addOutput(std::string_view name);
 
     virtual Error changeState(StateChange stateChange) = 0;
-protected:
-    Atomic<State> mState { State::Null };
 private:
+    Atomic<State> mState { State::Null };
     Context      *mContext { nullptr };
     EventSink    *mBus { nullptr };
     std::string   mName;
@@ -217,6 +256,10 @@ inline const T *Element::as() const noexcept {
 }
 inline void Element::setFlags(ElementFlags flags) {
     mFlags = flags;
+}
+inline void Element::overrideState(State newState) {
+    mState = newState;
+    mState.notify_all();
 }
 
 template <typename ...Args>

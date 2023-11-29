@@ -214,3 +214,6 @@ private:
 };
 
 }
+
+using QNekoMediaPlayer = QNekoAV::MediaPlayer;
+using QNekoVideoWidget = QNekoAV::VideoWidget;

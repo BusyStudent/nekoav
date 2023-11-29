@@ -80,7 +80,21 @@ public:
                     return;
                 }
             }
-            mState = GetTargetState(stateChange);
+            overrideState(GetTargetState(stateChange));
+
+            // Handle clock here
+            if (stateChange == StateChange::Run) {
+                mExternalClock.start();
+            }
+            if (stateChange == StateChange::Pause) {
+                mExternalClock.pause();
+                if (masterClock() != &mExternalClock) {
+                    mExternalClock.setPosition(masterClock()->position());
+                }
+            }
+            if (stateChange == StateChange::Stop) {
+                mExternalClock.setPosition(0);
+            }
         };
         if (Thread::currentThread() == mThread) {
             cb();
@@ -103,6 +117,10 @@ public:
     }
     Error sendEvent(View<Event> event) override {
         for (const auto &elem : mElements) {
+            // FIXME : If seek failed???
+            if (event->type() == Event::SeekRequested) {
+                mExternalClock.setPosition(event.viewAs<SeekEvent>()->time());
+            }
             NEKO_TRACE_TIME(duration) {
                 elem->sendEvent(event);
             }
@@ -153,7 +171,7 @@ public:
             }
         }
     }
-    auto masterClock() const -> MediaClock * {
+    MediaClock *masterClock() const override {
         std::shared_lock locker(mClockMutex);
         return mMasterClock;
     }

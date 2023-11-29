@@ -98,6 +98,14 @@ target("coretest")
     add_files("tests/coretest.cpp")
 target_end()
 
+target("basetest")
+    set_kind("binary")
+    add_deps("nekoav")
+    add_packages("gtest")
+
+    add_files("tests/basetest.cpp")
+target_end()
+
 target("elemtest")
     set_kind("binary")
     add_deps("nekoav")

@@ -93,7 +93,7 @@ void ExternalClock::start() {
         return;
     }
     mTicks = GetTicks() - mCurrent * 1000;
-    mPaused = true;
+    mPaused = false;
 }
 void ExternalClock::pause() {
     if (mPaused) {

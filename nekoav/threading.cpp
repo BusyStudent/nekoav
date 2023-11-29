@@ -5,12 +5,23 @@
 #include "log.hpp"
 #include <mutex>
 
+#ifdef _WIN32
+    #include <Windows.h>
+#endif
+
+#ifdef _MSC_VER
+    #pragma comment(lib, "user32.lib")
+#endif
+
+
 NEKO_NS_BEGIN
 
 static thread_local Thread *_currentThread = nullptr;
 
-Thread::Thread() : mThread(&Thread::run, this) {
-
+Thread::Thread() {
+    std::latch latch {1};
+    mThread = std::thread(&Thread::_run, this, &latch);
+    latch.wait();
 }
 Thread::~Thread() {
     postTask([this]() {
@@ -18,9 +29,21 @@ Thread::~Thread() {
     });
     mThread.join();
 }
-void Thread::run() {
-    setName("NekoWorkThread");
+void Thread::_run(void *latch) {
+    // Initalize Common parts
+    NEKO_SetThreadName("NekoWorkThread");
     _currentThread = this;
+
+#ifdef NEKO_WIN_DISPATCHER
+    // Initialize Message Queue
+    ::IsGUIThread(TRUE);
+    mThreadId = ::GetCurrentThreadId();
+    mWeakupMessage = ::RegisterWindowMessageW(L"NekoThreadWakeUp");
+#endif
+
+    // Initialize Ok
+    static_cast<std::latch *>(latch)->count_down();
+
     while (true) {
         mIdle = false;
         dispatchTask();
@@ -28,23 +51,28 @@ void Thread::run() {
         if (!mRunning) {
             break;
         }
+#ifdef  NEKO_WIN_DISPATCHER
+        ::WaitMessage();
+#else
         std::unique_lock lock(mMutex);
         mCondition.wait(lock);
+#endif
     }
 }
 void Thread::setName(std::string_view name) {
+    if (Thread::currentThread() != this) {
+        return sendTask(std::bind(&Thread::setName, this, name));
+    }
     if (name.empty()) {
         name = "NekoWorkThread";
     }
-    auto handle = mThread.native_handle();
-
-#if !defined(NEKO_MINGW)
-    _Neko_SetThreadName(handle, name);
-#endif
     mName = name;
+    NEKO_SetThreadName(mName);
 }
 void Thread::setPriority(ThreadPriority p) {
-    auto handle = mThread.native_handle();
+    if (Thread::currentThread() != this) {
+        return sendTask(std::bind(&Thread::setPriority, this, p));
+    }
 
 #if defined(_WIN32) && !defined(NEKO_MINGW)
     int priority = THREAD_PRIORITY_NORMAL;
@@ -56,7 +84,7 @@ void Thread::setPriority(ThreadPriority p) {
         case ThreadPriority::Highest: priority = THREAD_PRIORITY_HIGHEST; break;
         case ThreadPriority::RealTime: priority = THREAD_PRIORITY_TIME_CRITICAL; break;
     }
-    ::SetThreadPriority(handle, priority);
+    ::SetThreadPriority(::GetCurrentThread(), priority);
 #elif __has_include(<sched.h>)
     int priority = 0;
     switch (p) {
@@ -69,7 +97,7 @@ void Thread::setPriority(ThreadPriority p) {
     }
     ::sched_param param;
     param.sched_priority = priority;
-    ::pthread_setschedparam(handle, SCHED_OTHER, &param);
+    ::pthread_setschedparam(::pthread_self(), SCHED_OTHER, &param);
 #endif
 
 }
@@ -77,6 +105,11 @@ void Thread::postTask(std::function<void()> &&fn) {
     std::lock_guard lock(mMutex);
     mQueue.emplace(std::move(fn));
     mCondition.notify_one();
+
+#ifdef NEKO_WIN_DISPATCHER
+    BOOL ret = ::PostThreadMessageW(mThreadId, mWeakupMessage, 0, 0);
+    NEKO_ASSERT(ret);
+#endif
 }
 void Thread::sendTask(std::function<void()> &&fn) {
     std::latch latch {1};
@@ -87,6 +120,8 @@ void Thread::sendTask(std::function<void()> &&fn) {
     latch.wait();
 }
 size_t Thread::dispatchTask() {
+    _dispatchWin32();
+
     size_t n = 0;
     std::unique_lock lock(mMutex);
     while (!mQueue.empty()) {
@@ -103,6 +138,8 @@ size_t Thread::dispatchTask() {
     return n;
 }
 size_t Thread::waitTask(int timeoutMS) {
+    _dispatchWin32();
+
     size_t n = 0;
     std::unique_lock lock(mMutex);
     while (mQueue.empty()) {
@@ -156,5 +193,19 @@ Error Thread::msleep(int ms) noexcept {
     // New Task imcoming
     return Error::Interrupted;
 }
+#ifdef NEKO_WIN_DISPATCHER
+void Thread::_dispatchWin32() {
+    ::MSG msg;
+    while (::PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
+        if (msg.message == mWeakupMessage) {
+            continue;
+        }
+        ::TranslateMessage(&msg);
+        ::DispatchMessageW(&msg);
+    }
+}
+#else
+inline void Thread::_dispatchWin32() {}
+#endif
 
 NEKO_NS_END

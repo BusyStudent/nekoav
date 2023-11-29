@@ -11,8 +11,9 @@
 
 NEKO_NS_BEGIN
 
-inline namespace _abiv1 {
-namespace Template {
+
+// Legacy API Here
+namespace [[deprecate("Use new version api in base.hpp")]] Template {
 
 class StateDispatch {
 public:
@@ -64,7 +65,7 @@ public:
         mThread->sendTask([&, this]() {
             ret = StateDispatch::onChangeState(change);
             if (ret == Error::Ok) {
-                this->mState = GetTargetState(change);
+                this->overrideState(GetTargetState(change));
             }
         });
         if (change == StateChange::Initialize) {
@@ -150,15 +151,6 @@ public:
         return errcode;
     }
 };
-
-}
-
-// Template
-inline auto ForwardEventTo(Pad *pad) {
-    NEKO_ASSERT(pad != nullptr);
-    return std::bind(&Pad::pushEvent, pad, std::placeholders::_1);
-}
-
 }
 
 NEKO_NS_END
