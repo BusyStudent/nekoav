@@ -101,6 +101,17 @@ int main(int argc, char **argv) {
                     progressBar->setValue(t);
                 }, Qt::QueuedConnection);
             }
+            else if (event->type() == Event::MediaEndOfFile) {
+                QMetaObject::invokeMethod(&win, [&]() {
+                    win.setWindowTitle("Media End Of File");
+                    progressBar->setValue(0);
+                    progressBar->setRange(0, 0);
+
+                    if (pipeline) {
+                        auto err = pipeline->setState(State::Null);
+                    }
+                }, Qt::QueuedConnection);
+            }
         });
 
         vpresenter->setRenderer(videoRenderer);

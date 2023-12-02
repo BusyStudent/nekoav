@@ -1,21 +1,42 @@
 #define _NEKO_SOURCE
 #include "../threading.hpp"
 #include "../eventsink.hpp"
+#include "../context.hpp"
 #include "../event.hpp"
 #include "../pad.hpp"
+#include "tracer.hpp"
 #include "base.hpp"
 
 NEKO_NS_BEGIN
 
 namespace _abiv1 {
 
-class ElementBasePrivate {
-public:
+#define TRACE(what, ...)                                  \
+    if (d->mTracer) {                                     \
+        d->mTracer->what##Begin(mElement, __VA_ARGS__);   \
+    }                                                     \
+    DeferInvoke _inv = [&]() {                            \
+        if (d->mTracer) {                                 \
+            d->mTracer->what##End(mElement, __VA_ARGS__); \
+        }                                                 \
+    };
 
+template <typename Callable>
+class DeferInvoke {
+public:
+    DeferInvoke(Callable &&callable) : mCallable(std::move(callable)) {}
+    ~DeferInvoke() { mCallable(); }
+private:
+    Callable mCallable;
 };
 
-ElementBase::ElementBase(ElementDelegate *delegate, bool threading) 
-    : d(new ElementBasePrivate), mDelegate(delegate), mElement(dynamic_cast<Element*>(delegate)), mThreading(threading) 
+class ElementBasePrivate {
+public:
+    ElementTracer *mTracer = nullptr;
+};
+
+ElementBase::ElementBase(ElementDelegate *delegate, Element *element, bool threading) 
+    : d(new ElementBasePrivate), mDelegate(delegate), mElement(element), mThreading(threading) 
 {
     NEKO_ASSERT(mElement);
 }
@@ -25,18 +46,20 @@ ElementBase::~ElementBase() {
 }
 
 // API Here
-Error ElementBase::sendEventToUpstream(View<Event> event) {
+Error ElementBase::pushEventToUpstream(View<Event> event) {
     for (const auto v : mElement->inputs()) {
-        auto err = v->pushEvent(event);
+        // auto err = v->pushEvent(event);
+        auto err = pushEventTo(v, event);
         if (err != Error::Ok) {
             // Handle Error
         }
     }
     return Error::Ok;
 }
-Error ElementBase::sendEventToDownstream(View<Event> event) {
+Error ElementBase::pushEventToDownstream(View<Event> event) {
     for (const auto v : mElement->outputs()) {
-        auto err = v->pushEvent(event);
+        // auto err = v->pushEvent(event);
+        auto err = pushEventTo(v, event);
         if (err != Error::Ok) {
             // Handle Error
         }
@@ -51,6 +74,8 @@ Error ElementBase::raiseError(Error errcode, std::string_view message, std::sour
     return errcode;
 }
 Error ElementBase::_sendEvent(View<Event> event) {
+    TRACE(sendEvent, event);
+
     if (mThreading) {
         if (!mThread) {
             return Error::InvalidState;
@@ -60,9 +85,20 @@ Error ElementBase::_sendEvent(View<Event> event) {
             return syncInvoke(&ElementBase::_sendEvent, this, event);
         }
     }
-    return mDelegate->onEvent(event);
+    auto err = mDelegate->onEvent(event);
+    if (d->mTracer) {
+        d->mTracer->sendEventEnd(mElement, event);
+    }
+    return err;
 }
 Error ElementBase::_changeState(StateChange stateChange) {
+    // Init Tracer here
+    if (stateChange == StateChange::Initialize) {
+        d->mTracer = mElement->context()->queryObject<ElementTracer>();
+    }
+    // Begin Trace
+    TRACE(changeState, stateChange);
+    
     if (!mThreading) {
         return _dispatchChangeState(stateChange);
     }
@@ -87,8 +123,9 @@ Error ElementBase::_changeState(StateChange stateChange) {
         NEKO_ASSERT(mThread != nullptr);
         // Set It to target state to Null to stop
         mElement->overrideState(State::Null);
-        delete mThread;
+        delete mThread; //< Wait for all task done
         mThread = nullptr;
+        d->mTracer = nullptr;
     }
 
     return Error::Ok;
@@ -107,12 +144,13 @@ Error ElementBase::_dispatchChangeState(StateChange stateChange) {
 void ElementBase::_invoke(std::function<void()> &&cb) {
     NEKO_ASSERT(mThread);
 
-    std::latch latch {1};
-    mThread->sendTask([&]() {
-        cb();
-        latch.count_down();
-    });
-    latch.wait();
+    // std::latch latch {1};
+    // mThread->postTask([&]() {
+    //     cb();
+    //     latch.count_down();
+    // });
+    // latch.wait();
+    mThread->sendTask(std::move(cb));
 }
 void ElementBase::_run() {
 #ifndef NDEBUG
@@ -140,7 +178,7 @@ Pad *ElementBase::_polishPad(Pad *pad) {
         // Input Pad
         // pad->setCallback(std::bind(ElementBase::_onSinkPushed, this, std::ref(*pad), std::placeholders::_2));
         pad->setCallback([this, pad](View<Resource> resource) -> Error {
-            return _onSinkPushed(pad, resource);
+            return _onSinkPush(pad, resource);
         });
         pad->setEventCallback([this, pad](View<Event> event) -> Error {
             // return 
@@ -150,22 +188,54 @@ Pad *ElementBase::_polishPad(Pad *pad) {
     else {
         pad->setEventCallback([this, pad](View<Event> event) -> Error {
             // return 
-            return Error::NoImpl;
+            return _onSourceEvent(pad, event);
         });
     }
     return pad;
 }
-Error ElementBase::_onSinkPushed(Pad *pad, View<Resource> resource) {
-    return mDelegate->onSinkPushed(pad, resource);
+Error ElementBase::_onSinkPush(Pad *pad, View<Resource> resource) {
+    TRACE(onSinkPush, pad, resource);
+
+    return mDelegate->onSinkPush(pad, resource);
 }
 Error ElementBase::_onSinkEvent(Pad *pad, View<Event> event) {
+    TRACE(onSinkEvent, pad, event);
+
     auto err = mDelegate->onSinkEvent(pad, event);
     if (err == Error::NoImpl) {
         // Not impl, using default impl
-        return sendEventToDownstream(event);
+        return pushEventToDownstream(event);
     }
     return err;
 }
+Error ElementBase::_onSourceEvent(Pad *pad, View<Event> event) {
+    TRACE(onSourceEvent, pad, event);
+
+    auto err = mDelegate->onSourceEvent(pad, event);
+    if (err == Error::NoImpl) {
+        // Not impl, using default impl
+        return pushEventToUpstream(event);
+    }
+    return err;
+}
+Error ElementBase::pushEventTo(View<Pad> pad, View<Event> event) {
+    TRACE(pushEventTo, pad, event);
+
+    if (event && pad) {
+        return pad->pushEvent(event);
+    }
+    return Error::InvalidArguments;
+}
+Error ElementBase::pushTo(View<Pad> pad, View<Resource> resource) {
+    TRACE(pushTo, pad, resource);
+
+    if (pad && resource) {
+        return pad->push(resource);
+    }
+    return Error::InvalidArguments;
+}
+
+#undef TRACE
 
 }
 NEKO_NS_END

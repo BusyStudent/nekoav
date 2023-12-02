@@ -10,12 +10,12 @@ NEKO_NS_BEGIN
 
 namespace FFmpeg {
 
-class FFAudioConverter final : public Template::GetImpl<AudioConverter> {
+class FFAudioConverterImpl final : public Template::GetImpl<AudioConverter> {
 public:
-    FFAudioConverter() {
+    FFAudioConverterImpl() {
         mSinkPad = addInput("sink");
         mSourcePad = addOutput("src");
-        mSinkPad->setCallback(std::bind(&FFAudioConverter::processInput, this, std::placeholders::_1));
+        mSinkPad->setCallback(std::bind(&FFAudioConverterImpl::processInput, this, std::placeholders::_1));
         mSinkPad->setEventCallback(std::bind(&Pad::pushEvent, mSourcePad, std::placeholders::_1));
     }
     Error onInitialize() override {
@@ -111,7 +111,7 @@ private:
 
 };
 
-NEKO_REGISTER_ELEMENT(AudioConverter, FFAudioConverter);
+NEKO_REGISTER_ELEMENT(AudioConverter, FFAudioConverterImpl);
 
 }
 

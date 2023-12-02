@@ -120,6 +120,7 @@ public:
             // FIXME : If seek failed???
             if (event->type() == Event::SeekRequested) {
                 mExternalClock.setPosition(event.viewAs<SeekEvent>()->time());
+                mTriggeredEndOfFile = false;
             }
             NEKO_TRACE_TIME(duration) {
                 elem->sendEvent(event);
@@ -140,7 +141,7 @@ public:
         if (!clock) {
             return;
         }
-        std::lock_guard locker(mClockMutex);
+        std::lock_guard locker(mControllerMutex);
         mClocks.push_back(clock);
 
         if (mMasterClock == nullptr) {
@@ -155,7 +156,7 @@ public:
         if (!clock) {
             return;
         }
-        std::lock_guard locker(mClockMutex);
+        std::lock_guard locker(mControllerMutex);
         mClocks.erase(std::remove(mClocks.begin(), mClocks.end(), clock), mClocks.end());
         if (mMasterClock == clock) {
             mMasterClock = nullptr;
@@ -171,8 +172,39 @@ public:
             }
         }
     }
+    void addElement(MediaElement *element) override {
+        if (!element) {
+            return;
+        }
+
+        std::lock_guard locker(mControllerMutex);
+        mMediaElements.push_back(element);
+    }
+    void removeElement(MediaElement *element) override {
+        if (!element) {
+            return;
+        }
+
+        std::lock_guard locker(mControllerMutex);
+        auto iter = std::find(mMediaElements.begin(), mMediaElements.end(), element);
+        if (iter != mMediaElements.end()) {
+            mMediaElements.erase(iter);
+        }
+    }
+    bool isAllEndOfFile() {
+        std::shared_lock lock(mControllerMutex);
+        if (mMediaElements.empty()) {
+            return false;
+        }
+        for (auto elem : mMediaElements) {
+            if (!elem->isEndOfFile()) {
+                return false;
+            }
+        }
+        return true;
+    }
     MediaClock *masterClock() const override {
-        std::shared_lock locker(mClockMutex);
+        std::shared_lock locker(mControllerMutex);
         return mMasterClock;
     }
 private:
@@ -239,7 +271,7 @@ private:
             mPosition = int64_t(current);
             NEKO_DEBUG(mPosition);
 #ifndef     NDEBUG
-            std::shared_lock lock(mClockMutex);
+            std::shared_lock lock(mControllerMutex);
             MediaClock *audioClock = nullptr;
             MediaClock *videoClock = nullptr;
             for (auto v : mClocks) {
@@ -259,8 +291,16 @@ private:
                 NEKO_DEBUG(v->position());
             }
 #endif
-
             sendBusEvent(ClockEvent::make(Event::ClockUpdated, masterClock(), this));
+        }
+        bool isEndOfFile = isAllEndOfFile();
+        if (isEndOfFile) {
+            if (!mTriggeredEndOfFile) {
+                NEKO_DEBUG(isEndOfFile);
+                mTriggeredEndOfFile = true;
+                sendBusEvent(ClockEvent::make(Event::ClockUpdated, masterClock(), this));
+                sendBusEvent(Event::make(Event::MediaEndOfFile, this));
+            }
         }
     }
 
@@ -272,10 +312,12 @@ private:
 
     // MediaController
     Vec<MediaClock *>  mClocks;
+    Vec<MediaElement*> mMediaElements;
     MediaClock        *mMasterClock = nullptr;
     ExternalClock      mExternalClock;
     double             mPosition = 0.0; //< Current position
-    mutable std::shared_mutex mClockMutex;
+    bool               mTriggeredEndOfFile = false; //< Is End of file triggered?
+    mutable std::shared_mutex mControllerMutex;
 
     // Event
     std::function<void(View<Event>)> mEventCallback;

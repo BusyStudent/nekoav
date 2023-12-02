@@ -27,9 +27,9 @@ public:
 
     // Event
     virtual Error onEvent(View<Event> event) { return Error::Ok; }
-    virtual Error onSinkEvent(Pad *pad, View<Event> event) { return Error::NoImpl; }
-    virtual Error onSourceEvent(Pad *pad, View<Event> event) { return Error::NoImpl; }
-    virtual Error onSinkPushed(Pad *pad, View<Resource> resource) { return Error::NoImpl; }
+    virtual Error onSinkEvent(View<Pad> pad, View<Event> event) { return Error::NoImpl; }
+    virtual Error onSourceEvent(View<Pad> pad, View<Event> event) { return Error::NoImpl; }
+    virtual Error onSinkPush(View<Pad> pad, View<Resource> resource) { return Error::NoImpl; }
 };
 class ThreadingElementDelegate : public ElementDelegate {
 public:
@@ -46,28 +46,43 @@ public:
         NoThreading = false,
         Threading = true,
     };
-
-    ElementBase(ThreadingElementDelegate *delegate) : ElementBase(delegate, Threading) {}
-    ElementBase(ElementDelegate *delegate) : ElementBase(delegate, NoThreading) {}
-    ElementBase(ElementDelegate *delegate, bool threading);
+    ElementBase(ThreadingElementDelegate *delegate, Element *element) : ElementBase(delegate, element, Threading) {}
+    ElementBase(ElementDelegate *delegate, Element *element) : ElementBase(delegate, element, NoThreading) {}
+    ElementBase(ElementDelegate *delegate, Element *element, bool threading);
     ElementBase(const ElementBase &) = delete;
     ~ElementBase();
 
     // Utils
     /**
-     * @brief Send event to upstream (to all outputs pad)
+     * @brief Push event to upstream (to all outputs pad)
      * 
      * @param event 
      * @return Error 
      */
-    Error sendEventToUpstream(View<Event> event);
+    Error pushEventToUpstream(View<Event> event);
     /**
-     * @brief Send event to downstream (to all inputs pad)
+     * @brief Push event to downstream (to all inputs pad)
      * 
      * @param event 
      * @return Error 
      */
-    Error sendEventToDownstream(View<Event> event);
+    Error pushEventToDownstream(View<Event> event);
+    /**
+     * @brief Push resource to
+     * 
+     * @param pad 
+     * @param resource 
+     * @return Error 
+     */
+    Error pushTo(View<Pad> pad, View<Resource> resource);
+    /**
+     * @brief Push event to
+     * 
+     * @param pad 
+     * @param event 
+     * @return Error 
+     */
+    Error pushEventTo(View<Pad> pad, View<Event> event);
     /**
      * @brief Raise a Error and send it to the Bus
      * 
@@ -111,7 +126,7 @@ private:
     Error _dispatchChangeState(StateChange change);
     Error _onSinkEvent(Pad *pad, View<Event> event);
     Error _onSourceEvent(Pad *pad, View<Event> event);
-    Error _onSinkPushed(Pad *pad, View<Resource> resource);
+    Error _onSinkPush(Pad *pad, View<Resource> resource);
 
     Box<ElementBasePrivate> d;
     ElementDelegate *mDelegate = nullptr;
@@ -152,14 +167,14 @@ inline Thread *ElementBase::thread() const noexcept {
  * @tparam Ts 
  */
 template <bool Threading, typename ...Ts> 
-class _Impl : public Ts..., public std::conditional_t<Threading, ThreadingElementDelegate, ElementDelegate> {
+class _Impl : public Ts..., protected std::conditional_t<Threading, ThreadingElementDelegate, ElementDelegate> {
 public:    
-    _Impl() : mBase(this) {
+    _Impl() : mBase(this, this) {
 
     }
     _Impl(const _Impl &) = delete;
     ~_Impl() {
-        NEKO_ASSERT(this->state() == State::Null);
+        NEKO_ASSERT(element()->state() == State::Null);
     }
 protected:
     Error changeState(StateChange change) override {
@@ -177,22 +192,35 @@ protected:
         return mBase._polishPad(pad);
     }
     /**
-     * @brief Send event to upstream (to all outputs pad)
+     * @brief Push event to upstream (to all outputs pad)
      * 
      * @param event 
      * @return Error 
      */
-    Error sendEventToUpstream(View<Event> event) {
-        return mBase.sendEventToUpstream(event);
+    Error pushEventToUpstream(View<Event> event) {
+        return mBase.pushEventToUpstream(event);
     }
     /**
-     * @brief Send event to downstream (to all inputs pad)
+     * @brief Push event to downstream (to all inputs pad)
      * 
      * @param event 
      * @return Error 
      */
-    Error sendEventToDownstream(View<Event> event) {
-        return mBase.sendEventToDownstream(event);
+    Error pushEventToDownstream(View<Event> event) {
+        return mBase.pushEventToDownstream(event);
+    }
+    /**
+     * @brief Push the resource to the pad
+     * 
+     * @param pad 
+     * @param resource 
+     * @return Error 
+     */
+    Error pushTo(View<Pad> pad, View<Resource> resource) {
+        return mBase.pushTo(pad, resource);
+    }
+    Error pushEventTo(View<Pad> pad, View<Event> event) {
+        return mBase.pushEventTo(pad, event);
     }
     /**
      * @brief Raise a Error and send it to the Bus
@@ -202,7 +230,7 @@ protected:
      * @return Error 
      */
     Error raiseError(Error errcode, std::string_view message = { }, std::source_location loc = NEKO_GET_LOCATION()) {
-        return mBase.raiseError(errcode, message);
+        return mBase.raiseError(errcode, message, loc);
     }
     /**
      * @brief Check should we quit on the Loop ? (for threading element)
@@ -221,6 +249,10 @@ protected:
         return mBase.thread();
     }
 private:
+    Element *element() noexcept {
+        return this;
+    }
+
     ElementBase mBase;
 };
 

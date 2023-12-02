@@ -55,7 +55,7 @@ void Thread::_run(void *latch) {
         ::WaitMessage();
 #else
         std::unique_lock lock(mMutex);
-        mCondition.wait(lock);
+        mCondition.wait(lock, [this]() { return !mQueue.empty(); });
 #endif
     }
 }

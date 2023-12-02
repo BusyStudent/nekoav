@@ -1,8 +1,10 @@
 #include <gtest/gtest.h>
+#include "../nekoav/detail/tracer.hpp"
 #include "../nekoav/detail/base.hpp"
 #include "../nekoav/elements/appsrc.hpp"
 #include "../nekoav/resource.hpp"
 #include "../nekoav/factory.hpp"
+#include "../nekoav/context.hpp"
 
 using namespace NEKO_NAMESPACE;
 
@@ -13,8 +15,8 @@ TEST(Base_ABIV1, ABIV1) {
             setName("TestClass");
             auto in = addInput("sink");
         }
-        Error onSinkPushed(Pad *, View<Resource> resourceView) override {
-            printf("Data arrived");
+        Error onSinkPush(View<Pad>, View<Resource> resourceView) override {
+            printf("Data arrived\n");
             return Error::Ok;
         }
     }; 
@@ -22,9 +24,16 @@ TEST(Base_ABIV1, ABIV1) {
     public:
 
     };
+    Context ctxt;
+    PrintElementTracer tracer;
+    ctxt.addObjectView<ElementTracer>(&tracer);
+
 
     auto appsrc = GetElementFactory()->createElement<AppSource>();
     TestClass cls;
+    cls.setContext(&ctxt);
+    appsrc->setContext(&ctxt);
+
     cls.setState(State::Running);
     appsrc->setState(State::Running);
     

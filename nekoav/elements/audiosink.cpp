@@ -14,7 +14,7 @@ NEKO_NS_BEGIN
  * @brief Present for generic audio
  * 
  */
-class AudioSinkImpl final : public Template::GetImpl<AudioSink, MediaClock> {
+class AudioSinkImpl final : public Template::GetImpl<AudioSink, MediaClock, MediaElement> {
 public:
     AudioSinkImpl() {
         auto pad = addInput("sink");
@@ -50,14 +50,14 @@ public:
 
         mController = GetMediaController(this);
         if (mController) {
-            mController->addClock(this);
+            mController->addObject(this);
         }
         return Error::Ok;
     }
     Error onTeardown() override {
         mDevice.reset();
         if (mController) {
-            mController->removeClock(this);
+            mController->removeObject(this);
         }
         mController = nullptr;
         return Error::Ok;
@@ -160,13 +160,17 @@ public:
             }
         }
         if (len > 0) {
-            NEKO_DEBUG("No Audio data!!!!");
+            // NEKO_DEBUG("No Audio data!!!!");
             ::memset(buf, 0, len);
         }
     }
     Error setDevice(AudioDevice *device) override {
         // assert(false && ! "Not impl yet");
         return Error::NoImpl;
+    }
+    bool isEndOfFile() const override {
+        std::lock_guard locker(mMutex);
+        return mFrames.empty() && mCurrentFrame == nullptr;
     }
 private:
     MediaController *mController = nullptr;
@@ -176,7 +180,7 @@ private:
     bool             mOpened = false;
 
     // Audio Callback data
-    std::mutex                   mMutex;
+    mutable std::mutex           mMutex;
     std::queue<Arc<MediaFrame> > mFrames;
     Arc<MediaFrame>              mCurrentFrame;
     int                          mCurrentFramePosition = 0;

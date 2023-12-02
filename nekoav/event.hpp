@@ -31,6 +31,7 @@ public:
     };
     
     explicit Event(Type type, Element *sender) : mType(type), mSender(sender) { }
+    Event(const Event &) = default;
     virtual ~Event() = default;
 
     Type type() const noexcept {
@@ -41,6 +42,10 @@ public:
     }
     int64_t time() const noexcept {
         return mTime;
+    }
+
+    static Arc<Event> make(Type type, Element *sender) {
+        return std::make_shared<Event>(type, sender);
     }
 private:
     Type     mType = None;

@@ -17,7 +17,7 @@ NEKO_NS_BEGIN
 
 namespace FFmpeg {
 
-class FFDemuxer final : public Template::GetThreadImpl<Demuxer> {
+class FFDemuxer final : public Template::GetThreadImpl<Demuxer, MediaElement> {
 public:
     FFDemuxer() {
         mPacket = av_packet_alloc();
@@ -25,7 +25,7 @@ public:
     ~FFDemuxer() {
         av_packet_free(&mPacket);
     }
-    void setUrl(std::string_view source) {
+    void setUrl(std::string_view source) override {
         mSource = source;
     }
     double duration() const override {
@@ -38,6 +38,10 @@ public:
         return double(mFormatContext->duration) / AV_TIME_BASE;
     }
     Error onInitialize() override {
+        if (auto controller = GetMediaController(this); controller) {
+            controller->addObject(this);
+        }
+
         mFormatContext = avformat_alloc_context();
         mFormatContext->interrupt_callback.opaque = this;
 
@@ -59,6 +63,10 @@ public:
         return Error::Ok;
     }
     Error onTeardown() override {
+        if (auto controller = GetMediaController(this); controller) {
+            controller->removeObject(this);
+        }
+        
         avformat_close_input(&mFormatContext);
         mStreamMapping.clear();
         mEof = false;
@@ -180,12 +188,15 @@ public:
             mStreamMapping.insert(std::make_pair(n, pad));
         }
     }
+    bool isEndOfFile() const override {
+        return mEof;
+    }
 private:
     AVFormatContext *mFormatContext = nullptr;
     AVPacket        *mPacket = nullptr;
     std::string      mSource;
     std::map<int, Pad*> mStreamMapping; //< Mapping from FFmpeg stream index to Pad pointer
-    bool             mEof = false;
+    Atomic<bool>        mEof = false;
 };
 
 NEKO_REGISTER_ELEMENT(Demuxer, FFDemuxer);

@@ -11,12 +11,12 @@ NEKO_NS_BEGIN
 
 namespace FFmpeg {
 
-class FFVideoConverter final : public Template::GetImpl<VideoConverter> {
+class FFVideoConverterImpl final : public Template::GetImpl<VideoConverter> {
 public:
-    FFVideoConverter() {
+    FFVideoConverterImpl() {
         mSinkPad = addInput("sink");
         mSourcePad = addOutput("src");
-        mSinkPad->setCallback(std::bind(&FFVideoConverter::processInput, this, std::placeholders::_1));
+        mSinkPad->setCallback(std::bind(&FFVideoConverterImpl::processInput, this, std::placeholders::_1));
         mSinkPad->setEventCallback(std::bind(&Pad::pushEvent, mSourcePad, std::placeholders::_1));
     }
     // void setPixelFormat(PixelFormat format) override {
@@ -175,7 +175,7 @@ private:
     AVPixelFormat mSwsFormat = AV_PIX_FMT_NONE; //< Current target format
 };
 
-NEKO_REGISTER_ELEMENT(VideoConverter, FFVideoConverter);
+NEKO_REGISTER_ELEMENT(VideoConverter, FFVideoConverterImpl);
 
 }
 

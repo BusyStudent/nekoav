@@ -294,7 +294,7 @@ private:
 NEKO_REGISTER_ELEMENT(TestVideoSink, TestVideoSinkImpl);
 #endif
 
-class VideoSinkImpl final : public Template::GetThreadImpl<VideoSink, MediaClock> {
+class VideoSinkImpl final : public Template::GetThreadImpl<VideoSink, MediaClock, MediaElement> {
 public:
     VideoSinkImpl() {
         mSink = addInput("sink");
@@ -313,7 +313,7 @@ public:
     Error onInitialize() override {
         mController = GetMediaController(this);
         if (mController) {
-            mController->addClock(this);
+            mController->addObject(this);
         }
         if (!mRenderer) {
             return Error::InvalidState;
@@ -325,7 +325,7 @@ public:
     }
     Error onTeardown() override {
         if (mController) {
-            mController->removeClock(this);
+            mController->removeObject(this);
         }
 
         mSink->properties().clear();
@@ -440,6 +440,12 @@ public:
     Type type() const override {
         return Video;
     }
+
+    // MediaElement
+    bool isEndOfFile() const override {
+        std::lock_guard lock(mMutex);
+        return mFrames.empty();
+    }
 private:
     // MediaController
     MediaController *mController = nullptr;
@@ -448,7 +454,7 @@ private:
     VideoRenderer   *mRenderer = nullptr;
     Pad             *mSink;
 
-    std::mutex                   mMutex;
+    mutable std::mutex           mMutex;
     std::queue<Arc<MediaFrame> > mFrames;
     
     Atomic<size_t> mNumFramesDropped {0};

@@ -52,6 +52,10 @@ public:
     virtual void setSampleRate(int sampleRate) = 0;
 };
 
+/**
+ * @brief Interface for Raw Compressed Data
+ * 
+ */
 class MediaPacket : public Resource {
 public:
     virtual void lock() = 0;
@@ -63,7 +67,10 @@ public:
     virtual auto timestamp() const -> double = 0;
 };
 
-
+/**
+ * @brief Clock interface for get time
+ * 
+ */
 class MediaClock {
 public:
     enum Type : int {
@@ -85,11 +92,35 @@ protected:
     ~MediaClock() = default;
 };
 
+/**
+ * @brief Interface for Sink and Source
+ * 
+ */
+class MediaElement {
+public:
+    virtual bool isEndOfFile() const = 0;
+};
+
+/**
+ * @brief Global controller for media
+ * 
+ */
 class MediaController {
 public:
+    // Clock
     virtual void addClock(MediaClock *clock) = 0;
     virtual void removeClock(MediaClock *clock) = 0;
     virtual auto masterClock() const -> MediaClock * = 0;
+
+    // Media Element
+    virtual void addElement(MediaElement *element) = 0;
+    virtual void removeElement(MediaElement *element) = 0;
+
+    template <typename T>
+    inline  void addObject(T *);
+
+    template <typename T>
+    inline  void removeObject(T *);
 protected:
     MediaController() = default;
     ~MediaController() = default;
@@ -132,5 +163,36 @@ extern NEKO_API Arc<AudioFrame> CreateAudioFrame(SampleFormat fmt, int channels,
  * @return MediaController* 
  */
 extern NEKO_API MediaController *GetMediaController(View<Element> element);
+
+
+// Impl for MediaController
+template <typename T>
+inline void MediaController::addObject(T *object) {
+    constexpr bool hasMediaClock = std::is_base_of_v<MediaClock, T>;
+    constexpr bool hasMediaElement = std::is_base_of_v<MediaElement, T>;
+
+    static_assert(hasMediaClock || hasMediaElement, "Object must be derived from MediaClock or MediaElement");
+
+    if constexpr (hasMediaClock) {
+        addClock(object);
+    }
+    if constexpr (hasMediaElement) {
+        addElement(object);
+    }
+}
+template <typename T>
+inline void MediaController::removeObject(T *object) {
+    constexpr bool hasMediaClock = std::is_base_of_v<MediaClock, T>;
+    constexpr bool hasMediaElement = std::is_base_of_v<MediaElement, T>;
+
+    static_assert(hasMediaClock || hasMediaElement, "Object must be derived from MediaClock or MediaElement");
+
+    if constexpr (hasMediaClock) {
+        removeClock(object);
+    }
+    if constexpr (hasMediaElement) {
+        removeElement(object);
+    }
+}
 
 NEKO_NS_END

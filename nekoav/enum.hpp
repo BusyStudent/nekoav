@@ -161,5 +161,28 @@ inline Vec<StateChange> ComputeStateChanges(State currentState, State targetStat
 
     return stateChanges;
 }
+inline const char *GetStateString(State state) noexcept {
+    switch (state) {
+        default :
+        case State::Error: return "Error";
+        case State::Null: return "Null";
+        case State::Ready: return "Ready";
+        case State::Paused: return "Paused";
+        case State::Running: return "Running";
+    }
+}
+inline const char *GetStateChangeString(StateChange stateChange) noexcept {
+    switch (stateChange) {
+        default :
+        case StateChange::Invalid: return "Invalid";
+        case StateChange::NullToReady: return "NullToReady";
+        case StateChange::ReadyToPaused: return "ReadyToPaused";
+        case StateChange::PausedToRunning: return "PausedToRunning";
+
+        case StateChange::RunningToPaused: return "RunningToPaused";
+        case StateChange::PausedToReady: return "PausedToReady";
+        case StateChange::ReadyToNull: return "ReadyToNull";
+    }
+}
 
 NEKO_NS_END
