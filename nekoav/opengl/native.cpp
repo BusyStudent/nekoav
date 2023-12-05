@@ -7,6 +7,8 @@
 #if   defined(_WIN32)
     #define HAVE_WGL
     #include <windows.h>
+
+    #pragma comment(lib, "gdi32.lib")
 #endif
 
 #if __has_include(<EGL/egl.h>)
@@ -44,12 +46,34 @@ class WGLContext final : public GLContext {
 public:
     WGLContext(WGLDisplay *display, HWND hwnd) : mDisplay(display), mHwnd(hwnd) {
         mDC = ::GetDC(hwnd);
+
+        // TODO SetPixelFormat
+        ::PIXELFORMATDESCRIPTOR pfd = {
+            .nSize = sizeof(pfd),
+            .nVersion = 1,
+            .dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL,
+            .iPixelType = PFD_TYPE_RGBA,
+            .cColorBits = 32,
+            .cDepthBits = 24,
+            .cStencilBits = 8,
+        };
+
+        auto ok = ::SetPixelFormat(mDC, ::ChoosePixelFormat(mDC, &pfd), &pfd);
+        NEKO_ASSERT(ok);
+
         mCtxt = mDisplay->wglCreateContext(mDC);
+        NEKO_ASSERT(mCtxt);
     }
     ~WGLContext() {
         NEKO_ASSERT(mThreadId == ::GetCurrentThreadId());
-        ::ReleaseDC(mHwnd, mDC);
-        mDisplay->wglDeleteContext(mCtxt);
+        int v = ::ReleaseDC(mHwnd, mDC);
+        NEKO_ASSERT(v == 1);
+
+        auto ok = mDisplay->wglDeleteContext(mCtxt);
+        NEKO_ASSERT(ok);
+
+        ok = ::DestroyWindow(mHwnd);
+        NEKO_ASSERT(ok);
     }
     bool makeCurrent() override {
         NEKO_ASSERT(mThreadId == ::GetCurrentThreadId());
@@ -167,6 +191,8 @@ public:
     void freeThread(Thread *thread) override {
         NEKO_ASSERT(thread == mThread.get());
         NEKO_ASSERT(mThreadRefcount > 0);
+        NEKO_ASSERT(Thread::currentThread() != mThread.get());
+
         std::lock_guard lock(mMutex);
         mThreadRefcount --;
         if (mThreadRefcount == 0) {

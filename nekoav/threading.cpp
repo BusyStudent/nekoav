@@ -51,10 +51,14 @@ void Thread::_run(void *latch) {
         if (!mRunning) {
             break;
         }
+
+        std::unique_lock lock(mMutex);
 #ifdef  NEKO_WIN_DISPATCHER
+        if (!mQueue.empty()) {
+            continue;
+        }
         ::WaitMessage();
 #else
-        std::unique_lock lock(mMutex);
         mCondition.wait(lock, [this]() { return !mQueue.empty(); });
 #endif
     }

@@ -15,9 +15,6 @@ extern void NEKO_API Backtrace();
 
 // Internal API
 extern Vec<void *> GetCallstack();
-extern std::string GetNameByOffset(void *funcPtr);
-extern std::string GetFuncByOffset(void *funcPtr);
-
 #else
 inline void Backtrace() { }
 inline void InstallCrashHandler() { }

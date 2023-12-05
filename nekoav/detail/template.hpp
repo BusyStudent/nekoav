@@ -86,11 +86,7 @@ public:
         return Error::Ok;
     }
     virtual Error onLoop() {
-        while (!stopRequested()) {
-            // While not stop
-            mThread->waitTask();
-        }
-        return Error::Ok;
+        return Error::NoImpl;
     }
 
     Thread *thread() const noexcept {
@@ -121,6 +117,9 @@ private:
         mThread->setName(this->name().c_str());
 #endif
         auto err = onLoop();
+        if (err == Error::NoImpl) {
+            return; //< Continue loop at Thread::_run
+        }
         if (err != Error::Ok && this->bus()) {
             raiseError(err);
         }

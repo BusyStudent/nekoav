@@ -15,12 +15,12 @@ public:
      */
     virtual Error addElement(View<Element> element) = 0;
     /**
-     * @brief Detach the element, transfer the ownship to user
+     * @brief Remove the element, transfer the ownship to user
      * 
      * @param element 
      * @return Error 
      */
-    virtual Error detachElement(View<Element> element) = 0;
+    virtual Error removeElement(View<Element> element) = 0;
     /**
      * @brief For all element in this container
      * 

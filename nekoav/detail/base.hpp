@@ -15,6 +15,10 @@ NEKO_NS_BEGIN
 namespace _abiv1 {
 
 class ElementBasePrivate;
+/**
+ * @brief For Basic Element Dispatch
+ * 
+ */
 class ElementDelegate {
 public:
     // States
@@ -31,9 +35,22 @@ public:
     virtual Error onSourceEvent(View<Pad> pad, View<Event> event) { return Error::NoImpl; }
     virtual Error onSinkPush(View<Pad> pad, View<Resource> resource) { return Error::NoImpl; }
 };
+/**
+ * @brief For Threading Element Dispatch
+ * 
+ */
 class ThreadingElementDelegate : public ElementDelegate {
 public:
     virtual Error onLoop() { return Error::NoImpl; }
+};
+/**
+ * @brief For Threading customed Thread allocate
+ * 
+ */
+class ThreadingElementDelegateEx : public ThreadingElementDelegate {
+public:
+    virtual Thread *allocThread() = 0;
+    virtual void    freeThread(Thread *thread) = 0;
 };
 
 /**
@@ -115,6 +132,13 @@ public:
      * @return Thread* 
      */
     Thread *thread() const noexcept;
+    /**
+     * @brief Check is at work thread
+     * 
+     * @return true 
+     * @return false 
+     */
+    bool    isWorkThread() const noexcept;
 
     // --- Internal API for GetCommonImpl
     Error _changeState(StateChange change);
@@ -135,6 +159,7 @@ private:
     //< For Threading impl
     Thread  *mThread = nullptr;
     bool     mThreading = false;
+    bool     mThreadingEx = false;
 };
 
 template <typename Callable, typename ...Args>
@@ -161,14 +186,39 @@ inline Thread *ElementBase::thread() const noexcept {
 }
 
 /**
+ * @brief For shorter template name generated
+ * 
+ * @tparam V 
+ */
+template <int V>
+class SelectDelegate;
+template <>
+class SelectDelegate<0> {
+public:
+    using type = ElementDelegate;
+};
+template <>
+class SelectDelegate<1> {
+public:
+    using type = ThreadingElementDelegate;
+};
+template <>
+class SelectDelegate<2> {
+public:
+    using type = ThreadingElementDelegateEx;
+};
+
+/**
  * @brief Generate Common Impl for interface Ts... 
  * 
- * @tparam Threading 
+ * @tparam Index (0, 1, 2) 
  * @tparam Ts 
  */
-template <bool Threading, typename ...Ts> 
-class _Impl : public Ts..., protected std::conditional_t<Threading, ThreadingElementDelegate, ElementDelegate> {
+template <int Index, typename ...Ts> 
+class _Impl : public Ts..., protected SelectDelegate<Index>::type {
 public:    
+    static constexpr bool _IsThreading = (Index > 0);
+
     _Impl() : mBase(this, this) {
 
     }
@@ -238,15 +288,47 @@ protected:
      * @return true 
      * @return false 
      */
-    template <bool _IsThreading = Threading>
+    template <bool Threading = _IsThreading>
     bool stopRequested() const noexcept {
-        static_assert(_IsThreading, "It is only available for Threading element");
+        static_assert(Threading, "It is only available for Threading element");
         return mBase.stopRequested();
     }
-    template <bool _IsThreading = Threading>
+    /**
+     * @brief Get the thread object
+     * 
+     * @return Thread* 
+     */
+    template <bool Threading = _IsThreading>
     Thread *thread() const noexcept {
-        static_assert(_IsThreading, "It is only available for Threading element");
+        static_assert(Threading, "It is only available for Threading element");
         return mBase.thread();
+    }
+    /**
+     * @brief Check is at work thread
+     * 
+     * @return true 
+     * @return false 
+     */
+    template <bool Threading = _IsThreading>
+    bool isWorkThread() const noexcept {
+        static_assert(Threading, "It is only available for Threading element");
+        return mBase.isWorkThread();
+    }
+    /**
+     * @brief Invoke method at work thread
+     * 
+     * @warning Do not call this method at work thread
+     * 
+     * @tparam Callable 
+     * @tparam Args 
+     * @return auto 
+     */
+    template <typename Callable, typename ...Args, bool Threading = _IsThreading>
+    auto invokeMethodQueued(Callable &&callable, Args &&...args) -> std::invoke_result_t<Callable, Args...> {
+        static_assert(Threading, "It is only available for Threading element");
+
+        NEKO_ASSERT(!isWorkThread());
+        return mBase.syncInvoke(std::forward<Callable>(callable), std::forward<Args>(args)...);
     }
 private:
     Element *element() noexcept {
@@ -256,11 +338,34 @@ private:
     ElementBase mBase;
 };
 
+/**
+ * @brief Normal Element Impl
+ * 
+ * @tparam Ts 
+ */
 template <typename ...Ts>
-using Impl          = _Impl<false, Ts...>;
+using Impl          = _Impl<0, Ts...>;
+/**
+ * @brief Threading Element Impl
+ * 
+ * @tparam Ts 
+ */
 template <typename ...Ts>
-using ThreadingImpl = _Impl<true, Ts...>;
+using ThreadingImpl = _Impl<1, Ts...>;
+/**
+ * @brief Threading Element Impl with custome Thread alloc
+ * 
+ * @tparam Ts 
+ */
+template <typename ...Ts>
+using ThreadingExImpl = _Impl<2, Ts...>;
 
 }
+
+#ifndef NEKO_NO_DEFAULT_IMPL
+using _abiv1::Impl;
+using _abiv1::ThreadingImpl;
+using _abiv1::ThreadingExImpl;
+#endif
 
 NEKO_NS_END

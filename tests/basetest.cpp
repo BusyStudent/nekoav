@@ -9,15 +9,24 @@
 using namespace NEKO_NAMESPACE;
 
 TEST(Base_ABIV1, ABIV1) {
-    class TestClass final : public _abiv1::ThreadingImpl<Element> {
+    class TestClass final : public ThreadingExImpl<Element> {
     public:
         TestClass() {
             setName("TestClass");
             auto in = addInput("sink");
         }
-        Error onSinkPush(View<Pad>, View<Resource> resourceView) override {
+        Error onSinkPush(View<Pad> pad, View<Resource> resourceView) override {
+            if (!isWorkThread()) {
+                return invokeMethodQueued(&TestClass::onSinkPush, this, pad, resourceView);
+            }
             printf("Data arrived\n");
             return Error::Ok;
+        }
+        Thread *allocThread() override {
+            return new Thread;
+        }
+        void freeThread(Thread *thread) override {
+            delete thread;
         }
     }; 
     class Data final : public Resource {

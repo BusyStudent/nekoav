@@ -119,9 +119,18 @@ if has_config("qt_test") and has_config("qt_interop") then
     target("qtest")
         add_rules("qt.widgetapp")
         add_deps("nekoav", "nekoav_qt")
-        add_packages("ffmpeg")
 
         add_frameworks("QtCore", "QtGui")
         add_files("tests/qtest.cpp")
+    target_end()
+end
+
+-- OpenGL Test
+if has_config("opengl") then 
+    target("ogltest")
+        set_kind("binary")
+        add_deps("nekoav")
+
+        add_files("tests/ogltest.cpp")
     target_end()
 end

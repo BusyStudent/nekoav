@@ -39,6 +39,9 @@ ElementBase::ElementBase(ElementDelegate *delegate, Element *element, bool threa
     : d(new ElementBasePrivate), mDelegate(delegate), mElement(element), mThreading(threading) 
 {
     NEKO_ASSERT(mElement);
+    if (mThreading) {
+        mThreadingEx = dynamic_cast<ThreadingElementDelegateEx*>(mDelegate);
+    }
 }
 ElementBase::~ElementBase() {
     // MUST Stopped
@@ -85,11 +88,7 @@ Error ElementBase::_sendEvent(View<Event> event) {
             return syncInvoke(&ElementBase::_sendEvent, this, event);
         }
     }
-    auto err = mDelegate->onEvent(event);
-    if (d->mTracer) {
-        d->mTracer->sendEventEnd(mElement, event);
-    }
-    return err;
+    return mDelegate->onEvent(event);
 }
 Error ElementBase::_changeState(StateChange stateChange) {
     // Init Tracer here
@@ -110,7 +109,15 @@ Error ElementBase::_changeState(StateChange stateChange) {
 
         // Set It to target state, not Null
         mElement->overrideState(GetTargetState(stateChange));
-        mThread = new Thread();
+
+        // Alloc if customize
+        if (mThreadingEx) {
+            auto alloc = static_cast<ThreadingElementDelegateEx*>(mDelegate);
+            mThread = alloc->allocThread();
+        }
+        else {
+            mThread = new Thread();
+        }
     }
     auto err = syncInvoke(&ElementBase::_dispatchChangeState, this, stateChange);
     if (stateChange == StateChange::Initialize && err == Error::Ok) {
@@ -123,7 +130,15 @@ Error ElementBase::_changeState(StateChange stateChange) {
         NEKO_ASSERT(mThread != nullptr);
         // Set It to target state to Null to stop
         mElement->overrideState(State::Null);
-        delete mThread; //< Wait for all task done
+
+        if (mThreadingEx) {
+            auto alloc = static_cast<ThreadingElementDelegateEx*>(mDelegate);
+            alloc->freeThread(mThread);
+        }
+        else {
+            delete mThread; //< Wait for all task done
+        }
+
         mThread = nullptr;
         d->mTracer = nullptr;
     }
@@ -161,10 +176,11 @@ void ElementBase::_run() {
     auto err = delegate->onLoop();
 
     if (err == Error::NoImpl) {
-        // Default impl
-        while (!stopRequested()) {
-            mThread->waitTask();
-        }
+        // // Default impl
+        // while (!stopRequested()) {
+        //     mThread->waitTask();
+        // }
+        return; //< Continue loop at Thread::_run
     }
     else if (err != Error::Ok) {
         raiseError(err);
@@ -233,6 +249,10 @@ Error ElementBase::pushTo(View<Pad> pad, View<Resource> resource) {
         return pad->push(resource);
     }
     return Error::InvalidArguments;
+}
+bool ElementBase::isWorkThread() const noexcept {
+    NEKO_ASSERT(mThread);
+    return Thread::currentThread() == mThread;
 }
 
 #undef TRACE

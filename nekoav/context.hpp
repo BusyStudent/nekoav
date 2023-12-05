@@ -97,7 +97,11 @@ public:
     template <typename T>
     bool  addObject(Box<T> &&object) {
         auto v = object.get();
-        return addObject(typeid(T), v, [obj = std::move(object)]() {});
+        if (addObject(typeid(T), v, [obj = object.get()]() { delete obj; })) {
+            object.release();
+            return true;
+        }
+        return false;
     }
     /**
      * @brief Remove an object of type T.

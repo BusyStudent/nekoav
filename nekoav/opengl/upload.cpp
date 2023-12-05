@@ -11,21 +11,12 @@
 
 NEKO_NS_BEGIN
 
-class GLUploadImpl final : public Template::GetGLImpl<GLUpload, GLFunctions_2_1> {
+class GLUploadImpl final : public OpenGLImpl<GLUpload, GLFunctions_2_1> {
 public:
     GLUploadImpl() {
         mSink = addInput("sink");
         mSrc = addOutput("src");
 
-        // Just forward 
-        mSink->setEventCallback(std::bind(&Pad::pushEvent, mSrc, std::placeholders::_1));
-        mSink->setCallback([this](View<Resource> resourceView) -> Error {
-            Error ret;
-            thread()->sendTask([this, resourceView, &ret]() {
-                ret = onSink(resourceView);
-            });
-            return ret;
-        });
         mSink->addProperty(Properties::SampleFormatList, {
             PixelFormat::RGBA,
             PixelFormat::NV12,
@@ -33,17 +24,17 @@ public:
             PixelFormat::YUV420P,
         });
     }
-    Error onInitialize() override {
-        load([this](const char *name) {
-            return glcontext()->getProcAddress(name);
-        });
+    Error onGLInitialize() override {
+        makeCurrent();
+        
+        load(functionLoader());
         return Error::Ok;
     }
-    Error onTeardown() override {
-        return Error::Ok;
-    }
-    Error onSink(View<Resource> resourceView) {
-        glcontext()->makeCurrent();
+    Error onSinkPush(View<Pad> pad, View<Resource> resourceView) override {
+        if (!isWorkThread()) {
+            return invokeMethodQueued(&GLUploadImpl::onSinkPush, this, pad, resourceView);
+        }
+        makeCurrent();
 
         auto frame = resourceView.viewAs<MediaFrame>();
         if (!frame) {
@@ -51,19 +42,31 @@ public:
         }
         int width = frame->width();
         int height = frame->height();
-        auto glframe = CreateGLFrame(glcontext(), this, width, height, frame->pixelFormat());
-        // Update frame
+        // auto glframe = CreateGLFrame(glcontext());
+        // // Update frame
+        Arc<GLFrame> glframe;
         switch (frame->pixelFormat()) {
             case PixelFormat::RGBA: {
-                NEKO_ASSERT(glframe->pixelFormat() == PixelFormat::RGBA);
-                NEKO_ASSERT(glframe->textureCount() == 1);
+                // Raw RGBA Data
+                glframe = CreateGLFrame(glcontext(), width, height, GLFrame::RGBA);
 
-                glBindTexture(GL_TEXTURE_2D, glframe->texture(0));
+                GLuint tex;
+                glGenTextures(1, &tex);
+                glBindTexture(GL_TEXTURE_2D, tex);
+
+                // Update it
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
                 glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, frame->data(0));
+
+                // End
                 glBindTexture(GL_TEXTURE_2D, 0);
 
+                glframe->addTexture(tex);
+                glframe->setDuration(frame->duration());
+                glframe->setTimestamp(frame->timestamp());
                 break;
             }
+            default : return Error::UnsupportedFormat;
         }
         mSrc->push(glframe);
         return Error::Ok;
@@ -71,6 +74,8 @@ public:
 private:
     Pad *mSink;
     Pad *mSrc;
+
+    GLuint mYUVCvtTextures[4] {0}; //< Textures used to convert YUV TO RGB
 };
 
 NEKO_REGISTER_ELEMENT(GLUpload, GLUploadImpl);

@@ -24,13 +24,19 @@ public:
 };
 class GLFrame : public Resource {
 public:
+    enum Format : int {
+        RGBA, //< RGBA32 1 texture
+        NV12,
+        NV21,
+    };
+
     /**
      * @brief Get the texture object
      * 
      * @param plane 
      * @return int 
      */
-    virtual int         texture(int plane) const = 0;
+    virtual unsigned int texture(int plane) const = 0;
     /**
      * @brief Get the number of textures
      * 
@@ -38,13 +44,53 @@ public:
      */
     virtual size_t      textureCount() const = 0;
     /**
-     * @brief Get the pixel format of this frame
+     * @brief Get the format of this frame
      * 
-     * @return PixelFormat 
+     * @return Format 
      */
-    virtual PixelFormat pixelFormat() const = 0;
+    virtual Format      format() const = 0;
+    /**
+     * @brief Get the pts timestamp
+     * 
+     * @return double 
+     */
     virtual double      timestamp() const = 0;
+    /**
+     * @brief Get the duration of this 
+     * 
+     * @return double 
+     */
     virtual double      duration() const = 0;
+    /**
+     * @brief Get the width
+     * 
+     * @return int 
+     */
+    virtual int         width() const = 0;
+    /**
+     * @brief Get the height
+     * 
+     * @return int 
+     */
+    virtual int         height() const = 0;
+    /**
+     * @brief Set the Timestamp object
+     * 
+     * @param timestamp 
+     */
+    virtual void        setTimestamp(double timestamp) = 0;
+    /**
+     * @brief Set the Duration object
+     * 
+     * @param duration 
+     */
+    virtual void        setDuration(double duration) = 0;
+    /**
+     * @brief add a Texture into the frame, like Vec<GLint> mTexs.push_back(textureId)
+     * 
+     * @param textureId 
+     */
+    virtual void        addTexture(unsigned int textureId) = 0;
 };
 
 /**
@@ -59,6 +105,7 @@ public:
  */
 class GLController {
 public:
+    virtual ~GLController() = default;
     /**
      * @brief Set the Display object, otherwisem the controller will create a new display by default (using CreateGLDisplay)
      * 
@@ -109,12 +156,11 @@ extern NEKO_API Box<GLController> CreateGLController();
  * @brief Create a OpenGL Frame
  * 
  * @param ctxt 
- * @param func 
  * @param width 
  * @param height 
  * @param format 
  * @return NEKO_API 
  */
-extern NEKO_API Arc<GLFrame>      CreateGLFrame(View<GLContext> ctxt, View<GLFunctions> func, int width, int height, PixelFormat format);
+extern NEKO_API Arc<GLFrame>      CreateGLFrame(View<GLContext> ctxt, int width, int height, GLFrame::Format format);
 
 NEKO_NS_END

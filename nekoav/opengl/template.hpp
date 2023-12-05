@@ -1,133 +1,120 @@
 #pragma once
 
-#include "../elements.hpp"
+#include "../detail/base.hpp"
 #include "../context.hpp"
 #include "opengl.hpp"
 
 NEKO_NS_BEGIN
 
-inline namespace _abvi {
-namespace Template {
-
-class UniqueGLContext {
-public:
-    UniqueGLContext(GLContext *ctxt) : mCtxt(ctxt) {
-        mCtxt->makeCurrent();
-    }
-    ~UniqueGLContext() {
-        mCtxt->doneCurrent();
-    }
-private:
-    GLContext *mCtxt = nullptr;
-};
+namespace _abiv1 {
 
 template <typename ...Ts>
-class GetGLImpl : public Ts ... {
+class OpenGLImpl : public ThreadingExImpl<Ts...> {
 public:
-    Error changeState(StateChange change) override {
-        // Preinit
-        if (change == StateChange::Initialize) {
-            auto ctxt = this->context();
-            if (!ctxt) {
-                return Error::InvalidContext;
-            }
-            mController = ctxt->queryObject<GLController>();
-            if (!mController) {
-                return Error::InvalidContext;
-            }
-            mThread = mController->allocThread();
-            NEKO_ASSERT(mThread);
-        }
+    OpenGLImpl() {
 
-        // Call thread
-        Error ret;
-        mThread->sendTask([&, this]() {
-            ret = onChangeState(change);
-            if (ret == Error::Ok) {
-                this->mState = GetTargetState(change);
-            }
-        });
-
-        // Deinit
-        if  (change == StateChange::Teardown || (change == StateChange::Initialize && ret != Error::Ok)) {
-            NEKO_ASSERT(mController);
-            if (!mController) {
-                return Error::InvalidContext;
-            }
-            mController->freeThread(mThread);
-            mThread = nullptr;
-        }
-        return ret;
     }
-
-    virtual Error onInitialize() { return Error::Ok; }
-    virtual Error onPrepare(){ return Error::Ok; }
-    virtual Error onRun() { return Error::Ok; }
-    virtual Error onPause() { return Error::Ok; }
-    virtual Error onStop() { return Error::Ok; }
-    virtual Error onTeardown() { return Error::Ok; }
-
-    Error onChangeState(StateChange change) {
-        switch (change) {
-            case StateChange::Initialize : {
-                mContext = mController->allocContext();
-                if (!mContext) {
-                    return Error::Unknown;
-                }
-                UniqueGLContext guard(mContext);
-                return onInitialize();
-            }
-            case StateChange::Prepare    : {
-                UniqueGLContext guard(mContext);
-                return onPrepare();
-            }
-            case StateChange::Run        : {
-                UniqueGLContext guard(mContext);
-                return onRun();
-            }
-            case StateChange::Pause      : {
-                UniqueGLContext guard(mContext);
-                return onPause();
-            }
-            case StateChange::Stop       : {
-                UniqueGLContext guard(mContext);
-                return onStop();
-            }
-            case StateChange::Teardown   : {
-                mContext->makeCurrent();
-                auto err = onTeardown();
-                
-                mController->freeContext(mContext);
-                mContext = nullptr;
-                return err;
-            }
-            default                      : return Error::InvalidArguments;
-        }
+    ~OpenGLImpl() {
+        NEKO_ASSERT(this->state() == State::Null);
     }
-
+protected:
+    /**
+     * @brief Called after OpenGL was initialized
+     * 
+     * @return Error 
+     */
+    virtual Error onGLInitialize() {
+        return Error::Ok;
+    }
+    /**
+     * @brief Called before OpenGL Teardown
+     * 
+     * @return Error 
+     */
+    virtual Error onGLTeardown() {
+        return Error::Ok;
+    }
+    /**
+     * @brief Get the OpenGL Context
+     * 
+     * @return GLContext* 
+     */
     GLContext *glcontext() const noexcept {
-        return mContext;
+        return mGLContext;
     }
-    Thread *thread() const noexcept {
-        return mThread;
+    /**
+     * @brief Make the context current
+     * 
+     * @return true 
+     * @return false 
+     */
+    bool makeCurrent() {
+        return mGLContext->makeCurrent();
     }
-
-    // Memory allocation
-    void *operator new(size_t size) noexcept {
-        return libc::malloc(size);
+    /**
+     * @brief Done the current context
+     * 
+     */
+    void doneCurrent() {
+        return mGLContext->doneCurrent();
     }
-    void operator delete(void *ptr) noexcept {
-        return libc::free(ptr);
+    /**
+     * @brief Get the OpenGL Loader, pass it to GLFunction::load
+     * 
+     * @return auto 
+     */
+    auto functionLoader() const noexcept {
+        return std::bind(&GLContext::getProcAddress, mGLContext, std::placeholders::_1);
     }
 private:
+    /**
+     * @brief Do initalize of OpenGL
+     * 
+     * @return Error 
+     */
+    Error onInitialize() override final {
+        mGLContext = mController->allocContext();
+        if (!mGLContext) {
+            return Error::OutOfMemory;
+        }
+        return onGLInitialize();
+    }
+    /**
+     * @brief Do cleanup of OpenGL
+     * 
+     * @return Error 
+     */
+    Error onTeardown() override final {
+        auto err = onGLTeardown();
+        mController->freeContext(mGLContext);
+        mGLContext = nullptr;
+        return err;
+    }
+    Error onLoop() override final {
+        return ThreadingElementDelegate::onLoop();
+    }
+    Thread *allocThread() override final {
+        auto ctxt = Element::context();
+        if (!ctxt) {
+            return nullptr;
+        }
+        mController = ctxt->queryObject<GLController>();
+        if (!mController) {
+            return nullptr;
+        }
+        return mController->allocThread();
+    }
+    void freeThread(Thread *thread) override final {
+        mController->freeThread(thread);
+        mController = nullptr;
+    }
+
     GLController *mController = nullptr;
-    GLContext    *mContext = nullptr;
-    Thread *mThread = nullptr;
+    GLContext    *mGLContext = nullptr;
 };
 
-
-}
 }
 
+using _abiv1::OpenGLImpl;
 
 NEKO_NS_END

@@ -8,6 +8,10 @@
 
 NEKO_NS_BEGIN
 
+/**
+ * @brief Event Base class
+ * 
+ */
 class Event : public std::enable_shared_from_this<Event> {
 public:
     enum Type : uint32_t {
@@ -43,7 +47,18 @@ public:
     int64_t time() const noexcept {
         return mTime;
     }
+    template <typename T>
+    T *as() {
+        return static_cast<T *>(this);
+    }
 
+    /**
+     * @brief Create a event object 
+     * 
+     * @param type 
+     * @param sender 
+     * @return Arc<Event> 
+     */
     static Arc<Event> make(Type type, Element *sender) {
         return std::make_shared<Event>(type, sender);
     }
@@ -55,6 +70,10 @@ private:
 
 using EventType = Event::Type;
 
+/**
+ * @brief Generic Error event
+ * 
+ */
 class ErrorEvent : public Event {
 public:
     ErrorEvent(Error error, Element *sender) : 
@@ -78,6 +97,10 @@ private:
 };
 
 class MediaClock;
+/**
+ * @brief Media Clock
+ * 
+ */
 class ClockEvent : public Event {
 public:
     ClockEvent(Type type, MediaClock *clock, Element *sender) : Event(type, sender), mClock(clock) { };
@@ -92,6 +115,10 @@ public:
 private:
     MediaClock *mClock = nullptr;
 };
+/**
+ * @brief Media Seek 
+ * 
+ */
 class SeekEvent : public Event {
 public:
     SeekEvent(double targetSeconds) : Event(SeekRequested, nullptr), mTime(targetSeconds) { }
@@ -104,6 +131,31 @@ public:
     }
 private:
     double mTime;
+};
+/**
+ * @brief Media Bufferinf 
+ * 
+ */
+class BufferingEvent : public Event {
+public:
+    BufferingEvent(int progress, Element *sender) : Event(MediaBuffering, sender), mProgress(progress) {
+        NEKO_ASSERT(progress >= 0 && progress <= 100);
+    }
+
+    int progress() const noexcept {
+        return mProgress;
+    }
+    bool isFinished() const noexcept {
+        return mProgress == 100;
+    }
+    bool isStarted() const noexcept {
+        return mProgress == 0;
+    }
+    static Arc<BufferingEvent> make(int progress, Element *sender) {
+        return std::make_shared<BufferingEvent>(progress, sender);
+    }
+private:
+    int mProgress;
 };
 
 /**

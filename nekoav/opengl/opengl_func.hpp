@@ -25,12 +25,12 @@ class GLFunctions {
         }
 
         // Memory allocation
-        void *operator new(size_t size) noexcept {
-            return libc::malloc(size);
-        }
-        void operator delete(void *ptr) noexcept {
-            return libc::free(ptr);
-        }
+        // void *operator new(size_t size) noexcept {
+        //     return libc::malloc(size);
+        // }
+        // void operator delete(void *ptr) noexcept {
+        //     return libc::free(ptr);
+        // }
     protected:
         constexpr GLFunctions() = default;
 

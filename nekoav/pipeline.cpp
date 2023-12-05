@@ -35,7 +35,7 @@ public:
         mElements.push_back(element->shared_from_this());
         return Error::Ok;
     }
-    Error detachElement(View<Element> element) override {
+    Error removeElement(View<Element> element) override {
         if (!element) {
             return Error::InvalidArguments;
         }
