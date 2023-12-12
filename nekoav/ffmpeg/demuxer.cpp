@@ -44,6 +44,9 @@ public:
 
         mFormatContext = avformat_alloc_context();
         mFormatContext->interrupt_callback.opaque = this;
+        mFormatContext->interrupt_callback.callback = [](void *self) {
+            return static_cast<FFDemuxer*>(self)->interruptHandler();
+        };
 
         int ret = avformat_open_input(&mFormatContext, mSource.c_str(), nullptr, nullptr);
         if (ret < 0) {
@@ -74,12 +77,20 @@ public:
     }
 
     Error onLoop() override {
+        Error err = Error::Ok;
         while (!stopRequested()) {
             thread()->waitTask();
-            while (state() == State::Running && !mEof) {
+            while (state() == State::Running && (!mEof || mSeekRequested)) {
+                // When Running and (not Eof or Seek)
                 thread()->dispatchTask();
                 
-                auto err = readFrame();
+                if (mSeekRequested) {
+                    err = doSeek(mSeekPosition);
+                    mSeekRequested = false;
+                }
+                else {
+                    err = readFrame();
+                } 
                 if (err != Error::Ok) {
                     return err;
                 }
@@ -90,26 +101,8 @@ public:
     Error onEvent(View<Event> event) override {
         if (event->type() == Event::SeekRequested) {
             // Require a seek
-            auto time = event.viewAs<SeekEvent>()->time();
-            int64_t seekTime = time * AV_TIME_BASE;
-            int ret = av_seek_frame(
-                mFormatContext,
-                -1,
-                seekTime,
-                AVSEEK_FLAG_BACKWARD
-            );
-            if (ret < 0) {
-                NEKO_DEBUG(FormatErrorCode(ret));
-                return ToError(ret);
-            }
-
-            // Send pad with event
-            for (auto out : outputs()) {
-                out->pushEvent(std::make_shared<Event>(Event::FlushRequested, this)); //< Push a flush
-                out->pushEvent(event); //< Push a seek
-            }
-
-            mEof = false;
+            mSeekPosition = event.viewAs<SeekEvent>()->time();
+            mSeekRequested = true;
         }
         return Error::Ok;
     }
@@ -191,12 +184,41 @@ public:
     bool isEndOfFile() const override {
         return mEof;
     }
+    Error doSeek(double time) {
+        int64_t seekTime = time* AV_TIME_BASE;
+        int ret = av_seek_frame(
+            mFormatContext,
+            -1,
+            seekTime,
+            AVSEEK_FLAG_BACKWARD
+        );
+        if (ret < 0) {
+            NEKO_DEBUG(FormatErrorCode(ret));
+            return ToError(ret);
+        }
+
+        // Send pad with event
+        for (auto out : outputs()) {
+            out->pushEvent(Event::make(Event::FlushRequested, this)); //< Push a flush
+            out->pushEvent(SeekEvent::make(time)); //< Push a seek
+        }
+
+        mEof = false;
+        return Error::Ok;
+    }
+    int interruptHandler() {
+        // NEKO_ASSERT(mInInterruptHandler);
+        return stopRequested();
+    }
 private:
     AVFormatContext *mFormatContext = nullptr;
     AVPacket        *mPacket = nullptr;
     std::string      mSource;
     std::map<int, Pad*> mStreamMapping; //< Mapping from FFmpeg stream index to Pad pointer
     Atomic<bool>        mEof = false;
+    // bool                mInInterruptHandler = false;
+    bool                mSeekRequested = false;
+    double              mSeekPosition = -1.0;
 };
 
 NEKO_REGISTER_ELEMENT(Demuxer, FFDemuxer);

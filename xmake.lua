@@ -23,20 +23,37 @@ option("opengl")
     set_description("OpenGL support")
 option_end()
 
+option("subtitle")
+    set_default(false)
+    set_showmenu(true)
+    set_description("ASS / SSA Subtitle support")
+option_end()
+
 if is_plat("windows") then 
     add_cxxflags("cl::/utf-8")
     add_cxxflags("cl::/Zc:__cplusplus")
     add_cxxflags("cl::/permissive-")
 end
 
+if has_config("subtitle") then
+    add_requires("libass")
+end 
+
+
 -- Core
 target("nekoav")
     set_kind("shared")
     set_languages("c++20")
+    set_warnings("all")
+    set_warnings("error")
 
     if is_plat("windows") then
         add_links("user32")
         add_defines("NOMINMAX")
+    end
+
+    if is_mode("release") then 
+        add_defines("NEKO_NO_LOG")
     end
 
     if has_package("miniaudio") then
@@ -53,6 +70,11 @@ target("nekoav")
         add_packages("ffmpeg")
         add_files("nekoav/ffmpeg/*.cpp")
     end
+
+    -- Subtitle
+    if has_config("subtitle") then
+        add_packages("libass")
+    end 
 
     -- detail
     add_files("nekoav/detail/*.cpp")

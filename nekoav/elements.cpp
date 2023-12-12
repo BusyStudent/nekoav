@@ -40,7 +40,7 @@ Error Element::setState(State newState) {
             return err;
         }
     }
-    mState = newState;
+    overrideState(newState);
     return Error::Ok;
 }
 Error Element::setBus(EventSink *newBus) {

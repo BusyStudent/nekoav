@@ -35,12 +35,15 @@ public:
     ElementTracer *mTracer = nullptr;
 };
 
-ElementBase::ElementBase(ElementDelegate *delegate, Element *element, bool threading) 
-    : d(new ElementBasePrivate), mDelegate(delegate), mElement(element), mThreading(threading) 
+ElementBase::ElementBase(ElementDelegate *delegate, Element *element, int kind) 
+    : d(new ElementBasePrivate), mDelegate(delegate), mElement(element)
 {
     NEKO_ASSERT(mElement);
-    if (mThreading) {
-        mThreadingEx = dynamic_cast<ThreadingElementDelegateEx*>(mDelegate);
+    switch (kind) {
+        case NoThreading: mThreading = false; break;
+        case Threading: mThreading = true; break;
+        case ThreadingEx: mThreading = true; mThreadingEx = true; break;
+        default: NEKO_ASSERT(false); break;
     }
 }
 ElementBase::~ElementBase() {

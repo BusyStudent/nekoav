@@ -24,32 +24,35 @@ public:
     virtual auto linesize(int plane) const -> int = 0;
     virtual auto data(int plane) const -> void * = 0;
 
+    virtual auto makeWritable() -> bool = 0;
+    
     /**
-     * @brief Detail based query
+     * @brief Detail based Prop
      * 
      */
-    enum Query : int {
+    enum class Value : int {
         Width,
         Height,
         Channels, 
         SampleRate,
         SampleCount,  //< Number of samples, per channel
+        Timestamp,    //< Only for set
+        Duration,     //< Only for set
     };
-    virtual auto query(Query q) const -> int = 0;
+    virtual auto query(Value q) const -> int = 0;
+    virtual auto set(Value q, const void * v) -> bool = 0;
 
-    inline  auto width() const -> int { return query(Query::Width); }
-    inline  auto height() const -> int { return query(Query::Height); }
-    inline  auto channels() const -> int { return query(Query::Channels); }
-    inline  auto sampleRate() const -> int { return query(Query::SampleRate); }
-    inline  auto sampleCount() const -> int { return query(Query::SampleCount); }
+    inline  auto width() const -> int { return query(Value::Width); }
+    inline  auto height() const -> int { return query(Value::Height); }
+    inline  auto channels() const -> int { return query(Value::Channels); }
+    inline  auto sampleRate() const -> int { return query(Value::SampleRate); }
+    inline  auto sampleCount() const -> int { return query(Value::SampleCount); }
     inline  auto sampleFormat() const -> SampleFormat { return SampleFormat(format()); }
     inline  auto pixelFormat() const -> PixelFormat { return PixelFormat(format()); }
-};
 
-class AudioFrame : public MediaFrame {
-public:
-    virtual void setTimestamp(double timestamp) = 0;
-    virtual void setSampleRate(int sampleRate) = 0;
+    inline  auto setSampleRate(int sampleRate) -> bool { return set(Value::SampleRate, &sampleRate); }
+    inline  auto setTimestamp(double timestamp) -> bool { return set(Value::Timestamp, &timestamp); }
+    inline  auto setDuration(double duration) -> bool { return set(Value::Duration, &duration); }
 };
 
 /**
@@ -155,7 +158,16 @@ private:
  * @param samples Number of samples in a single channel
  * @return Arc<MediaFrame> 
  */
-extern NEKO_API Arc<AudioFrame> CreateAudioFrame(SampleFormat fmt, int channels, int samples);
+extern NEKO_API Arc<MediaFrame> CreateAudioFrame(SampleFormat fmt, int channels, int samples);
+/**
+ * @brief Create a Video Frame object
+ * 
+ * @param fmt 
+ * @param width 
+ * @param height 
+ * @return Arc<MediaFrame> 
+ */
+extern NEKO_API Arc<MediaFrame> CreateVideoFrame(PixelFormat fmt, int width, int height);
 /**
  * @brief Get the Media Controller object with object
  * 

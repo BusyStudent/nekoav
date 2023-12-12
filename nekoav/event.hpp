@@ -84,6 +84,9 @@ public:
     Error error() const noexcept {
         return mError;
     }
+    std::string_view message() const noexcept {
+        return mMessage;
+    }
 
     static Arc<ErrorEvent> make(Error error, Element *sender) {
         return std::make_shared<ErrorEvent>(error, sender);

@@ -59,13 +59,15 @@ public:
  */
 class NEKO_API ElementBase {
 public:
-    enum {
-        NoThreading = false,
-        Threading = true,
+    enum Kind {
+        NoThreading = 0,
+        Threading   = 1,
+        ThreadingEx = 2
     };
+    ElementBase(ThreadingElementDelegateEx *delegate, Element *element) : ElementBase(delegate, element, ThreadingEx) {}
     ElementBase(ThreadingElementDelegate *delegate, Element *element) : ElementBase(delegate, element, Threading) {}
     ElementBase(ElementDelegate *delegate, Element *element) : ElementBase(delegate, element, NoThreading) {}
-    ElementBase(ElementDelegate *delegate, Element *element, bool threading);
+    ElementBase(ElementDelegate *delegate, Element *element, int kind);
     ElementBase(const ElementBase &) = delete;
     ~ElementBase();
 
@@ -193,17 +195,17 @@ inline Thread *ElementBase::thread() const noexcept {
 template <int V>
 class SelectDelegate;
 template <>
-class SelectDelegate<0> {
+class SelectDelegate<ElementBase::NoThreading> {
 public:
     using type = ElementDelegate;
 };
 template <>
-class SelectDelegate<1> {
+class SelectDelegate<ElementBase::Threading> {
 public:
     using type = ThreadingElementDelegate;
 };
 template <>
-class SelectDelegate<2> {
+class SelectDelegate<ElementBase::ThreadingEx> {
 public:
     using type = ThreadingElementDelegateEx;
 };
@@ -344,21 +346,21 @@ private:
  * @tparam Ts 
  */
 template <typename ...Ts>
-using Impl          = _Impl<0, Ts...>;
+using Impl          = _Impl<ElementBase::NoThreading, Ts...>;
 /**
  * @brief Threading Element Impl
  * 
  * @tparam Ts 
  */
 template <typename ...Ts>
-using ThreadingImpl = _Impl<1, Ts...>;
+using ThreadingImpl = _Impl<ElementBase::Threading, Ts...>;
 /**
  * @brief Threading Element Impl with custome Thread alloc
  * 
  * @tparam Ts 
  */
 template <typename ...Ts>
-using ThreadingExImpl = _Impl<2, Ts...>;
+using ThreadingExImpl = _Impl<ElementBase::ThreadingEx, Ts...>;
 
 }
 

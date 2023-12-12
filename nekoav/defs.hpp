@@ -35,11 +35,11 @@
 #endif
 
 #if defined(__GNUC__)
-#define NEKO_CONSTRUCTOR(name) static void __attribute__((constructor)) name() 
+#define NEKO_CONSTRUCTOR(name) static void __attribute__((constructor)) name() noexcept
 #else
-#define NEKO_CONSTRUCTOR(name) static void name();             \
-    static NEKO_NAMESPACE::ConstructHelper name##__ctr {name}; \
-    static void name()
+#define NEKO_CONSTRUCTOR(name) static void name() noexcept;          \
+    static const NEKO_NAMESPACE::ConstructHelper name##__ctr {name}; \
+    static void name() noexcept
 #endif
 
 #if defined(__GNUC__) && __has_include(<cxxabi.h>)
@@ -146,7 +146,7 @@ protected:
  */
 class ConstructHelper {
 public:
-    ConstructHelper(void (*fn)()) {
+    ConstructHelper(void (*fn)()) noexcept {
         fn();
     }
 };

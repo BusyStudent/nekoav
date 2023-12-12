@@ -6,6 +6,7 @@
 #include "../elements/videosink.hpp"
 #include "../pipeline.hpp"
 #include "../factory.hpp"
+#include "../player.hpp"
 #include "../format.hpp"
 #include "../media.hpp"
 
@@ -23,7 +24,7 @@ using NEKO_NAMESPACE::Arc;
 
 class MediaPlayerPrivate {
 public:
-    Arc<Pipeline> mPipeline;
+    Player mPlayer;
 };
 
 
@@ -47,7 +48,7 @@ void MediaPlayer::load() {
 }
 
 void MediaPlayer::setPosition(qreal position) {
-
+    d->mPlayer.setPosition(position);
 }
 
 void MediaPlayer::setPlaybackRate(qreal rate) {
@@ -55,10 +56,12 @@ void MediaPlayer::setPlaybackRate(qreal rate) {
 }
 
 void MediaPlayer::setSource(const QUrl &source) {
+    d->mPlayer.setUrl(source.toLocalFile().toUtf8().constData());
 
+    Q_EMIT sourceChanged(source);
 }
 void MediaPlayer::setSourceDevice(QIODevice *device, const QUrl &sourceUrl) {
-    
+
 }
 
 
@@ -198,5 +201,11 @@ void *VideoWidget::videoRenderer() {
     return static_cast<VideoRenderer*>(d);
 }
 
-
+qreal MediaPlayer::duration() const { 
+    return d->mPlayer.duration();
 }
+qreal MediaPlayer::position() const {
+    return d->mPlayer.position();
+}
+
+}  // namespace QNekoAV

@@ -58,6 +58,9 @@ public:
     // bool isKeyFrame() const override {
     //     return mFrame->key_frame;
     // }
+    bool makeWritable() override {
+        return av_frame_make_writable(mFrame) >= 0;
+    }
 
     int linesize(int idx) const override {
         if (idx >= 8 || idx < 0) {
@@ -72,15 +75,18 @@ public:
         return mFrame->data[idx];
     }
 
-    int query(Query q) const override {
+    int query(Value q) const override {
         switch (q) {
-            case Query::Channels: return mFrame->channels;
-            case Query::SampleRate: return mFrame->sample_rate;
-            case Query::SampleCount: return mFrame->nb_samples;
-            case Query::Height: return mFrame->height;
-            case Query::Width: return mFrame->width;
+            case Value::Channels: return mFrame->channels;
+            case Value::SampleRate: return mFrame->sample_rate;
+            case Value::SampleCount: return mFrame->nb_samples;
+            case Value::Height: return mFrame->height;
+            case Value::Width: return mFrame->width;
             default: return 0;
         }
+    }
+    bool set(Value q, const void *) override {
+        return false;
     }
     AVRational timebase() const noexcept {
         return mTimebase;
@@ -154,6 +160,25 @@ private:
     AVRational mTimebase;
     AVMediaType mType;
 };
+
+inline AVCodecContext *OpenCodecContext4(AVCodecParameters *codecpar) {
+    auto codec = avcodec_find_decoder(codecpar->codec_id);
+    auto ctxt = avcodec_alloc_context3(codec);
+    if (!ctxt) {
+        return nullptr;
+    }
+    int ret = avcodec_parameters_to_context(ctxt, codecpar);
+    if (ret < 0) {
+        avcodec_free_context(&ctxt);
+        return nullptr;
+    }
+    ret = avcodec_open2(ctxt, ctxt->codec, nullptr);
+    if (ret < 0) {
+        avcodec_free_context(&ctxt);
+        return nullptr;
+    }
+    return ctxt;
+}
 
 }
 

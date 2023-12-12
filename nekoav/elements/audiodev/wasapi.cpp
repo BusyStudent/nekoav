@@ -1,8 +1,7 @@
 #define _NEKO_SOURCE
-#include "../format.hpp"
-#include "../latch.hpp"
-#include "../log.hpp"
-#include "device.hpp"
+#include "../../format.hpp"
+#include "../../log.hpp"
+#include "../audiodev.hpp"
 
 #include <Audioclient.h>
 #include <mmdeviceapi.h>
@@ -31,7 +30,7 @@ public:
         mRunning = true;
         mFail = false;
 
-        Latch latch {1};
+        std::latch latch {1};
         mThread = std::thread(&WASAudioDevice::threadMain, this, fmt, sampleRate, channels, std::ref(latch));
         latch.wait();
 
@@ -51,7 +50,7 @@ public:
     void setCallback(std::function<void(void *buffer, int bufferLen)> &&cb) override {
         mCallback = std::move(cb);
     }
-    void threadMain(SampleFormat fmt, int sampleRate, int channels, Latch &latch) {
+    void threadMain(SampleFormat fmt, int sampleRate, int channels, std::latch &latch) {
         mFail = !init();
 
         // Check format code here

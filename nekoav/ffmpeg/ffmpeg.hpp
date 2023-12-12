@@ -113,26 +113,27 @@ inline SampleFormat ToSampleFormat(AVSampleFormat fmt) noexcept {
 }
 
 inline bool IsHardwareAVPixelFormat(AVPixelFormat fmt) noexcept {
-    const AVPixelFormat hwfmts [] = {
-        AV_PIX_FMT_OPENCL,
-        AV_PIX_FMT_D3D11,
-        AV_PIX_FMT_DXVA2_VLD,
-        AV_PIX_FMT_D3D11VA_VLD,
-        AV_PIX_FMT_CUDA,
-        AV_PIX_FMT_VAAPI,
-        AV_PIX_FMT_VIDEOTOOLBOX,
-        AV_PIX_FMT_QSV,
-        AV_PIX_FMT_MMAL,
-        AV_PIX_FMT_VDPAU,
-    };
+    // const AVPixelFormat hwfmts [] = {
+    //     AV_PIX_FMT_OPENCL,
+    //     AV_PIX_FMT_D3D11,
+    //     AV_PIX_FMT_DXVA2_VLD,
+    //     AV_PIX_FMT_D3D11VA_VLD,
+    //     AV_PIX_FMT_CUDA,
+    //     AV_PIX_FMT_VAAPI,
+    //     AV_PIX_FMT_VIDEOTOOLBOX,
+    //     AV_PIX_FMT_QSV,
+    //     AV_PIX_FMT_MMAL,
+    //     AV_PIX_FMT_VDPAU,
+    // };
 
-    for (auto v : hwfmts) {
-        if (v == fmt) {
-            return true;
-        }
-    }
+    // for (auto v : hwfmts) {
+    //     if (v == fmt) {
+    //         return true;
+    //     }
+    // }
 
-    return false;
+    // return false;
+    return av_pix_fmt_desc_get(fmt)->flags & AV_PIX_FMT_FLAG_HWACCEL;
 }
 
 inline std::string FormatErrorCode(int code) {

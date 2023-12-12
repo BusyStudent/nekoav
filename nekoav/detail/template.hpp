@@ -68,15 +68,15 @@ public:
                 this->overrideState(GetTargetState(change));
             }
         });
-        if (change == StateChange::Initialize) {
-            // Start thread main
-            mThread->postTask(std::bind(&GetThreadImpl::_threadEntry, this));
-        }
-        if (change == StateChange::Teardown) {
+        if (change == StateChange::Teardown || (change == StateChange::Initialize && ret != Error::Ok)) {
             NEKO_ASSERT(mThread != nullptr);
             mRunning = false;
             delete mThread;
             mThread = nullptr;
+        }
+        else if (change == StateChange::Initialize) {
+            // Start thread main
+            mThread->postTask(std::bind(&GetThreadImpl::_threadEntry, this));
         }
         return ret;
     }
