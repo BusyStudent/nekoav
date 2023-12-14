@@ -6,23 +6,25 @@
 #include "../pad.hpp"
 #include "tracer.hpp"
 #include "base.hpp"
+#include "mlog.hpp"
+#include "../resource.hpp"
 
 NEKO_NS_BEGIN
 
 namespace _abiv1 {
 
 /**
- * @note Please do not use it in destructors, although in most cases this won't be a problem, and relying on implicit destructors can have unforeseen consequences.
+ * @note Please do not use it in destructors, although in most cases this won't be a problem, but relying on implicit destructors can have unforeseen consequences.
  * 
  */
-#define TRACE(what, ...)                                                                        \
-    if (d->mTracer) {                                                                           \
-        d->mTracer->received(mElement, ElementEventType::StageBegin,  what, ##__VA_ARGS__);     \
-    }                                                                                           \
-    DeferInvoke _inv = [this, tracer = d->mTracer]() {                                          \
-        if (tracer) {                                                                           \
-            tracer->received(mElement, ElementEventType::StageEnd,  what, ##__VA_ARGS__);       \
-        }                                                                                       \
+#define TRACE(message)                                                                                 \
+    if (d->mTracer) {                                                                               \
+        d->mTracer->received(mElement, ElementEventType::StageBegin,  message);                        \
+    }                                                                                               \
+    DeferInvoke _inv = [this, tracer = d->mTracer, location = std::source_location::current(), messageValue = message]() {  \
+        if (tracer) {                                                                               \
+            tracer->received(mElement, ElementEventType::StageEnd,  messageValue, GetTicks(), location);    \
+        }                                                                                           \
     };
 
 template <typename Callable>
@@ -84,7 +86,7 @@ Error ElementBase::raiseError(Error errcode, std::string_view message, std::sour
     return errcode;
 }
 Error ElementBase::_sendEvent(View<Event> event) {
-    TRACE("sendEvent");
+    TRACE("send " + _Neko_EnumToString(event->type()));
 
     if (mThreading) {
         if (!mThread) {
@@ -103,8 +105,8 @@ Error ElementBase::_changeState(StateChange stateChange) {
         d->mTracer = mElement->context()->queryObject<ElementEventSubscriber>();
     }
     // Begin Trace
-    TRACE("changeState");
-    
+    TRACE("state change " + _Neko_EnumToString(stateChange));
+
     if (!mThreading) {
         return _dispatchChangeState(stateChange);
     }
@@ -217,12 +219,14 @@ Pad *ElementBase::_polishPad(Pad *pad) {
     return pad;
 }
 Error ElementBase::_onSinkPush(Pad *pad, View<Resource> resource) {
-    TRACE("onSinkPush");
+    std::string message = libc::asprintf("recevied %s(%p) from %s(%s)", "resource", resource.get(), pad->name().data(), _Neko_EnumToString(pad->type()).c_str());
+    TRACE(message);
 
     return mDelegate->onSinkPush(pad, resource);
 }
 Error ElementBase::_onSinkEvent(Pad *pad, View<Event> event) {
-    TRACE("onSinkEvent");
+    std::string message = libc::asprintf("recevied %s from %s(%s)", _Neko_EnumToString(event->type()), pad->name().data(), _Neko_EnumToString(pad->type()).c_str());
+    TRACE(message);
 
     auto err = mDelegate->onSinkEvent(pad, event);
     if (err == Error::NoImpl) {
@@ -232,7 +236,8 @@ Error ElementBase::_onSinkEvent(Pad *pad, View<Event> event) {
     return err;
 }
 Error ElementBase::_onSourceEvent(Pad *pad, View<Event> event) {
-    TRACE("onSourceEvent");
+    std::string message = libc::asprintf("recevied %s from %s(%s)", _Neko_EnumToString(event->type()), pad->name(), _Neko_EnumToString(pad->type()));
+    TRACE(message);
 
     auto err = mDelegate->onSourceEvent(pad, event);
     if (err == Error::NoImpl) {
@@ -242,7 +247,8 @@ Error ElementBase::_onSourceEvent(Pad *pad, View<Event> event) {
     return err;
 }
 Error ElementBase::pushEventTo(View<Pad> pad, View<Event> event) {
-    TRACE("pushEventTo");
+    std::string message = libc::asprintf("push %s to %s(%s)", _Neko_EnumToString(event->type()), pad->name(), _Neko_EnumToString(pad->type()));
+    TRACE(message);
 
     if (event && pad) {
         return pad->pushEvent(event);
@@ -250,7 +256,8 @@ Error ElementBase::pushEventTo(View<Pad> pad, View<Event> event) {
     return Error::InvalidArguments;
 }
 Error ElementBase::pushTo(View<Pad> pad, View<Resource> resource) {
-    TRACE("pushTo");
+    std::string message = libc::asprintf("push %s(%p) to %s(%s)", "resource", resource.get(), pad->name(), _Neko_EnumToString(pad->type()));
+    TRACE(message);
 
     if (pad && resource) {
         return pad->push(resource);

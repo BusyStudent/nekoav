@@ -45,43 +45,43 @@ public:
                          const ElementEventType &event_type, 
                          const std::string &event_msg,
                          const uint64_t timestamp = NekoAV::GetTicks(),
-                         const std::source_location local = std::source_location::current(), 
+                         const std::source_location location = std::source_location::current(), 
                          const Thread *thread = Thread::currentThread()) override {
         switch (event_type)
         {
         case ElementEventType::UnknownEvent:
             _output("[%u][%s:%u (%s)][%s]: unknow stage event happen, message: %s\n", 
                     timestamp, 
-                    local.file_name(), 
-                    local.line(), 
-                    local.function_name(), 
+                    location.file_name(), 
+                    location.line(), 
+                    location.function_name(), 
                     (thread == nullptr ? "mainThread" : thread->name().data()), 
                     event_msg.c_str());
             break;
         case ElementEventType::StageBegin:
             _output("[%u][%s:%u (%s)][%s]: %s stage begin\n", 
                     timestamp, 
-                    local.file_name(), 
-                    local.line(), 
-                    local.function_name(), 
+                    location.file_name(), 
+                    location.line(), 
+                    location.function_name(), 
                     (thread == nullptr ? "mainThread" : thread->name().data()), 
                     event_msg.c_str());
             break;
         case ElementEventType::StageEnd:
             _output("[%u][%s:%u (%s)][%s]: %s stage end\n", 
                     timestamp, 
-                    local.file_name(), 
-                    local.line(), 
-                    local.function_name(), 
+                    location.file_name(), 
+                    location.line(), 
+                    location.function_name(), 
                     (thread == nullptr ? "mainThread" : thread->name().data()), 
                     event_msg.c_str());
             break;
         default:
             _output("[%u][%s:%u (%s)][%s]: %s\n", 
                     timestamp, 
-                    local.file_name(), 
-                    local.line(), 
-                    local.function_name(), 
+                    location.file_name(), 
+                    location.line(), 
+                    location.function_name(), 
                     (thread == nullptr ? "mainThread" : thread->name().data()), 
                     event_msg.c_str());
             break;

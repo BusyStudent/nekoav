@@ -127,7 +127,6 @@ struct source_location {
                     }
                 }
 
-                                
                 // Try demangle name
                 int status;
                 auto v = ::abi::__cxa_demangle(mName, demangleBuffer, &demangleBufferSize, &status);
