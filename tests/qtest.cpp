@@ -48,7 +48,7 @@ int main(int argc, char **argv) {
 
     Player player;
     player.setVideoRenderer(videoRenderer);
-    player.setProgressCallback([&](double v) {
+    player.setPositionCallback([&](double v) {
         QMetaObject::invokeMethod(progressBar, "setValue", Qt::QueuedConnection, Q_ARG(int, v));
         QMetaObject::invokeMethod(&win, [&win, v]() {
             win.setWindowTitle(QString::number(v));

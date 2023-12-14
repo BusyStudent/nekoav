@@ -15,7 +15,7 @@ public:
     FFAudioConverterImpl() {
         mSinkPad = addInput("sink");
         mSourcePad = addOutput("src");
-        mSinkPad->setCallback(std::bind(&FFAudioConverterImpl::processInput, this, std::placeholders::_1));
+        mSinkPad->setCallback(std::bind(&FFAudioConverterImpl::_processInput, this, std::placeholders::_1));
         mSinkPad->setEventCallback(std::bind(&Pad::pushEvent, mSourcePad, std::placeholders::_1));
     }
     Error onInitialize() override {
@@ -27,7 +27,7 @@ public:
         mSwrFormat = AV_SAMPLE_FMT_NONE;
         return Error::Ok;
     }
-    Error processInput(ResourceView resourceView) {
+    Error _processInput(ResourceView resourceView) {
         auto frame = resourceView.viewAs<Frame>();
         if (!frame) {
             return Error::UnsupportedResource;
@@ -36,7 +36,7 @@ public:
             return Error::NoLink;
         }
         if (!mCtxt && !mPassthrough) {
-            if (auto err = initContext(frame->get()); err != Error::Ok) {
+            if (auto err = _initContext(frame->get()); err != Error::Ok) {
                 return err;
             }
         }
@@ -62,7 +62,7 @@ public:
 
         return mSourcePad->push(Frame::make(dstFrame, frame->timebase(), AVMEDIA_TYPE_AUDIO).get());
     }
-    Error initContext(AVFrame *frame) {
+    Error _initContext(AVFrame *frame) {
         AVSampleFormat fmt;
         auto &spfmt = mSourcePad->next()->property(Properties::SampleFormatList);
         if (spfmt.isNull()) {

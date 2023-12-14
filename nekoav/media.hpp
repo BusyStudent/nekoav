@@ -7,6 +7,14 @@ NEKO_NS_BEGIN
 class AudioDevice;
 class VideoRenderer;
 
+enum class ClockType : int {
+    Video = 2,
+    Audio = 4,
+    Subtitle = 1,
+    Unknown  = 0,
+    External = 3, //< External clock like system clock
+};
+
 /**
  * @brief Interface for Media Frame (Audio / Video)
  * 
@@ -76,20 +84,13 @@ public:
  */
 class MediaClock {
 public:
-    enum Type : int {
-        Video = 2,
-        Audio = 4,
-        Subtitle = 1,
-        External = 3, //< External clock like system clock
-    };
-
     /**
      * @brief Get Position of the clock
      * 
      * @return double 
      */
     virtual auto position() const -> double = 0;
-    virtual auto type() const -> Type = 0;
+    virtual auto type() const -> ClockType = 0;
 protected:
     MediaClock() = default;
     ~MediaClock() = default;
@@ -101,7 +102,22 @@ protected:
  */
 class MediaElement {
 public:
+    /**
+     * @brief Get the clock of this element, (can return nullptr)
+     * 
+     * @return MediaClock* 
+     */
+    virtual MediaClock *clock() const = 0;
+    /**
+     * @brief Check all data is processed
+     * 
+     * @return true 
+     * @return false 
+     */
     virtual bool isEndOfFile() const = 0;
+protected:
+    MediaElement() = default;
+    ~MediaElement() = default;
 };
 
 /**
@@ -111,19 +127,7 @@ public:
 class MediaController {
 public:
     // Clock
-    virtual void addClock(MediaClock *clock) = 0;
-    virtual void removeClock(MediaClock *clock) = 0;
     virtual auto masterClock() const -> MediaClock * = 0;
-
-    // Media Element
-    virtual void addElement(MediaElement *element) = 0;
-    virtual void removeElement(MediaElement *element) = 0;
-
-    template <typename T>
-    inline  void addObject(T *);
-
-    template <typename T>
-    inline  void removeObject(T *);
 protected:
     MediaController() = default;
     ~MediaController() = default;
@@ -139,7 +143,7 @@ public:
     ~ExternalClock();
 
     auto position() const -> double override;
-    auto type() const -> Type override;
+    auto type() const -> ClockType override;
     
     void start();
     void pause();
@@ -175,36 +179,5 @@ extern NEKO_API Arc<MediaFrame> CreateVideoFrame(PixelFormat fmt, int width, int
  * @return MediaController* 
  */
 extern NEKO_API MediaController *GetMediaController(View<Element> element);
-
-
-// Impl for MediaController
-template <typename T>
-inline void MediaController::addObject(T *object) {
-    constexpr bool hasMediaClock = std::is_base_of_v<MediaClock, T>;
-    constexpr bool hasMediaElement = std::is_base_of_v<MediaElement, T>;
-
-    static_assert(hasMediaClock || hasMediaElement, "Object must be derived from MediaClock or MediaElement");
-
-    if constexpr (hasMediaClock) {
-        addClock(object);
-    }
-    if constexpr (hasMediaElement) {
-        addElement(object);
-    }
-}
-template <typename T>
-inline void MediaController::removeObject(T *object) {
-    constexpr bool hasMediaClock = std::is_base_of_v<MediaClock, T>;
-    constexpr bool hasMediaElement = std::is_base_of_v<MediaElement, T>;
-
-    static_assert(hasMediaClock || hasMediaElement, "Object must be derived from MediaClock or MediaElement");
-
-    if constexpr (hasMediaClock) {
-        removeClock(object);
-    }
-    if constexpr (hasMediaElement) {
-        removeElement(object);
-    }
-}
 
 NEKO_NS_END

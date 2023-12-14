@@ -49,16 +49,10 @@ public:
         mDevice->setCallback(std::bind(&AudioSinkImpl::audioCallback, this, std::placeholders::_1, std::placeholders::_2));
 
         mController = GetMediaController(this);
-        if (mController) {
-            mController->addObject(this);
-        }
         return Error::Ok;
     }
     Error onTeardown() override {
         mDevice.reset();
-        if (mController) {
-            mController->removeObject(this);
-        }
         mController = nullptr;
         return Error::Ok;
     }
@@ -119,8 +113,8 @@ public:
     double position() const override {
         return mPosition;
     }
-    Type type() const override {
-        return Audio;
+    ClockType type() const override {
+        return ClockType::Audio;
     }
     void audioCallback(void *_buf, int len) {
         auto buf = reinterpret_cast<uint8_t*>(_buf);
@@ -171,6 +165,9 @@ public:
     bool isEndOfFile() const override {
         std::lock_guard locker(mMutex);
         return mFrames.empty() && mCurrentFrame == nullptr;
+    }
+    MediaClock *clock() const override {
+        return const_cast<AudioSinkImpl*>(this);
     }
 private:
     MediaController *mController = nullptr;

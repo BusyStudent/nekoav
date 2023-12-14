@@ -149,7 +149,6 @@ public Q_SLOTS:
     void play();
     void pause();
     void stop();
-    void load();
 
     void setPosition(qreal position);
 

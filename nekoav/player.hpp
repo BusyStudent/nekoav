@@ -45,7 +45,7 @@ public:
     void stop();
 
     void setErrorCallback(std::function<void(Error, std::string_view)> &&callback);
-    void setProgressCallback(std::function<void(double)> &&callback);
+    void setPositionCallback(std::function<void(double)> &&callback);
     void setStateChangedCallback(std::function<void(State)> &&callback);
 private:
     void _run();
@@ -62,7 +62,7 @@ private:
 
     // Callbacks
     std::function<void(Error, std::string_view)> mErrorCallback;
-    std::function<void(double)>           mProgressCallback;
+    std::function<void(double)>           mPositionCallback;
     std::function<void(State)>            mStateChangedCallback;
 };
 

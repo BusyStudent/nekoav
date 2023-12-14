@@ -151,8 +151,8 @@ double ExternalClock::position() const {
     // Calc
     return double(GetTicks() - mTicks) / 1000.0;
 }
-auto ExternalClock::type() const -> Type {
-    return External;
+auto ExternalClock::type() const -> ClockType {
+    return ClockType::External;
 }
 void ExternalClock::start() {
     if (!mPaused) {

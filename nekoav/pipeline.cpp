@@ -18,7 +18,7 @@ public:
         // Init env
         setBus(&mBusSink);
         setContext(&mContext);
-        addClock(&mExternalClock);
+        _addClock(&mExternalClock);
 
         mContext.addObjectView<MediaController>(this);
     }
@@ -33,6 +33,10 @@ public:
         element->setBus(&mBusSink);
         element->setContext(&mContext);
         mElements.push_back(element->shared_from_this());
+        // Add media element
+        if (auto mediaElement = element.viewAs<MediaElement>(); mediaElement) {
+            _addMediaElement(mediaElement);
+        }
         return Error::Ok;
     }
     Error removeElement(View<Element> element) override {
@@ -48,6 +52,11 @@ public:
         element->setBus(nullptr);
         element->setContext(nullptr);
         mElements.erase(it);
+
+        // Remove media element
+        if (auto mediaElement = element.viewAs<MediaElement>(); mediaElement) {
+            _removeMediaElement(mediaElement);
+        }
         return Error::Ok;
     }
     Error forElements(const std::function<bool (View<Element>)> &cb) override {
@@ -119,7 +128,7 @@ public:
         for (const auto &elem : mElements) {
             // FIXME : If seek failed???
             if (event->type() == Event::SeekRequested) {
-                mExternalClock.setPosition(event.viewAs<SeekEvent>()->time());
+                mExternalClock.setPosition(event.viewAs<SeekEvent>()->position());
                 mTriggeredEndOfFile = false;
             }
             NEKO_TRACE_TIME(duration) {
@@ -137,11 +146,10 @@ public:
     }
 
     // MediaController
-    void addClock(MediaClock *clock) override {
+    void _addClock(MediaClock *clock) {
         if (!clock) {
             return;
         }
-        std::lock_guard locker(mControllerMutex);
         mClocks.push_back(clock);
 
         if (mMasterClock == nullptr) {
@@ -152,11 +160,10 @@ public:
             mMasterClock = clock;
         }
     }
-    void removeClock(MediaClock *clock) override {
+    void _removeClock(MediaClock *clock) {
         if (!clock) {
             return;
         }
-        std::lock_guard locker(mControllerMutex);
         mClocks.erase(std::remove(mClocks.begin(), mClocks.end(), clock), mClocks.end());
         if (mMasterClock == clock) {
             mMasterClock = nullptr;
@@ -172,15 +179,19 @@ public:
             }
         }
     }
-    void addElement(MediaElement *element) override {
+    void _addMediaElement(MediaElement *element) {
         if (!element) {
             return;
         }
 
         std::lock_guard locker(mControllerMutex);
+        auto clock = element->clock();
+        if (clock) {
+            _addClock(clock);
+        }
         mMediaElements.push_back(element);
     }
-    void removeElement(MediaElement *element) override {
+    void _removeMediaElement(MediaElement *element) {
         if (!element) {
             return;
         }
@@ -190,8 +201,12 @@ public:
         if (iter != mMediaElements.end()) {
             mMediaElements.erase(iter);
         }
+        auto clock = element->clock();
+        if (clock) {
+            _removeClock(clock);
+        }
     }
-    bool isAllEndOfFile() {
+    bool _isAllEndOfFile() {
         std::shared_lock lock(mControllerMutex);
         if (mMediaElements.empty()) {
             return false;
@@ -212,29 +227,29 @@ private:
         Sink(PipelineImpl* p) : p(p) {}
 
         Error postEvent(View<Event> event) override {
-            return p->postBusEvent(event);
+            return p->_postBusEvent(event);
         }
         Error sendEvent(View<Event> event) override {
-            return p->sendBusEvent(event);
+            return p->_sendBusEvent(event);
         }
 
         PipelineImpl *p;
     } mBusSink {this};
 
-    Error postBusEvent(View<Event> event) {
-        mThread->postTask(std::bind(&PipelineImpl::processEvent, this, event->shared_from_this()));
+    Error _postBusEvent(View<Event> event) {
+        mThread->postTask(std::bind(&PipelineImpl::_processEvent, this, event->shared_from_this()));
         return Error::Ok;
     }
-    Error sendBusEvent(View<Event> event) {
+    Error _sendBusEvent(View<Event> event) {
         if (Thread::currentThread() != mThread) {
-            mThread->sendTask(std::bind(&PipelineImpl::processEvent, this, event->shared_from_this()));
+            mThread->sendTask(std::bind(&PipelineImpl::_processEvent, this, event->shared_from_this()));
         }
         else {
-            mThread->postTask(std::bind(&PipelineImpl::processEvent, this, event->shared_from_this()));
+            mThread->postTask(std::bind(&PipelineImpl::_processEvent, this, event->shared_from_this()));
         }
         return Error::Ok;
     }
-    Error processEvent(const Arc<Event> &event) {
+    Error _processEvent(const Arc<Event> &event) {
         // Process event here
         NEKO_DEBUG(typeid(*event));
         NEKO_DEBUG(event->type());
@@ -275,10 +290,10 @@ private:
             MediaClock *audioClock = nullptr;
             MediaClock *videoClock = nullptr;
             for (auto v : mClocks) {
-                if (v->type() == MediaClock::Audio) {
+                if (v->type() == ClockType::Audio) {
                     audioClock = v;
                 }
-                if (v->type() == MediaClock::Video) {
+                if (v->type() == ClockType::Video) {
                     videoClock = v;
                 }
                 if (audioClock && videoClock) {
@@ -291,15 +306,15 @@ private:
                 NEKO_DEBUG(v->position());
             }
 #endif
-            sendBusEvent(ClockEvent::make(Event::ClockUpdated, masterClock(), this));
+            _sendBusEvent(ClockEvent::make(Event::ClockUpdated, mPosition, this));
         }
-        bool isEndOfFile = isAllEndOfFile();
+        bool isEndOfFile = _isAllEndOfFile();
         if (isEndOfFile) {
             if (!mTriggeredEndOfFile) {
                 NEKO_DEBUG(isEndOfFile);
                 mTriggeredEndOfFile = true;
-                sendBusEvent(ClockEvent::make(Event::ClockUpdated, masterClock(), this));
-                sendBusEvent(Event::make(Event::MediaEndOfFile, this));
+                _sendBusEvent(ClockEvent::make(Event::ClockUpdated, mPosition, this));
+                _sendBusEvent(Event::make(Event::MediaEndOfFile, this));
             }
         }
     }

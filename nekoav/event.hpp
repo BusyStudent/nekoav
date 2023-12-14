@@ -44,7 +44,7 @@ public:
     Element *sender() const noexcept {
         return mSender;
     }
-    int64_t time() const noexcept {
+    int64_t timestamp() const noexcept {
         return mTime;
     }
     template <typename T>
@@ -106,17 +106,17 @@ class MediaClock;
  */
 class ClockEvent : public Event {
 public:
-    ClockEvent(Type type, MediaClock *clock, Element *sender) : Event(type, sender), mClock(clock) { };
+    ClockEvent(Type type, double position, Element *sender) : Event(type, sender), mPosition(position) { };
 
-    MediaClock *clock() const noexcept {
-        return mClock;
+    double position() const noexcept {
+        return mPosition;
     }
 
-    static Arc<ClockEvent> make(Type type, MediaClock *clock, Element *sender) {
-        return std::make_shared<ClockEvent>(type, clock, sender);
+    static Arc<ClockEvent> make(Type type, double position, Element *sender) {
+        return MakeShared<ClockEvent>(type, position, sender);
     }
 private:
-    MediaClock *mClock = nullptr;
+    double mPosition;
 };
 /**
  * @brief Media Seek 
@@ -124,16 +124,16 @@ private:
  */
 class SeekEvent : public Event {
 public:
-    SeekEvent(double targetSeconds) : Event(SeekRequested, nullptr), mTime(targetSeconds) { }
+    SeekEvent(double targetSeconds) : Event(SeekRequested, nullptr), mPosition(targetSeconds) { }
 
-    double time() const noexcept {
-        return mTime;
+    double position() const noexcept {
+        return mPosition;
     }
     static Arc<SeekEvent> make(double targetSeconds) {
-        return std::make_shared<SeekEvent>(targetSeconds);
+        return MakeShared<SeekEvent>(targetSeconds);
     }
 private:
-    double mTime;
+    double mPosition;
 };
 /**
  * @brief Media Bufferinf 
@@ -155,7 +155,7 @@ public:
         return mProgress == 0;
     }
     static Arc<BufferingEvent> make(int progress, Element *sender) {
-        return std::make_shared<BufferingEvent>(progress, sender);
+        return MakeShared<BufferingEvent>(progress, sender);
     }
 private:
     int mProgress;

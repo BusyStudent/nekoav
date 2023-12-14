@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../elements.hpp"
-#include <source_location>
 #include <functional>
 
 #ifndef NDEBUG

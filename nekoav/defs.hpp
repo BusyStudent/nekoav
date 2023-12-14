@@ -60,14 +60,13 @@
 #define NEKO_CXX20 (__cplusplus >= 202002L)
 #define NEKO_CXX23 (__cplusplus >= 202300L)
 
-#include <source_location>
+#include "detail/cxx20.hpp"
 #include <typeinfo>
 #include <cstddef>
 #include <cstdint>
 #include <cassert>
 #include <memory>
 #include <atomic>
-#include <latch>
 
 NEKO_NS_BEGIN
 
@@ -161,6 +160,18 @@ public:
  */
 template <typename T, typename ...Args>
 Arc<T> make_shared(Args &&...args) {
+    return std::make_shared<T>(std::forward<Args>(args)...);
+}
+/**
+ * @brief Create a Arc of giving type
+ * 
+ * @tparam T 
+ * @tparam Args 
+ * @param args 
+ * @return Arc<T> 
+ */
+template <typename T, typename ...Args>
+Arc<T> MakeShared(Args &&...args) {
     return std::make_shared<T>(std::forward<Args>(args)...);
 }
 

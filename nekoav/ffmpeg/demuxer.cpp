@@ -38,14 +38,10 @@ public:
         return double(mFormatContext->duration) / AV_TIME_BASE;
     }
     Error onInitialize() override {
-        if (auto controller = GetMediaController(this); controller) {
-            controller->addObject(this);
-        }
-
         mFormatContext = avformat_alloc_context();
         mFormatContext->interrupt_callback.opaque = this;
         mFormatContext->interrupt_callback.callback = [](void *self) {
-            return static_cast<FFDemuxer*>(self)->interruptHandler();
+            return static_cast<FFDemuxer*>(self)->_interruptHandler();
         };
 
         int ret = avformat_open_input(&mFormatContext, mSource.c_str(), nullptr, nullptr);
@@ -61,15 +57,11 @@ public:
             return ToError(ret);
         }
 
-        registerStreams();
+        _registerStreams();
         
         return Error::Ok;
     }
     Error onTeardown() override {
-        if (auto controller = GetMediaController(this); controller) {
-            controller->removeObject(this);
-        }
-        
         avformat_close_input(&mFormatContext);
         mStreamMapping.clear();
         mEof = false;
@@ -85,11 +77,11 @@ public:
                 thread()->dispatchTask();
                 
                 if (mSeekRequested) {
-                    err = doSeek(mSeekPosition);
+                    err = _doSeek(mSeekPosition);
                     mSeekRequested = false;
                 }
                 else {
-                    err = readFrame();
+                    err = _readFrame();
                 } 
                 if (err != Error::Ok) {
                     return err;
@@ -101,12 +93,12 @@ public:
     Error onEvent(View<Event> event) override {
         if (event->type() == Event::SeekRequested) {
             // Require a seek
-            mSeekPosition = event.viewAs<SeekEvent>()->time();
+            mSeekPosition = event.viewAs<SeekEvent>()->position();
             mSeekRequested = true;
         }
         return Error::Ok;
     }
-    Error readFrame() {
+    Error _readFrame() {
         int ret = av_read_frame(mFormatContext, mPacket);
         if (ret < 0) {
             NEKO_DEBUG(FormatErrorCode(ret));
@@ -132,7 +124,7 @@ public:
         av_packet_unref(mPacket);   
         return Error::Ok;
     }
-    void registerStreams() {
+    void _registerStreams() {
         int nowVideoIndex = -1;
         int nowAudioIndex = -1;
         int nowSubtitleIndex = -1;
@@ -184,7 +176,10 @@ public:
     bool isEndOfFile() const override {
         return mEof;
     }
-    Error doSeek(double time) {
+    MediaClock *clock() const override {
+        return nullptr;
+    }
+    Error _doSeek(double time) {
         int64_t seekTime = time* AV_TIME_BASE;
         int ret = av_seek_frame(
             mFormatContext,
@@ -206,7 +201,7 @@ public:
         mEof = false;
         return Error::Ok;
     }
-    int interruptHandler() {
+    int _interruptHandler() {
         // NEKO_ASSERT(mInInterruptHandler);
         return stopRequested();
     }

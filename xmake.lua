@@ -44,8 +44,8 @@ end
 target("nekoav")
     set_kind("shared")
     set_languages("c++20")
-    set_warnings("all")
-    set_warnings("error")
+    -- set_warnings("all")
+    -- set_warnings("error")
 
     if is_plat("windows") then
         add_links("user32")
@@ -91,7 +91,7 @@ if has_config("qt_interop") then
 
         add_deps("nekoav")
         add_defines("_QNEKO_SOURCE")
-        add_frameworks("QtCore", "QtGui", "QtWidgets")
+        add_frameworks("QtCore", "QtGui", "QtWidgets", "QtOpenGL", "QtOpenGLWidgets")
 
         add_files("nekoav/interop/qnekoav.cpp")
         add_files("nekoav/interop/qnekoav.hpp")

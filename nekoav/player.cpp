@@ -51,8 +51,8 @@ void Player::stop() {
 void Player::setErrorCallback(std::function<void(Error, std::string_view)>&& callback) {
     mErrorCallback = std::move(callback);
 }
-void Player::setProgressCallback(std::function<void(double)>&& callback) {
-    mProgressCallback = std::move(callback);
+void Player::setPositionCallback(std::function<void(double)>&& callback) {
+    mPositionCallback = std::move(callback);
 }
 void Player::setStateChangedCallback(std::function<void(State)>&& callback) {
     mStateChangedCallback = std::move(callback);
@@ -225,8 +225,8 @@ void Player::_run() {
 void Player::_translateEvent(View<Event> event) {
     switch (event->type()) {
         case Event::ClockUpdated: {
-            if (mProgressCallback) {
-                mProgressCallback(position());
+            if (mPositionCallback) {
+                mPositionCallback(event.viewAs<ClockEvent>()->position());
             }
             break;
         }

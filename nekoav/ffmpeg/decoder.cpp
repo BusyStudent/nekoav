@@ -22,7 +22,7 @@ public:
             if (!v) {
                 return Error::UnsupportedResource;
             }
-            return process(v);
+            return _process(v);
         });
         mSink->setEventCallback([this](View<Event> eventView) {
             if (eventView->type() == Event::FlushRequested) {
@@ -40,9 +40,9 @@ public:
         avcodec_free_context(&mCtxt);
         return Error::Ok;
     }
-    Error process(View<Packet> packet) {
+    Error _process(View<Packet> packet) {
         if (!mCtxt) {
-            if (auto err = initCodecContext(packet->stream()); err != Error::Ok) {
+            if (auto err = _initCodecContext(packet->stream()); err != Error::Ok) {
                 return err;
             }
         }
@@ -75,10 +75,10 @@ public:
         }
         return Error::Ok;
     }
-    Error initCodecContext(AVStream *stream) {
+    Error _initCodecContext(AVStream *stream) {
         if (mHardwarePolicy != HardwarePolicy::ForceSoftware) {
             // Try hardware
-            if (auto err = initHardwareCodecContext(stream); err != Error::Ok) {
+            if (auto err = _initHardwareCodecContext(stream); err != Error::Ok) {
                 if (mHardwarePolicy == HardwarePolicy::ForceHardware) {
                     // ForceHard, failed
                     return err;
@@ -108,7 +108,7 @@ public:
         }
         return Error::Ok;
     }
-    Error initHardwareCodecContext(AVStream *stream) {
+    Error _initHardwareCodecContext(AVStream *stream) {
         auto codecpar = stream->codecpar;
         auto codec = avcodec_find_decoder(codecpar->codec_id);
         mCtxt = avcodec_alloc_context3(codec);
