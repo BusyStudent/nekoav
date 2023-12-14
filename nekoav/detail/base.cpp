@@ -11,13 +11,17 @@ NEKO_NS_BEGIN
 
 namespace _abiv1 {
 
+/**
+ * @note Please do not use it in destructors, although in most cases this won't be a problem, and relying on implicit destructors can have unforeseen consequences.
+ * 
+ */
 #define TRACE(what, ...)                                                                        \
     if (d->mTracer) {                                                                           \
         d->mTracer->received(mElement, ElementEventType::StageBegin,  what, ##__VA_ARGS__);     \
     }                                                                                           \
-    DeferInvoke _inv = [&]() {                                                                  \
-        if (d->mTracer) {                                                                       \
-            d->mTracer->received(mElement, ElementEventType::StageEnd,  what, ##__VA_ARGS__);   \
+    DeferInvoke _inv = [this, tracer = d->mTracer]() {                                          \
+        if (tracer) {                                                                           \
+            tracer->received(mElement, ElementEventType::StageEnd,  what, ##__VA_ARGS__);       \
         }                                                                                       \
     };
 
