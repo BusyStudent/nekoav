@@ -52,6 +52,10 @@ target("nekoav")
         add_defines("NOMINMAX")
     end
 
+    if is_plat("linux") then
+        add_links("dl")
+    end
+
     if is_mode("release") then 
         add_defines("NEKO_NO_LOG")
     end
@@ -114,11 +118,20 @@ target("cltest")
     set_kind("binary")
     add_deps("nekoav")
 
+    if is_plat("linux") then
+        add_links("dl")
+    end
+
     add_files("tests/cltest.cpp")
 target_end()
 
 target("coretest")
     set_kind("binary")
+    
+    if is_plat("linux") then
+        add_links("dl")
+    end
+    
     add_deps("nekoav")
     add_packages("gtest")
 
@@ -127,6 +140,11 @@ target_end()
 
 target("basetest")
     set_kind("binary")
+
+    if is_plat("linux") then
+        add_links("dl")
+    end
+
     add_deps("nekoav")
     add_packages("gtest")
 

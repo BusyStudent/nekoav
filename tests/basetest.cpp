@@ -35,7 +35,7 @@ TEST(Base_ABIV1, ABIV1) {
     };
     Context ctxt;
     PrintElementTracer tracer;
-    ctxt.addObjectView<ElementTracer>(&tracer);
+    ctxt.addObjectView<ElementEventSubscriber>(&tracer);
 
 
     auto appsrc = GetElementFactory()->createElement<AppSource>();

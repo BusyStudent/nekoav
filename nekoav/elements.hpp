@@ -259,7 +259,9 @@ inline void Element::setFlags(ElementFlags flags) {
 }
 inline void Element::overrideState(State newState) {
     mState = newState;
+#ifdef __cpp_lib_atomic_wait
     mState.notify_all();
+#endif
 }
 
 template <typename ...Args>

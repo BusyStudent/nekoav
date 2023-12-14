@@ -11,14 +11,14 @@ NEKO_NS_BEGIN
 
 namespace _abiv1 {
 
-#define TRACE(what, ...)                                  \
-    if (d->mTracer) {                                     \
-        d->mTracer->what##Begin(mElement, __VA_ARGS__);   \
-    }                                                     \
-    DeferInvoke _inv = [&]() {                            \
-        if (d->mTracer) {                                 \
-            d->mTracer->what##End(mElement, __VA_ARGS__); \
-        }                                                 \
+#define TRACE(what, ...)                                                                        \
+    if (d->mTracer) {                                                                           \
+        d->mTracer->received(mElement, ElementEventType::StageBegin,  what, ##__VA_ARGS__);     \
+    }                                                                                           \
+    DeferInvoke _inv = [&]() {                                                                  \
+        if (d->mTracer) {                                                                       \
+            d->mTracer->received(mElement, ElementEventType::StageEnd,  what, ##__VA_ARGS__);   \
+        }                                                                                       \
     };
 
 template <typename Callable>
@@ -32,7 +32,7 @@ private:
 
 class ElementBasePrivate {
 public:
-    ElementTracer *mTracer = nullptr;
+    ElementEventSubscriber *mTracer = nullptr;
 };
 
 ElementBase::ElementBase(ElementDelegate *delegate, Element *element, int kind) 
@@ -80,7 +80,7 @@ Error ElementBase::raiseError(Error errcode, std::string_view message, std::sour
     return errcode;
 }
 Error ElementBase::_sendEvent(View<Event> event) {
-    TRACE(sendEvent, event);
+    TRACE("sendEvent");
 
     if (mThreading) {
         if (!mThread) {
@@ -96,10 +96,10 @@ Error ElementBase::_sendEvent(View<Event> event) {
 Error ElementBase::_changeState(StateChange stateChange) {
     // Init Tracer here
     if (stateChange == StateChange::Initialize) {
-        d->mTracer = mElement->context()->queryObject<ElementTracer>();
+        d->mTracer = mElement->context()->queryObject<ElementEventSubscriber>();
     }
     // Begin Trace
-    TRACE(changeState, stateChange);
+    TRACE("changeState");
     
     if (!mThreading) {
         return _dispatchChangeState(stateChange);
@@ -213,12 +213,12 @@ Pad *ElementBase::_polishPad(Pad *pad) {
     return pad;
 }
 Error ElementBase::_onSinkPush(Pad *pad, View<Resource> resource) {
-    TRACE(onSinkPush, pad, resource);
+    TRACE("onSinkPush");
 
     return mDelegate->onSinkPush(pad, resource);
 }
 Error ElementBase::_onSinkEvent(Pad *pad, View<Event> event) {
-    TRACE(onSinkEvent, pad, event);
+    TRACE("onSinkEvent");
 
     auto err = mDelegate->onSinkEvent(pad, event);
     if (err == Error::NoImpl) {
@@ -228,7 +228,7 @@ Error ElementBase::_onSinkEvent(Pad *pad, View<Event> event) {
     return err;
 }
 Error ElementBase::_onSourceEvent(Pad *pad, View<Event> event) {
-    TRACE(onSourceEvent, pad, event);
+    TRACE("onSourceEvent");
 
     auto err = mDelegate->onSourceEvent(pad, event);
     if (err == Error::NoImpl) {
@@ -238,7 +238,7 @@ Error ElementBase::_onSourceEvent(Pad *pad, View<Event> event) {
     return err;
 }
 Error ElementBase::pushEventTo(View<Pad> pad, View<Event> event) {
-    TRACE(pushEventTo, pad, event);
+    TRACE("pushEventTo");
 
     if (event && pad) {
         return pad->pushEvent(event);
@@ -246,7 +246,7 @@ Error ElementBase::pushEventTo(View<Pad> pad, View<Event> event) {
     return Error::InvalidArguments;
 }
 Error ElementBase::pushTo(View<Pad> pad, View<Resource> resource) {
-    TRACE(pushTo, pad, resource);
+    TRACE("pushTo");
 
     if (pad && resource) {
         return pad->push(resource);

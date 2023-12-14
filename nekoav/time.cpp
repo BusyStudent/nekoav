@@ -12,6 +12,7 @@
 #elif defined(__linux)
     #include <sys/time.h>
     #include <ctime>
+    #include <unistd.h>
 #endif
 
 NEKO_NS_BEGIN

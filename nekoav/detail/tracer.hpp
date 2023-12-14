@@ -11,101 +11,81 @@
 #include <cstdarg>
 #include <cstdio>
 
-#define NEKO_SOURCE_LOCATION std::source_location loc = std::source_location::current()
+#include "../time.hpp"
+#include "cxx20.hpp"
 
 NEKO_NS_BEGIN
 
-class ElementTracer {
-public:
-    /**
-     * @brief Call on change the state begin
-     * 
-     * @param element 
-     * @param change 
-     */
-    virtual void changeStateBegin(Element *element, StateChange change, NEKO_SOURCE_LOCATION) = 0;
-    virtual void changeStateEnd(Element *element, StateChange change, NEKO_SOURCE_LOCATION) = 0;
-
-    virtual void sendEventBegin(Element *element, View<Event> event, NEKO_SOURCE_LOCATION) = 0;
-    virtual void sendEventEnd(Element *element, View<Event> event, NEKO_SOURCE_LOCATION) = 0;
-
-    virtual void onEventBegin(Element *element, View<Event> event, NEKO_SOURCE_LOCATION) = 0;
-    virtual void onEventEnd(Element *element, View<Event> event, NEKO_SOURCE_LOCATION) = 0;
-
-    virtual void onSinkPushBegin(Element *element, View<Pad> pad ,View<Resource> resource, NEKO_SOURCE_LOCATION) = 0;
-    virtual void onSinkPushEnd(Element *element, View<Pad> pad, View<Resource> resource, NEKO_SOURCE_LOCATION) = 0;
-
-    virtual void onSinkEventBegin(Element *element, View<Pad> pad, View<Event> event, NEKO_SOURCE_LOCATION) = 0;
-    virtual void onSinkEventEnd(Element *element, View<Pad> pad, View<Event> event, NEKO_SOURCE_LOCATION) = 0;
-
-    virtual void onSourceEventBegin(Element *element, View<Pad> pad, View<Event> event, NEKO_SOURCE_LOCATION) = 0;
-    virtual void onSourceEventEnd(Element *element, View<Pad> pad, View<Event> event, NEKO_SOURCE_LOCATION) = 0;
-
-    virtual void pushEventToBegin(Element *element, View<Pad> targetPad, View<Event> event, NEKO_SOURCE_LOCATION) = 0;
-    virtual void pushEventToEnd(Element *element, View<Pad> targetPad, View<Event> event, NEKO_SOURCE_LOCATION) = 0;
-
-    virtual void pushToBegin(Element *element, View<Pad> targetPad, View<Resource> resource, NEKO_SOURCE_LOCATION) = 0;
-    virtual void pushToEnd(Element *element, View<Pad> targetPad, View<Resource> resource, NEKO_SOURCE_LOCATION) = 0;
+enum ElementEventType : int {
+    UnknownEvent = 0,
+    StageBegin = 1,
+    StageEnd = 2,
+    CustomEventBegin = 114514,
 };
-class PrintElementTracer : public ElementTracer {
+
+/**
+ * @brief For listener element run
+ * 
+ */
+class ElementEventSubscriber {
+public:
+    virtual void received(Element *element,
+                  const ElementEventType &event_type, 
+                  const std::string &event_msg,
+                  const uint64_t timestamp = NekoAV::GetTicks(),
+                  const std::source_location local = std::source_location::current(), 
+                  const Thread *thread = Thread::currentThread()) = 0;
+};
+
+class PrintElementTracer : public ElementEventSubscriber {
 public:
     PrintElementTracer(FILE *stream = stderr) : mStream(stream) {}
 
-    void changeStateBegin(Element *element, StateChange change, NEKO_SOURCE_LOCATION) override {
-        _output("%s change state(%s) begin\n", element->name().c_str(), GetStateChangeString(change));
-    }
-    void changeStateEnd(Element *element, StateChange change, NEKO_SOURCE_LOCATION) override {
-        _output("%s change state(%s) end\n", element->name().c_str(), GetStateChangeString(change));
-    }
-
-    void sendEventBegin(Element *element, View<Event> event, NEKO_SOURCE_LOCATION) override {
-        _output("%s send event(%p : %s) begin\n", element->name().c_str(), event.get(), libc::typenameof(typeid(*event)));
-    }
-    void sendEventEnd(Element *element, View<Event> event, NEKO_SOURCE_LOCATION) override {
-        _output("%s send event(%p : %s) end\n", element->name().c_str(), event.get(), libc::typenameof(typeid(*event)));
-    }
-    
-    void onEventBegin(Element *element, View<Event> event, NEKO_SOURCE_LOCATION) override {
-        _output("%s on event(%p) begin\n", element->name().c_str(), event.get());
-    }
-    void onEventEnd(Element *element, View<Event> event, NEKO_SOURCE_LOCATION) override {
-        _output("%s on event(%p) end\n", element->name().c_str(), event.get());
-    }
-
-    void onSinkPushBegin(Element *element, View<Pad> targetPad, View<Resource> resource, NEKO_SOURCE_LOCATION) override {
-        _output("%s on sink push(%s, %p : %s) begin\n", element->name().c_str(), targetPad->name().data(), resource.get(), libc::typenameof(typeid(*resource)));
-    }
-    void onSinkPushEnd(Element *element, View<Pad> targetPad, View<Resource> resource, NEKO_SOURCE_LOCATION) override {
-        _output("%s on sink push(%s, %p : %s) end\n", element->name().c_str(), targetPad->name().data(), resource.get(), libc::typenameof(typeid(*resource)));
-    }
-
-    void onSinkEventBegin(Element *element, View<Pad> targetPad, View<Event> event, NEKO_SOURCE_LOCATION) override {
-        _output("%s on sink event begin\n", element->name().c_str());
-    }
-    void onSinkEventEnd(Element *element, View<Pad> targetPad, View<Event> event, NEKO_SOURCE_LOCATION) override {
-        _output("%s on sink event end\n", element->name().c_str());
-    }
-
-    void onSourceEventBegin(Element *element, View<Pad> targetPad, View<Event> event, NEKO_SOURCE_LOCATION) override {
-        _output("%s on source event begin\n", element->name().c_str());
-    }
-    void onSourceEventEnd(Element *element, View<Pad> targetPad, View<Event> event, NEKO_SOURCE_LOCATION) override {
-        _output("%s on source event end\n", element->name().c_str());
-    }
-
-
-    void pushEventToBegin(Element *element, View<Pad> targetPad, View<Event> event, NEKO_SOURCE_LOCATION) override {
-        _output("%s push event to begin\n", element->name().c_str());
-    }
-    void pushEventToEnd(Element *element, View<Pad> targetPad, View<Event> event, NEKO_SOURCE_LOCATION) override {
-        _output("%s push event to end\n", element->name().c_str());
-    }
-
-    void pushToBegin(Element *element, View<Pad> targetPad, View<Resource> event, NEKO_SOURCE_LOCATION) override {
-        _output("%s push to begin\n", element->name().c_str());
-    }
-    void pushToEnd(Element *element, View<Pad> targetPad, View<Resource> event, NEKO_SOURCE_LOCATION) override {
-        _output("%s push to end\n", element->name().c_str());
+    inline void received(Element *element,
+                         const ElementEventType &event_type, 
+                         const std::string &event_msg,
+                         const uint64_t timestamp = NekoAV::GetTicks(),
+                         const std::source_location local = std::source_location::current(), 
+                         const Thread *thread = Thread::currentThread()) override {
+        switch (event_type)
+        {
+        case ElementEventType::UnknownEvent:
+            _output("[%u][%s:%u (%s)][%s]: unknow stage event happen, message: %s\n", 
+                    timestamp, 
+                    local.file_name(), 
+                    local.line(), 
+                    local.function_name(), 
+                    (thread == nullptr ? "mainThread" : thread->name().data()), 
+                    event_msg.c_str());
+            break;
+        case ElementEventType::StageBegin:
+            _output("[%u][%s:%u (%s)][%s]: %s stage begin\n", 
+                    timestamp, 
+                    local.file_name(), 
+                    local.line(), 
+                    local.function_name(), 
+                    (thread == nullptr ? "mainThread" : thread->name().data()), 
+                    event_msg.c_str());
+            break;
+        case ElementEventType::StageEnd:
+            _output("[%u][%s:%u (%s)][%s]: %s stage end\n", 
+                    timestamp, 
+                    local.file_name(), 
+                    local.line(), 
+                    local.function_name(), 
+                    (thread == nullptr ? "mainThread" : thread->name().data()), 
+                    event_msg.c_str());
+            break;
+        default:
+            _output("[%u][%s:%u (%s)][%s]: %s\n", 
+                    timestamp, 
+                    local.file_name(), 
+                    local.line(), 
+                    local.function_name(), 
+                    (thread == nullptr ? "mainThread" : thread->name().data()), 
+                    event_msg.c_str());
+            break;
+        }
     }
 private:
     void _output(const char *format, ...) {
@@ -116,7 +96,7 @@ private:
         }
         va_list varg;
         va_start(varg, format);
-        ::fprintf(mStream, "TRACE: Thread %s, Ticks %" PRId64  " ", name, GetTicks());
+        ::fprintf(mStream, "TRACE >>> ");
         ::vfprintf(mStream, format, varg);
         va_end(varg);
 

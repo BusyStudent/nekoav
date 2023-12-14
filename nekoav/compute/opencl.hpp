@@ -19,10 +19,6 @@
     #error "Unsupported platform"
 #endif
 
-#ifdef NEKO_CXX20
-    #include <source_location>
-#endif
-
 #ifdef NEKOCL_STATIC_IMPORT
     #define nekocl_library_path(path)
     #define nekocl_import(name) neko_import_symbol_static(name, name)
