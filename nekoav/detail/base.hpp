@@ -12,6 +12,38 @@
 NEKO_NS_BEGIN
 
 namespace _abiv1 {
+class ElementEventSubscriber;
+enum ElementEventType : int {
+    UnknownEvent = 0,
+    StageBegin = 1,
+    StageEnd = 2,
+    CustomEventBegin = 114514,
+};
+/**
+ * @brief For element be listener
+ * 
+ */
+class ElementEventPublisher {
+public:
+    void notifyAllSubscriber(Element *element, 
+                             const ElementEventType &event_type, 
+                             const std::string &event_msg, 
+                             const uint64_t timestamp, 
+                             const std::source_location local = NEKO_GET_LOCATION(), 
+                             const Thread *thread = Thread::currentThread());
+
+    void addSubscriber(ElementEventSubscriber *subscriber);
+    void removeSubscriber(ElementEventSubscriber *subscriber);
+    void removeSubscriber();
+};
+
+/**
+ * @brief For listener element run
+ * 
+ */
+class ElementEventSubscriber {
+public:
+};
 
 class ElementBasePrivate;
 /**
