@@ -1,5 +1,10 @@
 #pragma once
 
+#include <cinttypes>
+#include <cstdarg>
+#include <cstdio>
+#include <map>
+
 #include "../threading.hpp"
 #include "../elements.hpp"
 #include "../resource.hpp"
@@ -7,10 +12,6 @@
 #include "../time.hpp"
 #include "../libc.hpp"
 #include "../pad.hpp"
-#include <cinttypes>
-#include <cstdarg>
-#include <cstdio>
-
 #include "../time.hpp"
 #include "cxx20.hpp"
 
@@ -20,7 +21,33 @@ enum ElementEventType : int {
     UnknownEvent = 0,
     StageBegin = 1,
     StageEnd = 2,
+    DataReceived = 3,
+    DataSend = 4,
     CustomEventBegin = 114514,
+};
+
+struct ActionData {
+    ActionData( Element *element,
+                const ElementEventType &event_type, 
+                const std::string &event_msg,
+                const uint64_t timestamp = NekoAV::GetTicks(),
+                const std::source_location location = std::source_location::current(),
+                const Thread *thread = Thread::currentThread()) : 
+                    element(element), 
+                    event_type(event_type), 
+                    event_msg(event_msg),
+                    timestamp(timestamp), 
+                    location(location), 
+                    thread(thread) {}
+
+    const Element *element = nullptr;
+    const Pad *pad = nullptr;
+    const Resource *resource = nullptr;
+    ElementEventType event_type;
+    std::string event_msg;
+    uint64_t timestamp;
+    std::source_location location;
+    const Thread *thread = nullptr;
 };
 
 /**
@@ -29,84 +56,28 @@ enum ElementEventType : int {
  */
 class ElementEventSubscriber {
 public:
-    virtual void received(Element *element,
-                  const ElementEventType &event_type, 
-                  const std::string &event_msg,
-                  const uint64_t timestamp = NekoAV::GetTicks(),
-                  const std::source_location local = std::source_location::current(), 
-                  const Thread *thread = Thread::currentThread()) = 0;
+    virtual void received(ActionData actionData) = 0;
 };
 
 class PrintElementTracer : public ElementEventSubscriber {
 public:
-    PrintElementTracer(FILE *stream = stderr) : mStream(stream) {}
+    PrintElementTracer(FILE *stream = stderr);
 
-    inline void received(Element *element,
-                         const ElementEventType &event_type, 
-                         const std::string &event_msg,
-                         const uint64_t timestamp = NekoAV::GetTicks(),
-                         const std::source_location location = std::source_location::current(), 
-                         const Thread *thread = Thread::currentThread()) override {
-        switch (event_type)
-        {
-        case ElementEventType::UnknownEvent:
-            _output("[%u][%s:%u (%s)][%s][%s]: unknow stage event happen, message: %s\n", 
-                    timestamp, 
-                    location.file_name(), 
-                    location.line(), 
-                    location.function_name(), 
-                    (thread == nullptr ? "mainThread" : thread->name().data()), 
-                    element->name().c_str(),
-                    event_msg.c_str());
-            break;
-        case ElementEventType::StageBegin:
-            _output("[%u][%s:%u (%s)][%s][%s]: %s stage begin\n", 
-                    timestamp, 
-                    location.file_name(), 
-                    location.line(), 
-                    location.function_name(), 
-                    (thread == nullptr ? "mainThread" : thread->name().data()), 
-                    element->name().c_str(),
-                    event_msg.c_str());
-            break;
-        case ElementEventType::StageEnd:
-            _output("[%u][%s:%u (%s)][%s][%s]: %s stage end\n", 
-                    timestamp, 
-                    location.file_name(), 
-                    location.line(), 
-                    location.function_name(), 
-                    (thread == nullptr ? "mainThread" : thread->name().data()), 
-                    element->name().c_str(),
-                    event_msg.c_str());
-            break;
-        default:
-            _output("[%u][%s:%u (%s)][%s][%s]: %s\n", 
-                    timestamp, 
-                    location.file_name(), 
-                    location.line(), 
-                    location.function_name(), 
-                    (thread == nullptr ? "mainThread" : thread->name().data()), 
-                    element->name().c_str(),
-                    event_msg.c_str());
-            break;
-        }
-    }
+    inline void received(ActionData actionData);
 private:
-    void _output(const char *format, ...) {
-        const char *name = "Main";
-        auto thread = Thread::currentThread();
-        if (thread) {
-            name = thread->name().data();
-        }
-        va_list varg;
-        va_start(varg, format);
-        ::fprintf(mStream, "TRACE >>> ");
-        ::vfprintf(mStream, format, varg);
-        va_end(varg);
-
-        ::fflush(mStream);
-    }
+    void _output(const char *format, ...);
     FILE *mStream;
+};
+
+class ElementTCTrack : public ElementEventSubscriber {
+public:
+    ElementTCTrack(FILE *stream = stderr);
+
+    inline void received(ActionData actionData);
+private:
+    void _output(const char *format, ...);
+    FILE *mStream;
+    std::map<const Element *, std::string> elements;
 };
 
 NEKO_NS_END
