@@ -179,3 +179,16 @@ if has_config("opengl") then
         add_files("tests/ogltest.cpp")
     target_end()
 end
+
+target("sourcelocationtest")
+    set_kind("binary")
+    
+    if is_plat("linux") then
+        add_links("dl")
+    end
+    
+    add_deps("nekoav")
+    add_packages("gtest")
+
+    add_files("tests/sourcelocationtest.cpp")
+target_end()

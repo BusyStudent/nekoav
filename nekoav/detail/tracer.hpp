@@ -50,39 +50,43 @@ public:
         switch (event_type)
         {
         case ElementEventType::UnknownEvent:
-            _output("[%u][%s:%u (%s)][%s]: unknow stage event happen, message: %s\n", 
+            _output("[%u][%s:%u (%s)][%s][%s]: unknow stage event happen, message: %s\n", 
                     timestamp, 
                     location.file_name(), 
                     location.line(), 
                     location.function_name(), 
                     (thread == nullptr ? "mainThread" : thread->name().data()), 
+                    element->name().c_str(),
                     event_msg.c_str());
             break;
         case ElementEventType::StageBegin:
-            _output("[%u][%s:%u (%s)][%s]: %s stage begin\n", 
+            _output("[%u][%s:%u (%s)][%s][%s]: %s stage begin\n", 
                     timestamp, 
                     location.file_name(), 
                     location.line(), 
                     location.function_name(), 
                     (thread == nullptr ? "mainThread" : thread->name().data()), 
+                    element->name().c_str(),
                     event_msg.c_str());
             break;
         case ElementEventType::StageEnd:
-            _output("[%u][%s:%u (%s)][%s]: %s stage end\n", 
+            _output("[%u][%s:%u (%s)][%s][%s]: %s stage end\n", 
                     timestamp, 
                     location.file_name(), 
                     location.line(), 
                     location.function_name(), 
                     (thread == nullptr ? "mainThread" : thread->name().data()), 
+                    element->name().c_str(),
                     event_msg.c_str());
             break;
         default:
-            _output("[%u][%s:%u (%s)][%s]: %s\n", 
+            _output("[%u][%s:%u (%s)][%s][%s]: %s\n", 
                     timestamp, 
                     location.file_name(), 
                     location.line(), 
                     location.function_name(), 
                     (thread == nullptr ? "mainThread" : thread->name().data()), 
+                    element->name().c_str(),
                     event_msg.c_str());
             break;
         }
@@ -107,4 +111,4 @@ private:
 
 NEKO_NS_END
 
-#undef NEKO_SOURCE_LOCATION
+// #undef NEKO_SOURCE_LOCATION

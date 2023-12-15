@@ -8,6 +8,7 @@
 #include "base.hpp"
 #include "mlog.hpp"
 #include "../resource.hpp"
+#include "cxx20.hpp"
 
 NEKO_NS_BEGIN
 
@@ -17,14 +18,14 @@ namespace _abiv1 {
  * @note Please do not use it in destructors, although in most cases this won't be a problem, but relying on implicit destructors can have unforeseen consequences.
  * 
  */
-#define TRACE(message)                                                                                 \
-    if (d->mTracer) {                                                                               \
-        d->mTracer->received(mElement, ElementEventType::StageBegin,  message);                        \
-    }                                                                                               \
-    DeferInvoke _inv = [this, tracer = d->mTracer, location = std::source_location::current(), messageValue = message]() {  \
-        if (tracer) {                                                                               \
-            tracer->received(mElement, ElementEventType::StageEnd,  messageValue, GetTicks(), location);    \
-        }                                                                                           \
+#define TRACE(message)                                                                                                      \
+    if (d->mTracer) {                                                                                                       \
+        d->mTracer->received(mElement, ElementEventType::StageBegin,  message, GetTicks(), NEKO_SOURCE_LOCATION());         \
+    }                                                                                                                       \
+    DeferInvoke _inv = [this, tracer = d->mTracer, location = NEKO_SOURCE_LOCATION(), messageValue = message]() {           \
+        if (tracer) {                                                                                                       \
+            tracer->received(mElement, ElementEventType::StageEnd,  messageValue, GetTicks(), location);                    \
+        }                                                                                                                   \
     };
 
 template <typename Callable>
