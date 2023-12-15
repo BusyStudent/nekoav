@@ -143,6 +143,7 @@ inline std::string FormatErrorCode(int code) {
 }
 inline Error ToError(int code) noexcept {
     switch (code) {
+        case AVERROR_INVALIDDATA: return Error::UnsupportedMediaFormat;
         case AVERROR(ENOMEM): return Error::OutOfMemory;
         case AVERROR(EAGAIN): return Error::TemporarilyUnavailable;
         case AVERROR(EINVAL): return Error::InvalidArguments;

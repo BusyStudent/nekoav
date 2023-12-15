@@ -141,7 +141,7 @@ size_t Thread::dispatchTask() {
     }
     return n;
 }
-size_t Thread::waitTask(int timeoutMS) {
+size_t Thread::waitTask(int64_t timeoutMS) {
     _dispatchWin32();
 
     size_t n = 0;
@@ -178,24 +178,27 @@ std::string_view Thread::name() const noexcept {
 Thread *Thread::currentThread() noexcept {
     return _currentThread;
 }
-Error Thread::msleep(int ms) noexcept {
-    if (ms <= 0) {
+Error Thread::usleep(int64_t us) noexcept {
+    if (us <= 0) {
         return Error::Ok;
     }
     auto current = Thread::currentThread();
     if (!current) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+        std::this_thread::sleep_for(std::chrono::microseconds(us));
         return Error::Ok;
     }
     std::unique_lock lock(current->mMutex);
     size_t numofTasks = current->mQueue.size();
-    current->mCondition.wait_for(lock, std::chrono::milliseconds(ms));
+    current->mCondition.wait_for(lock, std::chrono::microseconds(us));
     if (current->mQueue.size() == numofTasks) {
         return Error::Ok;
     }
-    NEKO_LOG("Interrupted at {}", current->name());
+    NEKO_LOG("sleep({}us) Interrupted at thread {}", us, current->name());
     // New Task imcoming
     return Error::Interrupted;
+}
+Error Thread::msleep(int64_t ms) noexcept {
+    return Thread::usleep(ms * 1000);
 }
 #ifdef NEKO_WIN_DISPATCHER
 void Thread::_dispatchWin32() {

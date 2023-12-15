@@ -2,6 +2,7 @@
 
 #include "../elements.hpp"
 #include <functional>
+#include <span>
 
 NEKO_NS_BEGIN
 
@@ -9,19 +10,23 @@ class MediaFrame;
 
 class VideoRenderer {
 public:
-    virtual ~VideoRenderer() = default;
+    using PixelFormatList = std::span<const PixelFormat>;
+    // FIXME: I donnot known why it crash on return Vec<PixelFormat>
     /**
      * @brief Get the supported pixel format of this Renderer, It should at least support RGBA
      * 
-     * @return Vec<PixelFormat> 
+     * @return std::span<const PixelFormat>
      */
-    virtual Vec<PixelFormat> supportedFormats() = 0;
+    virtual PixelFormatList supportedFormats() = 0;
     /**
      * @brief Set the Frame object, it will be invoked at worker thread
      * 
      * @return Error 
      */
-    virtual Error            setFrame(View<MediaFrame>) = 0;
+    virtual Error setFrame(View<MediaFrame>) = 0;
+protected:
+    VideoRenderer() = default;
+    ~VideoRenderer() = default;
 };
 
 /**

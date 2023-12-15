@@ -78,7 +78,26 @@ double Player::position() const noexcept {
 State Player::state() const noexcept {
     return mState;
 }
-
+bool Player::hasAudio() const noexcept {
+    if (d && d->mDemuxer) {
+        for (const auto& pad : d->mDemuxer->outputs()) {
+            if (pad->name().starts_with("audio")) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+bool Player::hasVideo() const noexcept {
+    if (d && d->mDemuxer) {
+        for (const auto& pad : d->mDemuxer->outputs()) {
+            if (pad->name().starts_with("video")) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
 
 void Player::play() {
     if (mState == State::Null) {
@@ -169,7 +188,7 @@ void Player::_load() {
 void Player::_error(Error err, std::string_view msg) {
     if (mErrorCallback) {
         mErrorCallback(err, msg);
-}
+    }
     _setState(State::Null);
 }
 void Player::_setState(State state) {

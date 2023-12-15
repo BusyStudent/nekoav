@@ -36,8 +36,37 @@ public:
      * @param position 
      */
     void setPosition(double position);
+    /**
+     * @brief Check current media has video stream
+     * 
+     * @return true 
+     * @return false 
+     */
+    bool hasVideo() const noexcept;
+    /**
+     * @brief Check current media has audio stream
+     * 
+     * @return true 
+     * @return false 
+     */
+    bool hasAudio() const noexcept;
+    /**
+     * @brief Get duration of current media
+     * 
+     * @return double (in seconds)
+     */
     double duration() const noexcept;
+    /**
+     * @brief Get current position
+     * 
+     * @return double (in seconds)
+     */
     double position() const noexcept;
+    /**
+     * @brief Get current state
+     * 
+     * @return State 
+     */
     State state() const noexcept;
 
     void play();
@@ -55,10 +84,10 @@ private:
     void _translateEvent(View<Event>);
 
     Box<PlayerPrivate> d;
-    Atomic<State> mState { State::Null };
-    Thread       *mThread = nullptr; //< Work Thread
+    Atomic<State>  mState { State::Null };
+    Thread        *mThread = nullptr; //< Work Thread
     VideoRenderer *mRenderer = nullptr;
-    std::string   mUrl; //< The dest to 
+    std::string    mUrl; //< The dest to 
 
     // Callbacks
     std::function<void(Error, std::string_view)> mErrorCallback;

@@ -10,7 +10,9 @@ enum class Error : int {
     NoImpl,              //< User doesnot impl it
     NoStream,            //< No Media Strean founded
     NoCodec,             //< Mo Media Codec founded
-    UnsupportedFormat,   //< Unsupported media format
+    UnsupportedMediaFormat, //< Unsupported media format
+    UnsupportedPixelFormat, //< Unsupported pixel format
+    UnsupportedSampleFormat, //< Unsupported sample format
     UnsupportedResource, //< Unsupported Resource type 
     InvalidArguments,
     InvalidTopology,

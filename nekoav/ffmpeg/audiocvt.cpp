@@ -54,7 +54,7 @@ public:
         auto ret = swr_convert_frame(mCtxt, dstFrame, frame->get());
         if (ret < 0) {
             av_frame_free(&dstFrame);
-            return Error::UnsupportedFormat;
+            return Error::UnsupportedSampleFormat;
         }
 
         // Copy metadata

@@ -69,7 +69,7 @@ public:
      * @return Num of task processed
      * 
      */
-    size_t waitTask(int timeout = -1);
+    size_t waitTask(int64_t timeout = -1);
     /**
      * @brief Send a task into queue and wait for it finish
      * 
@@ -115,10 +115,17 @@ public:
     /**
      * @brief Sleep for millseconds but it will be interrupted if new task comming
      * 
-     * @param milliseconds 
+     * @param milliseconds The time you want to sleep (<= 0 on no-op)
      * @return Ok by default, Interrupted on a new task that has arrived to the current thread
      */
-    static Error msleep(int milliseconds) noexcept;
+    static Error msleep(int64_t milliseconds) noexcept;
+    /**
+     * @brief Sleep for microseconds but it will be interrupted if new task comming
+     * 
+     * @param microseconds The time you want to sleep (<= 0 on no-op)
+     * @return Ok by default, Interrupted on a new task that has arrived to the current thread
+     */
+    static Error usleep(int64_t microseconds) noexcept;
 private:
     void _run(void *latch);
     void _dispatchWin32();

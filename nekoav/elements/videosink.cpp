@@ -38,9 +38,11 @@ public:
         if (!mRenderer) {
             return Error::InvalidState;
         }
-        mSink->addProperty(Properties::PixelFormatList, {
-            PixelFormat::RGBA
-        });
+        auto prop = Property::newList();
+        for (auto fmt : mRenderer->supportedFormats()) {
+            prop.push_back(fmt);
+        }
+        mSink->addProperty(Properties::PixelFormatList, std::move(prop));
         return Error::Ok;
     }
     Error onTeardown() override {
@@ -55,7 +57,7 @@ public:
     Error onSink(View<Resource> resource) {
         auto frame = resource.viewAs<MediaFrame>();
         if (!frame) {
-            return Error::UnsupportedFormat;
+            return Error::UnsupportedResource;
         }
         // Wait if too much
         std::unique_lock lock(mMutex);
@@ -124,7 +126,7 @@ public:
         while (!stopRequested()) {
             thread()->waitTask();
             while (state() == State::Running) {
-                thread()->waitTask();
+                thread()->waitTask(10);
                 std::unique_lock lock(mMutex);
                 while (!mFrames.empty() && state() == State::Running) {
                     auto frame = std::move(mFrames.front());

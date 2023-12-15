@@ -91,9 +91,14 @@ if has_config("qt_interop") then
 
         add_deps("nekoav")
         add_defines("_QNEKO_SOURCE")
-        add_frameworks("QtCore", "QtGui", "QtWidgets", "QtOpenGL", "QtOpenGLWidgets")
+        add_frameworks("QtCore", "QtGui", "QtWidgets")
 
-        add_files("nekoav/interop/qnekoav.cpp")
+        if is_plat("linux") then 
+            add_defines("QNEKO_HAS_OPENGL")
+            add_frameworks("QtOpenGL", "QtOpenGLWidgets")
+        end
+
+        add_files("nekoav/interop/qnekoav*.cpp")
         add_files("nekoav/interop/qnekoav.hpp")
     target_end()
 end

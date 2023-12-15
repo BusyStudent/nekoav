@@ -57,6 +57,10 @@ public:
             return ToError(ret);
         }
 
+#ifndef NDEBUG
+        av_dump_format(mFormatContext, 0, mSource.c_str(), 0);
+#endif
+
         _registerStreams();
         
         return Error::Ok;

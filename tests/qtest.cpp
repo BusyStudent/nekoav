@@ -30,13 +30,12 @@ int main(int argc, char **argv) {
     win.setCentralWidget(widget);
 
     auto layout = new QVBoxLayout(widget);
-    auto sublay = new QHBoxLayout(widget);
+    auto sublay = new QHBoxLayout();
     auto btn = new QPushButton("OpenFile");
     auto pauseBtn = new QPushButton("Pause");
     auto progressBar = new QSlider(Qt::Horizontal);
     auto videoWidget = new QNekoAV::VideoWidget;
 
-    auto videoRenderer = static_cast<VideoRenderer*>(videoWidget->videoRenderer());
 
     layout->addLayout(sublay);
     sublay->addWidget(btn);
@@ -46,25 +45,24 @@ int main(int argc, char **argv) {
 
     pauseBtn->setEnabled(false);
 
-    Player player;
-    player.setVideoRenderer(videoRenderer);
-    player.setPositionCallback([&](double v) {
-        QMetaObject::invokeMethod(progressBar, "setValue", Qt::QueuedConnection, Q_ARG(int, v));
-        QMetaObject::invokeMethod(&win, [&win, v]() {
-            win.setWindowTitle(QString::number(v));
-        }, Qt::QueuedConnection);
-    });
-    player.setStateChangedCallback([&](State newState) {
-        NEKO_DEBUG(newState);
-        if (newState == State::Ready) {
-            QMetaObject::invokeMethod(progressBar, [&, duration = player.duration()]() {
-                progressBar->setRange(0, duration);
-                progressBar->setValue(0);
-            }, Qt::QueuedConnection);
-            QMetaObject::invokeMethod(pauseBtn, "setEnabled", Qt::QueuedConnection, Q_ARG(bool, true));
+    QNekoMediaPlayer player;
+    player.setVideoOutput(videoWidget);
+
+    QObject::connect( &player, &QNekoMediaPlayer::positionChanged, [&](double v) {
+        if (!progressBar->isSliderDown()) {
+            progressBar->setValue(v);
         }
-        else if (newState == State::Null) {
-            QMetaObject::invokeMethod(pauseBtn, "setEnabled", Qt::QueuedConnection, Q_ARG(bool, false));
+        win.setWindowTitle(QString::number(v));
+    });
+    QObject::connect(&player, &QNekoMediaPlayer::playbackStateChanged, [&](QNekoMediaPlayer::PlaybackState newState) {
+        NEKO_DEBUG(newState);
+        if (newState == QNekoMediaPlayer::PlayingState) {
+            progressBar->setRange(0, player.duration());
+            pauseBtn->setEnabled(true);
+            QMetaObject::invokeMethod(pauseBtn, "setEnabled", Q_ARG(bool, true));
+        }
+        else if (newState == QNekoMediaPlayer::StoppedState) {
+            pauseBtn->setEnabled(false);
         }
     });
 
@@ -72,20 +70,24 @@ int main(int argc, char **argv) {
         auto url = QFileDialog::getOpenFileUrl(nullptr, "Open File");
         if (url.isValid()) {
             Error err;
-            player.setUrl(url.toLocalFile().toUtf8().constData());
+            player.setSource(url);
             player.play();
         }
     });
     QObject::connect(pauseBtn, &QPushButton::clicked, [&](bool) {
-        if (player.state() == State::Running) {
+        if (player.playbackState() == QNekoMediaPlayer::PlayingState) {
             player.pause();
         }
-        else if (player.state() == State::Paused) {
+        else if (player.playbackState() == QNekoMediaPlayer::PausedState) {
             player.play();
         }
     });
+    int position = 0;
+    QObject::connect(progressBar, &QSlider::sliderMoved, [&](int newPosition) {
+        position = newPosition;
+    });
     QObject::connect(progressBar, &QSlider::sliderReleased, [&]() {
-        player.setPosition(progressBar->value());
+        player.setPosition(position);
     });
 
 

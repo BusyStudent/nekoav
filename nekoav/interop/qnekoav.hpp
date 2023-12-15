@@ -142,9 +142,6 @@ public:
      * @return void* is NekoAV::Pipeline* 
      */
     void *pipeline() const;
-
-    static QStringList supportedMediaTypes();
-    static QStringList supportedProtocols();
 public Q_SLOTS:
     void play();
     void pause();
@@ -195,6 +192,8 @@ private:
 class QNEKO_API VideoWidget : public QWidget {
 Q_OBJECT
 public:
+    Q_PROPERTY(void *videoRenderer READ videoRenderer);
+
     VideoWidget(QWidget *parent = nullptr);
     ~VideoWidget();
 

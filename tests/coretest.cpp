@@ -12,7 +12,7 @@
 #include "../nekoav/pad.hpp"
 
 using namespace std::chrono_literals;
-using namespace NekoAV;
+using namespace NEKO_NAMESPACE;
 
 class TinyElement final : public Template::GetImpl<Element> {
 public:

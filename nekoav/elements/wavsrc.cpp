@@ -81,7 +81,7 @@ public:
         err :
             libc::munmap(mFileMapping);
             mFileMapping = {};
-        return Error::UnsupportedFormat;
+        return Error::UnsupportedMediaFormat;
     }
     Error onTeardown() override {
         mSrc->properties().clear();
@@ -109,7 +109,7 @@ public:
             case 16: mSampelFormat = SampleFormat::S16; break;
             case 24: mSampelFormat = SampleFormat::S32; break;
             case 32: mSampelFormat = SampleFormat::S32; break;
-            default: NEKO_DEBUG("Unknown sample format"); return Error::UnsupportedFormat;
+            default: NEKO_DEBUG("Unknown sample format"); return Error::UnsupportedMediaFormat;
         }
         mSrc->addProperty(Properties::SampleRate, mFmt.sampleRate);
         mSrc->addProperty(Properties::Channels, mFmt.numChannels);

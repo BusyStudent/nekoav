@@ -5,6 +5,7 @@
 #include "../factory.hpp"
 #include "../media.hpp"
 #include "../format.hpp"
+#include <cstring>
 
 NEKO_NS_BEGIN
 

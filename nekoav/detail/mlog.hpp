@@ -480,6 +480,9 @@ inline std::string _Neko_ToString(void *ptr) {
 inline std::string _Neko_ToString(char *ptr) {
     return _Neko_asprintf("%s", ptr);
 }
+inline std::string _Neko_ToString(const char *ptr) {
+    return _Neko_asprintf("%s", ptr);
+}
 template <typename RetT, typename ...Args>
 inline std::string _Neko_ToString(RetT(*func)(Args...)) {
     return _Neko_asprintf("%p", func);

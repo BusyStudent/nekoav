@@ -89,7 +89,7 @@ public:
             // Try open it
             mOpened = mDevice->open(frame->sampleFormat(), frame->sampleRate(), frame->channels());
             if (!mOpened) {
-                return raiseError(Error::UnsupportedFormat, "Failed to open audio device");
+                return raiseError(Error::UnsupportedSampleFormat, "Failed to open audio device");
             }
             // Start it
             mDevice->pause(false);

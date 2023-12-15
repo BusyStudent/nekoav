@@ -118,22 +118,23 @@ public:
         int ret = avcodec_parameters_to_context(mCtxt, codecpar);
         if (ret < 0) {
             avcodec_free_context(&mCtxt);
-            return Error::Unknown; //< TODO : Add more detailed error
+            return ToError(ret); //< TODO : Add more detailed error
         }
 
         // Query hardware here
-        const AVCodecHWConfig *conf = nullptr;
+        Vec<const AVCodecHWConfig*> hwconfigs;
         for (int i = 0; ; i++) {
-            conf = avcodec_get_hw_config(codec, i);
+            auto conf = avcodec_get_hw_config(codec, i);
             if (!conf) {
-                // Fail
-                avcodec_free_context(&mCtxt);
-                return Error::Unknown;
+                break;
             }
-
             if (!(conf->methods & AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX)) {
                 continue;
             }
+            NEKO_LOG("Enum HwConfig format on {}", av_pix_fmt_desc_get(conf->pix_fmt)->name);
+            hwconfigs.emplace_back(conf);
+        }
+        for (auto conf : hwconfigs) {
             // Got
             auto hardwareType = conf->device_type;
             mHardwareFmt = conf->pix_fmt;
@@ -169,11 +170,13 @@ public:
 
             // Init codec
             if (avcodec_open2(mCtxt, codec, nullptr) < 0) {
+                av_buffer_unref(&hardwareDeviceCtxt);
+                mCtxt->hw_device_ctx = nullptr;
                 continue;
             }
 
             // Done
-            NEKO_LOG("Hardware inited by {}", std::string_view(av_pix_fmt_desc_get(mHardwareFmt)->name));
+            NEKO_LOG("Hardware inited by {}", av_pix_fmt_desc_get(mHardwareFmt)->name);
             return Error::Ok;
         }
 

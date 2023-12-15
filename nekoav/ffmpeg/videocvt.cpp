@@ -2,6 +2,7 @@
 #include "../elements/videocvt.hpp"
 #include "../detail/template.hpp"
 #include "../factory.hpp"
+#include "../log.hpp"
 #include "../pad.hpp"
 #include "common.hpp"
 #include "ffmpeg.hpp"
@@ -16,7 +17,7 @@ public:
     FFVideoConverterImpl() {
         mSinkPad = addInput("sink");
         mSourcePad = addOutput("src");
-        mSinkPad->setCallback(std::bind(&FFVideoConverterImpl::processInput, this, std::placeholders::_1));
+        mSinkPad->setCallback(std::bind(&FFVideoConverterImpl::_processInput, this, std::placeholders::_1));
         mSinkPad->setEventCallback(std::bind(&Pad::pushEvent, mSourcePad, std::placeholders::_1));
     }
     // void setPixelFormat(PixelFormat format) override {
@@ -33,7 +34,7 @@ public:
         mCtxt = nullptr;
         return Error::Ok;
     }
-    Error processInput(ResourceView resourceView) {
+    Error _processInput(ResourceView resourceView) {
         auto frame = resourceView.viewAs<Frame>();
         if (!frame) {
             return Error::UnsupportedResource;
@@ -42,7 +43,7 @@ public:
             return Error::NoLink;
         }
         if (!mCtxt && !mPassthrough) {
-            if (auto err = initContext(frame->get()); err != Error::Ok) {
+            if (auto err = _initContext(frame->get()); err != Error::Ok) {
                 return err;
             }
         }
@@ -57,7 +58,7 @@ public:
             int ret = av_hwframe_transfer_data(mSwFrame, srcFrame, 0);
             if (ret < 0) {
                 // Failed to transfer
-                return Error::Unknown;
+                return ToError(ret);
             }
             av_frame_copy_props(mSwFrame, srcFrame);
             srcFrame = mSwFrame;
@@ -110,7 +111,7 @@ public:
         av_frame_copy_props(dstFrame, srcFrame);
         return mSourcePad->push(Frame::make(dstFrame, frame->timebase(), AVMEDIA_TYPE_VIDEO).get());
     }
-    Error initContext(AVFrame *f) {
+    Error _initContext(AVFrame *f) {
         AVPixelFormat fmt = AV_PIX_FMT_RGBA;
         if (mTargetFormat == PixelFormat::None) {
             // Try get info by pad
@@ -139,7 +140,7 @@ public:
             mSwFrame = av_frame_alloc();
             int ret = av_hwframe_transfer_data(mSwFrame, f, 0);
             if (ret < 0) {
-                return Error::Unknown;
+                return ToError(ret);
             }
             mCopyback = true;
             f = mSwFrame;
@@ -159,9 +160,13 @@ public:
             nullptr
         );
         if (!mCtxt) {
-            return Error::Unknown;
+            return Error::UnsupportedPixelFormat;
         }
         mSwsFormat = fmt;
+        NEKO_LOG("Init VideoConvertContext from {} to {}", 
+            av_pix_fmt_desc_get(AVPixelFormat(f->format))->name,
+            av_pix_fmt_desc_get(AVPixelFormat(fmt))->name
+        );
         return Error::Ok;
     }
 private:
