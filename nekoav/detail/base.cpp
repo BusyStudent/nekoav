@@ -27,6 +27,14 @@ namespace _abiv1 {
             tracer->received(actionData);                                                                                   \
         }                                                                                                                   \
     };
+#define DATA_TRACE(message, target, Resource)                                                                               \
+    if (d->mTracer) {                                                                                                       \
+        auto data = ActionData(mElement, ElementEventType::StageBegin,  message, GetTicks(), NEKO_SOURCE_LOCATION());       \
+        data.affectedElement = target;                                                                                      \
+        data.resource = Resource;                                                                                           \
+        d->mTracer->received(data);                                                                                         \
+    }
+
 
 template <typename Callable>
 class DeferInvoke {
@@ -220,14 +228,12 @@ Pad *ElementBase::_polishPad(Pad *pad) {
     return pad;
 }
 Error ElementBase::_onSinkPush(Pad *pad, View<Resource> resource) {
-    std::string message = libc::asprintf("recevied %s(%p) from %s(%s)", "resource", resource.get(), pad->name().data(), _Neko_EnumToString(pad->type()).c_str());
-    STAGE_TRACE(message);
+    STAGE_TRACE(libc::asprintf("recevied %s(%p) from %s(%s)", "resource", resource.get(), pad->name().data(), _Neko_EnumToString(pad->type()).c_str()));
 
     return mDelegate->onSinkPush(pad, resource);
 }
 Error ElementBase::_onSinkEvent(Pad *pad, View<Event> event) {
-    std::string message = libc::asprintf("recevied %s from %s(%s)", _Neko_EnumToString(event->type()), pad->name().data(), _Neko_EnumToString(pad->type()).c_str());
-    STAGE_TRACE(message);
+    STAGE_TRACE(libc::asprintf("recevied %s from %s(%s)", _Neko_EnumToString(event->type()), pad->name().data(), _Neko_EnumToString(pad->type()).c_str()));
 
     auto err = mDelegate->onSinkEvent(pad, event);
     if (err == Error::NoImpl) {
@@ -237,8 +243,7 @@ Error ElementBase::_onSinkEvent(Pad *pad, View<Event> event) {
     return err;
 }
 Error ElementBase::_onSourceEvent(Pad *pad, View<Event> event) {
-    std::string message = libc::asprintf("recevied %s from %s(%s)", _Neko_EnumToString(event->type()), pad->name(), _Neko_EnumToString(pad->type()));
-    STAGE_TRACE(message);
+    STAGE_TRACE(libc::asprintf("recevied %s from %s(%s)", _Neko_EnumToString(event->type()), pad->name(), _Neko_EnumToString(pad->type())));
 
     auto err = mDelegate->onSourceEvent(pad, event);
     if (err == Error::NoImpl) {
@@ -248,8 +253,7 @@ Error ElementBase::_onSourceEvent(Pad *pad, View<Event> event) {
     return err;
 }
 Error ElementBase::pushEventTo(View<Pad> pad, View<Event> event) {
-    std::string message = libc::asprintf("push %s to %s(%s)", _Neko_EnumToString(event->type()), pad->name(), _Neko_EnumToString(pad->type()));
-    STAGE_TRACE(message);
+    STAGE_TRACE(libc::asprintf("push %s to %s(%s)", _Neko_EnumToString(event->type()), pad->name(), _Neko_EnumToString(pad->type())));
 
     if (event && pad) {
         return pad->pushEvent(event);
@@ -257,8 +261,7 @@ Error ElementBase::pushEventTo(View<Pad> pad, View<Event> event) {
     return Error::InvalidArguments;
 }
 Error ElementBase::pushTo(View<Pad> pad, View<Resource> resource) {
-    std::string message = libc::asprintf("push %s(%p) to %s(%s)", "resource", resource.get(), pad->name(), _Neko_EnumToString(pad->type()));
-    STAGE_TRACE(message);
+    STAGE_TRACE(libc::asprintf("push %s(%p) to %s(%s)", "resource", resource.get(), pad->name(), _Neko_EnumToString(pad->type())));
 
     if (pad && resource) {
         return pad->push(resource);
@@ -270,7 +273,7 @@ bool ElementBase::isWorkThread() const noexcept {
     return Thread::currentThread() == mThread;
 }
 
-#undef TRACE
+#undef STAGE_TRACE
 
 }
 NEKO_NS_END

@@ -41,6 +41,7 @@ struct ActionData {
                     thread(thread) {}
 
     const Element *element = nullptr;
+    const Element *affectedElement = nullptr;
     const Pad *pad = nullptr;
     const Resource *resource = nullptr;
     ElementEventType event_type;
