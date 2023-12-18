@@ -31,6 +31,7 @@ public:
                 while (!mFrames.empty()) {
                     mFrames.pop();
                 }
+                NEKO_DEBUG("Flush Queue");
                 return Error::Ok;
             }
             else if (event->type() == Event::SeekRequested) {

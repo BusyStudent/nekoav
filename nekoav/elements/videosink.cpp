@@ -82,23 +82,19 @@ public:
     }
     Error onSinkEvent(View<Event> event) {
         if (event->type() == Event::FlushRequested) {
-
+            NEKO_DEBUG("Flush Queue");
+            // Flush frames
+            std::lock_guard lock(mMutex);
+            while (!mFrames.empty()) {
+                mFrames.pop();
+            }
+            mNumFramesDropped = 0;
+            mCondition.notify_one();
         }
         else if (event->type() == Event::SeekRequested) {
             mAfterSeek = true;
             NEKO_DEBUG(event.viewAs<SeekEvent>()->position());
         }
-        else {
-            return Error::Ok;
-        }
-
-        mNumFramesDropped = 0;
-        // Flush frames
-        std::lock_guard lock(mMutex);
-        while (!mFrames.empty()) {
-            mFrames.pop();
-        }
-        mCondition.notify_one();
         return Error::Ok;
     }
     void drawFrame(const Arc<MediaFrame> &frame) {
