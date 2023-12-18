@@ -184,6 +184,12 @@ public:
         return nullptr;
     }
     Error _doSeek(double time) {
+        // Send pad with event
+        for (auto out : outputs()) {
+            out->pushEvent(Event::make(Event::FlushRequested, this)); //< Push a flush
+            out->pushEvent(Event::make(Event::PlaybackPause, this)); //< Pause Playback
+        }
+
         int64_t seekTime = time* AV_TIME_BASE;
         int ret = av_seek_frame(
             mFormatContext,
@@ -198,8 +204,8 @@ public:
 
         // Send pad with event
         for (auto out : outputs()) {
-            out->pushEvent(Event::make(Event::FlushRequested, this)); //< Push a flush
             out->pushEvent(SeekEvent::make(time)); //< Push a seek
+            out->pushEvent(Event::make(Event::PlaybackResume, this)); //< Resume Playback
         }
 
         mEof = false;

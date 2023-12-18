@@ -148,6 +148,7 @@ inline Error ToError(int code) noexcept {
         case AVERROR(EAGAIN): return Error::TemporarilyUnavailable;
         case AVERROR(EINVAL): return Error::InvalidArguments;
         case AVERROR_EXIT   : return Error::Interrupted;
+        case AVERROR_EOF    : return Error::EndOfFile;
         default             : return Error::Unknown;
     }
 }

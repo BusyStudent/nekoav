@@ -23,6 +23,11 @@ public:
 
         PadAdded,
         PadRemoved,
+        PadLinked,
+        PadUnlinked,
+
+        PlaybackPause,
+        PlaybackResume,
 
         MediaEndOfFile, //< Media is reached eof
         MediaBuffering, //< Media is buffering

@@ -25,6 +25,7 @@ enum class Error : int {
     FileNotFound,           //< This file is not founded
     FileCorrupted,          //< This file is corrupted
     Interrupted,            //< This operation is interrupted by some reason
+    EndOfFile,              //< This operation is reached the end of file
 
     External,               //< External Error, it come from external library
     Unknown,                //< Unknown Error

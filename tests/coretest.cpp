@@ -6,6 +6,7 @@
 #include "../nekoav/container.hpp"
 #include "../nekoav/property.hpp"
 #include "../nekoav/format.hpp"
+#include "../nekoav/media.hpp"
 #include "../nekoav/enum.hpp"
 #include "../nekoav/time.hpp"
 #include "../nekoav/log.hpp"
@@ -171,6 +172,49 @@ TEST(CoreTest, Elem) {
     src.push();
 
 };
+
+TEST(MediaLayerTest, Reader) {
+    using NEKO_NAMESPACE::Arc;
+    auto reader = CreateMediaReader();
+    if (!reader) {
+        //< No Puglin impl it
+        return;
+    }
+    // Using Gstreamer test video
+    auto err = reader->openUrl("https://gstreamer.freedesktop.org/data/media/sintel_trailer-480p.webm");
+    ASSERT_EQ(err, Error::Ok);
+    for (auto stream : reader->streams()) {
+        if (stream.type == StreamType::Audio) {
+            err = reader->selectStream(stream.index);
+        }
+        else if (stream.type == StreamType::Video) {
+            err = reader->selectStream(stream.index);
+        }
+        ASSERT_EQ(err, Error::Ok);
+    }
+    NEKO_DEBUG(reader->query(MediaReader::Duration).toDoubleOr(0));
+    NEKO_DEBUG(reader->query(MediaReader::Seekable).toBoolOr(false));
+    Arc<MediaFrame> frame;
+    int index = 0;
+    for (int i = 0; i < 100; i++) {
+        err = reader->readFrame(&frame, &index);
+        ASSERT_EQ(err, Error::Ok);
+        NEKO_DEBUG(index);
+        NEKO_DEBUG(frame->duration());
+        NEKO_DEBUG(frame->timestamp());
+    }
+    
+    err = reader->setPosition(30);
+    ASSERT_EQ(err, Error::Ok);
+
+    for (int i = 0; i < 100; i++) {
+        err = reader->readFrame(&frame, &index);
+        ASSERT_EQ(err, Error::Ok);
+        NEKO_DEBUG(index);
+        NEKO_DEBUG(frame->duration());
+        NEKO_DEBUG(frame->timestamp());
+    }
+}
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);

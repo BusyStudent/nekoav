@@ -49,6 +49,7 @@ public:
         mSink->properties().clear();
         mRenderer->setFrame(nullptr); //< Tell Renderer is no frame now
         mController = nullptr;
+        mAfterSeek = false;
         return Error::Ok;
     }
     Error sendEvent(View<Event> event) override {
@@ -58,6 +59,10 @@ public:
         auto frame = resource.viewAs<MediaFrame>();
         if (!frame) {
             return Error::UnsupportedResource;
+        }
+        if (mAfterSeek) {
+            mAfterSeek = false;
+            NEKO_LOG("After seek, first frame arrived pts {}", frame->timestamp());
         }
         // Wait if too much
         std::unique_lock lock(mMutex);
@@ -80,7 +85,8 @@ public:
 
         }
         else if (event->type() == Event::SeekRequested) {
-
+            mAfterSeek = true;
+            NEKO_DEBUG(event.viewAs<SeekEvent>()->position());
         }
         else {
             return Error::Ok;
@@ -92,6 +98,7 @@ public:
         while (!mFrames.empty()) {
             mFrames.pop();
         }
+        mCondition.notify_one();
         return Error::Ok;
     }
     void drawFrame(const Arc<MediaFrame> &frame) {
@@ -107,7 +114,8 @@ public:
         mPosition = pts;
         if (diff < -0.01 && diff > -10.0) {
             // Too fast
-            std::this_thread::sleep_for(std::chrono::milliseconds(int64_t(-diff * 1000)));
+            std::unique_lock lock(mCondMutex);
+            mCondition.wait_for(lock, std::chrono::milliseconds(int64_t(-diff * 1000)));
         }
         else if (diff > 0.3) {
             mNumFramesDropped += 1;
@@ -165,7 +173,11 @@ private:
 
     // Vec<PixelFormat> mFormats;
     VideoRenderer   *mRenderer = nullptr;
-    Pad             *mSink;
+    Pad             *mSink = nullptr;
+    bool             mAfterSeek = false;
+
+    std::condition_variable mCondition;
+    std::mutex              mCondMutex;
 
     mutable std::mutex           mMutex;
     std::queue<Arc<MediaFrame> > mFrames;

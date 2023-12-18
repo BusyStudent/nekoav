@@ -56,6 +56,14 @@
 #define NEKO_PANIC(x) ::abort()
 #endif
 
+#if !defined(NDEBUG)
+#define NEKO_IMPL_BEGIN
+#define NEKO_IMPL_END
+#else
+#define NEKO_IMPL_BEGIN namespace {
+#define NEKO_IMPL_END }
+#endif
+
 #define NEKO_CXX17 (__cplusplus >= 201703L)
 #define NEKO_CXX20 (__cplusplus >= 202002L)
 #define NEKO_CXX23 (__cplusplus >= 202300L)
@@ -94,6 +102,8 @@ class Resource;
 class Element;
 class ElementFactory;
 class Container;
+class Properties;
+class Property;
 class Pipeline;
 class Thread;
 

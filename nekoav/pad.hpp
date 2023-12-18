@@ -8,22 +8,6 @@
 
 NEKO_NS_BEGIN
 
-class Properties final : public PropertyMap {
-public:
-    static constexpr const char *PixelFormatList = "pixelFormatList";
-    static constexpr const char *PixelFormat = "pixelFormat";
-    static constexpr const char *Width = "width";
-    static constexpr const char *Height = "height";
-    static constexpr const char *Channels = "channels";
-    static constexpr const char *SampleRate = "sampleRate";
-    static constexpr const char *SampleFormat = "sampleFormat";
-    static constexpr const char *SampleFormatList = "sampleFormatList";
-    static constexpr const char *Duration = "duration";
-
-    using PropertyMap::map;
-};
-
-
 class NEKO_API Pad {
  public:
     enum Type {

@@ -8,6 +8,8 @@
 
 NEKO_NS_BEGIN
 
+NEKO_IMPL_BEGIN
+
 class MediaFrameImpl final : public MediaFrame {
 public:
     MediaFrameImpl(SampleFormat format, int channels, int sampleCount) :
@@ -137,6 +139,20 @@ private:
     std::pmr::memory_resource* mPool = std::pmr::get_default_resource();
 };
 
+NEKO_IMPL_END
+
+// MediaReader
+static Box<MediaReader> (*readerCreate)() = nullptr;
+void MediaReader::_registers(Box<MediaReader> (*fn)()) noexcept {
+    readerCreate = fn;
+}
+Box<MediaReader> MediaReader::create() {
+    if (readerCreate) {
+        return readerCreate();
+    }
+    return nullptr;
+}
+
 ExternalClock::ExternalClock() {
 
 }
@@ -185,5 +201,6 @@ MediaController *GetMediaController(View<Element> element) {
     }
     return element->context()->queryObject<MediaController>();
 }
+
 
 NEKO_NS_END

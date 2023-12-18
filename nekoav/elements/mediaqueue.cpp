@@ -3,6 +3,7 @@
 #include "../factory.hpp"
 #include "../event.hpp"
 #include "../media.hpp"
+#include "../log.hpp"
 #include "../pad.hpp"
 #include "mediaqueue.hpp"
 
@@ -70,6 +71,7 @@ public:
         }
         if (event->type() == Event::FlushRequested) {
             clearQueue();
+            NEKO_DEBUG("Flush Queue");
         }
         Item item;
         item.event = event->shared_from_this();
@@ -122,6 +124,7 @@ public:
             lock.unlock();
 
             if (item.event) {
+                NEKO_LOG("Pull {} Event at {}", item.event->type(), name());
                 mSrc->pushEvent(item.event);
             }
             else {

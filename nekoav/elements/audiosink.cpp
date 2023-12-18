@@ -34,8 +34,8 @@ public:
                 return Error::Ok;
             }
             else if (event->type() == Event::SeekRequested) {
-                // mPosition = event.viewAs<SeekEvent>()->time();
-                // NEKO_DEBUG(mPosition);
+                NEKO_DEBUG(event.viewAs<SeekEvent>()->position());
+                mAfterSeek = true;
             }
             return Error::Ok;
         });
@@ -93,6 +93,10 @@ public:
             }
             // Start it
             mDevice->pause(false);
+        }
+        if (mAfterSeek) {
+            mAfterSeek = false;
+            NEKO_LOG("After seek, first frame arrived pts {}", frame->timestamp());
         }
 
         // Is Opened, write to queue
@@ -175,6 +179,7 @@ private:
     Box<AudioDevice> mDevice;
     bool             mPaused = false;
     bool             mOpened = false;
+    bool             mAfterSeek = false;
 
     // Audio Callback data
     mutable std::mutex           mMutex;

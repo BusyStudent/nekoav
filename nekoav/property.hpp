@@ -54,6 +54,11 @@ public:
     const List &toList() const;
     const Map  &toMap() const;
 
+    std::string toStringOr(std::string_view def) const;
+    double      toDoubleOr(double def) const;
+    bool        toBoolOr(bool def) const;
+    int64_t     toIntOr(int64_t def) const;
+
     template <typename T>
     T           toEnum() const {
         return static_cast<T>(toInt());
@@ -120,7 +125,51 @@ private:
     > mValue;
 };
 
-using PropertyMap = Property::Map;
-using PropertyList = Property::List;
+class Properties final : public Property::Map {
+public:
+    //< MediaFrame
+    static constexpr const char *PixelFormatList = "pixelFormatList";
+    static constexpr const char *PixelFormat = "pixelFormat";
+    static constexpr const char *Width = "width";
+    static constexpr const char *Height = "height";
+    static constexpr const char *Channels = "channels";
+    static constexpr const char *SampleRate = "sampleRate";
+    static constexpr const char *SampleFormat = "sampleFormat";
+    static constexpr const char *SampleFormatList = "sampleFormatList";
+    static constexpr const char *Duration = "duration";
+
+    //< HTTP
+    static constexpr const char *HttpUserAgent = "HttpUserAgent";
+    static constexpr const char *HttpReferer = "HttpReferer";
+    static constexpr const char *HttpHeader = "HttpHeader";
+
+    using Property::Map::map;
+};
+
+
+inline std::string Property::toStringOr(std::string_view def) const {
+    if (!isString()) {
+        return std::string(def);
+    }
+    return toString();
+}
+inline int64_t Property::toIntOr(int64_t def) const {
+    if (!isInt()) {
+        return def;
+    }
+    return toInt();
+}
+inline double Property::toDoubleOr(double def) const {
+    if (!isDouble()) {
+        return def;
+    }
+    return toDouble();
+}
+inline bool Property::toBoolOr(bool def) const {
+    if (!isBool()) {
+        return def;
+    }
+    return toBool();
+}
 
 NEKO_NS_END
