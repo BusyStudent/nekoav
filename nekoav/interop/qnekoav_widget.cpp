@@ -22,6 +22,9 @@
     #define QNEKO_HAS_D2D1
     #include <d2d1.h>
     #include <d2d1_1.h>
+    #include <d2d1_2.h>
+    #include <d2d1_3.h>
+    #include <d3d11.h>
     #include <wrl/client.h>
 #endif
 
@@ -364,33 +367,70 @@ public:
 #ifdef QNEKO_HAS_D2D1
 using Microsoft::WRL::ComPtr;
 
+static bool forceD2D1_0 = true; //< TODO : Because it need improve
+
+// Global shared d2d1factory
+typedef HRESULT (__stdcall* PFN_D2D1Create)(D2D1_FACTORY_TYPE, REFIID, const D2D1_FACTORY_OPTIONS *, void **);
+static HMODULE d2d1dll = nullptr;
+static PFN_D2D1Create d2d1Create = nullptr;
+static ID2D1Factory *d2d1Factory = nullptr;
+
+// D3D11 
+using PFN_D3D11Create = decltype(::D3D11CreateDeviceAndSwapChain) *;
+static HMODULE d3d11dll = nullptr;
+static PFN_D3D11Create d3d11Create = nullptr;
+
+static void DxWidgetInit() {
+    if (!d2d1dll) {
+        d2d1dll = ::LoadLibraryA("d2d1.dll");
+        d3d11dll = ::LoadLibraryA("d3d11.dll");
+        if (!d2d1dll) {
+            throw 1;
+        }
+        if (d3d11dll) {
+            d3d11Create = reinterpret_cast<PFN_D3D11Create>(::GetProcAddress(d3d11dll, "D3D11CreateDeviceAndSwapChain"));
+        }
+        d2d1Create = reinterpret_cast<PFN_D2D1Create>(::GetProcAddress(d2d1dll, "D2D1CreateFactory"));
+        if (!d2d1Create) {
+            throw 1;
+        }
+        D2D1_FACTORY_OPTIONS options {
+            .debugLevel = D2D1_DEBUG_LEVEL_NONE
+        };
+#if !defined(NDEBUG) && defined(_MSC_VER)
+        options.debugLevel = D2D1_DEBUG_LEVEL_INFORMATION;
+#endif
+        if (FAILED(d2d1Create(D2D1_FACTORY_TYPE_MULTI_THREADED, __uuidof(ID2D1Factory), &options, (void**) &d2d1Factory))) {
+            throw 1;
+        }
+    }
+    else {
+        d2d1Factory->AddRef();
+    }
+}
+static void DxWidgetShutdown() {
+    if (d2d1Factory->Release() == 0) {
+        d2d1Factory = nullptr;
+        d2d1Create = nullptr;
+        d3d11Create = nullptr;
+        ::FreeLibrary(d2d1dll);
+        ::FreeLibrary(d3d11dll);
+        d2d1dll = nullptr;
+        d3d11dll = nullptr;
+    }
+}
+
 class D2D1Widget final : public QWidget, public VideoWidgetPrivate {
 public:
     D2D1Widget(QWidget *widget) : QWidget(widget) {
         setAttribute(Qt::WA_PaintOnScreen);
-
-        mDll = ::LoadLibraryA("d2d1.dll");
-        if (!mDll) {
-            throw 1;
-        }
-        auto create = reinterpret_cast<
-            HRESULT (__stdcall*)(D2D1_FACTORY_TYPE, REFIID, const D2D1_FACTORY_OPTIONS *, void **)
-        >(::GetProcAddress(mDll, "D2D1CreateFactory"));
-        if (!create) {
-            throw 1;
-        }
-
-        if (FAILED(create(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory), nullptr, &mD2DFactory))) {
-            throw 1;
-        }
-
+        DxWidgetInit();
         // Try init
         initializeD2D1();
     }
     ~D2D1Widget() {
         cleanupD2D1();
-        mD2DFactory.Reset();
-        ::FreeLibrary(mDll);
+        DxWidgetShutdown();
     }
     QWidget *widget() override {
         return this;
@@ -404,11 +444,34 @@ public:
         }
         mRenderTarget->BeginDraw();
         mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::Black));
+        auto [screenWidth, screenHeight] = mRenderTarget->GetSize();
         if (mBitmap) {
-            auto [width, height] = mRenderTarget->GetSize();
-            mRenderTarget->DrawBitmap(mBitmap.Get(), D2D1::RectF(0, 0, width, height));
+            if (mDeviceContext) {
+                // Cubic
+                mDeviceContext->DrawBitmap(
+                    mBitmap.Get(), 
+                    D2D1::RectF(0, 0, screenWidth, screenHeight), 
+                    1.0f, D2D1_INTERPOLATION_MODE_CUBIC
+                );
+            }
+            else {
+                mRenderTarget->DrawBitmap(mBitmap.Get(), D2D1::RectF(0, 0, screenWidth, screenHeight));
+            }
+        }
+        else if (mImageSource) {
+            D3D11_TEXTURE2D_DESC desc {0};
+            mYUVTexture->GetDesc(&desc);
+            mDeviceContext2->SetTransform(D2D1::Matrix3x2F::Scale(
+                float(screenHeight) / desc.Height,
+                float(screenWidth) / desc.Width
+            ));
+            mDeviceContext2->DrawImage(mImageSource.Get());
+            mDeviceContext2->SetTransform(D2D1::Matrix3x2F::Identity());
         }
         auto hr = mRenderTarget->EndDraw();
+        if (mSwapChain) {
+            mSwapChain->Present(1, 0);
+        }
         if (FAILED(hr)) {
             if (hr == D2DERR_RECREATE_TARGET) {
                 cleanupD2D1();
@@ -416,13 +479,15 @@ public:
             }
         }
     }
-    void resizeEvent(QResizeEvent *event) override {
-        if (mRenderTarget) {
-            auto hwnd = (HWND)winId();
-            RECT rect;
-            ::GetClientRect(hwnd, &rect);
-            mRenderTarget->Resize(D2D1::SizeU(rect.right - rect.left, rect.bottom - rect.top));
+    bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override {
+        MSG *msg = static_cast<MSG *>(message);
+        switch (msg->message) {
+            case WM_SIZE: {
+                onResize(HIWORD(msg->lParam), LOWORD(msg->lParam));
+                break;
+            }
         }
+        return false;
     }
     void changeEvent(QEvent *event) override {
         if (event->type() == QEvent::WinIdChange) {
@@ -431,47 +496,217 @@ public:
             initializeD2D1();
         }
     }
-
-    void initializeD2D1() {
-        auto hwnd = (HWND)winId();
-        if (!hwnd) {
-            return;
+    void onResize(int width, int height) {
+        if (mHwndRenderTarget) {
+            mHwndRenderTarget->Resize(D2D1::SizeU(width, height));
         }
-        auto hr = mD2DFactory->CreateHwndRenderTarget(
-            D2D1::RenderTargetProperties(),
-            D2D1::HwndRenderTargetProperties(hwnd),
-            mRenderTarget.ReleaseAndGetAddressOf()
-        );
+        else if (mSwapChain) {
+            resizeD2D1_3();
+        }
+    }
+    void initializeD2D1() {
+        ComPtr<ID2D1Factory3> factory3;
+        if (FAILED(d2d1Factory->QueryInterface(factory3.GetAddressOf())) || !d3d11Create || forceD2D1_0) {
+            initializeD2D1_0(); //< Use Legacy D2D1.0
+        }
+        else {
+            if (!initializeD2D1_3(factory3.Get())) { //< Use D2D1.3
+                // Fallback
+                cleanupD2D1();
+                initializeD2D1_0();
+            }
+        }
 
+        // Common Check
         if (SUCCEEDED(mRenderTarget.As(&mDeviceContext))) {
+            // Check RGB family
             if (mDeviceContext->IsDxgiFormatSupported(DXGI_FORMAT_B8G8R8A8_UNORM)) {
                 mPixelFormats.push_back(PixelFormat::BGRA);
             }
         }
     }
+    void initializeD2D1_0() {
+        auto hwnd = (HWND)winId();
+        if (!hwnd) {
+            return;
+        }
+        auto hr = d2d1Factory->CreateHwndRenderTarget(
+            D2D1::RenderTargetProperties(
+                D2D1_RENDER_TARGET_TYPE_DEFAULT,
+                D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)
+            ),
+            D2D1::HwndRenderTargetProperties(hwnd),
+            mHwndRenderTarget.ReleaseAndGetAddressOf()
+        );
+        mRenderTarget = mHwndRenderTarget;
+    }
+    bool initializeD2D1_3(ID2D1Factory3 *factory) {
+        auto hwnd = (HWND)winId();
+        if (!hwnd) {
+            return false;
+        }
+        RECT rect;
+        ::GetClientRect(hwnd, &rect);
+
+        UINT flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+        HRESULT hr = 0;
+
+#if !defined(NDEBUG) && defined(_MSC_VER)
+        flags |= D3D11_CREATE_DEVICE_DEBUG;
+#endif
+        DXGI_SWAP_CHAIN_DESC swapChainDesc {};
+        ::memset(&swapChainDesc, 0, sizeof(swapChainDesc));
+        swapChainDesc.Windowed = TRUE;
+        swapChainDesc.OutputWindow = hwnd;
+        swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+        swapChainDesc.BufferCount = 2;
+        swapChainDesc.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+        swapChainDesc.BufferDesc.Width = rect.right - rect.left;
+        swapChainDesc.BufferDesc.Height = rect.bottom - rect.top;
+        swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+        swapChainDesc.SampleDesc.Count = 1;
+        swapChainDesc.SampleDesc.Quality = 0;
+
+        for (auto type : {D3D_DRIVER_TYPE_HARDWARE, D3D_DRIVER_TYPE_WARP}) {
+            hr = d3d11Create(
+                nullptr,
+                type,
+                nullptr,
+                flags,
+                nullptr,
+                0,
+                D3D11_SDK_VERSION,
+                &swapChainDesc,
+                &mSwapChain,
+                &mD3D11Device,
+                nullptr,
+                &mD3D11DeviceContext
+            );
+            if (SUCCEEDED(hr)) {
+                break;
+            }
+        }
+        if (FAILED(hr)) {
+            return false;
+        }
+
+        // Create D2D1
+        ComPtr<IDXGIDevice> dxDevice;
+        ComPtr<ID2D1Device2> d2dDevice;
+        hr = mD3D11Device.As(&dxDevice);
+        hr = factory->CreateDevice(dxDevice.Get(), &d2dDevice);
+        if (FAILED(hr)) {
+            return false;
+        }
+        hr = d2dDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &mDeviceContext2);
+        if (FAILED(hr)) {
+            return false;
+        }
+        mRenderTarget = mDeviceContext2;
+        if (!resizeD2D1_3()) {
+            return false;
+        }
+        mPixelFormats.push_back(PixelFormat::NV12);
+        mPixelFormats.push_back(PixelFormat::D3D11);
+        return true;
+    }
+    bool resizeD2D1_3() {
+        HRESULT hr = 0;
+        mDeviceContext2->SetTarget(nullptr);
+        hr = mSwapChain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
+        if (FAILED(hr)) {
+            return false;
+        }
+
+        // Get 
+        ComPtr<ID3D11Texture2D> backBuffer;
+        hr = mSwapChain->GetBuffer(0, IID_PPV_ARGS(&backBuffer));
+        if (FAILED(hr)) {
+            return false;
+        }
+        ComPtr<IDXGISurface> dxSurface;
+        if (FAILED(backBuffer.As(&dxSurface))) {
+            return false;
+        }
+
+        // Create Image for this texture
+        ComPtr<ID2D1Bitmap1> bitmap;
+        hr = mDeviceContext2->CreateBitmapFromDxgiSurface(
+            dxSurface.Get(),
+            D2D1::BitmapProperties1(
+                D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
+                D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)
+            ),
+            &bitmap
+        );
+        if (FAILED(hr)) {
+            return false;
+        }
+        mDeviceContext2->SetTarget(bitmap.Get());
+        return true;
+    }
     void cleanupD2D1() {
-        mBitmap.Reset();
+        // Cleanup YUV Parts
+        cleanupD2D1_3_Textures();
+        mD3D11DeviceContext.Reset();
+        mD3D11Device.Reset();
+        mSwapChain.Reset();
+        mDeviceContext2.Reset();
+
+        // D2D1.1
         mDeviceContext.Reset();
+
+        // D2D1.0 Parts
+        mBitmap.Reset();
         mRenderTarget.Reset();
+        mHwndRenderTarget.Reset();
+    }
+    void cleanupD2D1_3_Textures() {
+        mYUVTexture.Reset();
+        mImageSource.Reset();
+        mSharedHandle = nullptr;
     }
 
     // VideoRenderer
     void clearFrame() override {
         mBitmap.Reset();
+        cleanupD2D1_3_Textures();
         update();
     }
     void updateFrame(const Arc<MediaFrame> &frame) override {
+        bool requestRelayout = false;
+        switch (frame->pixelFormat()) {
+            case PixelFormat::BGRA:
+            case PixelFormat::RGBA:
+                updateFrameRGBA(frame, &requestRelayout);
+                break;
+            case PixelFormat::NV12:
+            case PixelFormat::NV21:
+                updateFrameYUV(frame, &requestRelayout);
+                break;
+            case PixelFormat::D3D11:
+                updateFrameD3D11VA(frame, &requestRelayout);
+                break;
+            default:
+                break;
+        }
+        
+        if (requestRelayout) {
+            static_cast<VideoWidget*>(parent())->internalRelayout();
+        }
+        update();
+    }
+    void updateFrameRGBA(const Arc<MediaFrame> &frame, bool *requestRelayout) {
         int width = frame->width();
         int height = frame->height();
-        bool requestRelayout = false;
         if (mBitmap) {
             auto [bwidth, bheight] = mBitmap->GetPixelSize();
             if (bwidth != width || bheight != height) {
                 mBitmap.Reset();
-                requestRelayout = true;
             }
         }
         if (!mBitmap) {
+            *requestRelayout = true;
             auto hr = mRenderTarget->CreateBitmap(
                 D2D1::SizeU(width, height),
                 D2D1::BitmapProperties(
@@ -481,26 +716,159 @@ public:
             );
         }
         mBitmap->CopyFromMemory(nullptr, frame->data(0), frame->linesize(0));
-        
-        if (requestRelayout) {
-            static_cast<VideoWidget*>(parent())->internalRelayout();
+    }
+    void updateFrameYUV(const Arc<MediaFrame> &frame, bool *requestRelayout) {
+        // TODO : YUV need improved
+        int width = frame->width();
+        int height = frame->height();
+        HRESULT hr = 0;
+        if (mImageSource) {
+            D3D11_TEXTURE2D_DESC desc {0};
+            mYUVTexture->GetDesc(&desc);
+            if (desc.Width != width || desc.Height != height) {
+                cleanupD2D1_3_Textures();
+            }
         }
-        update();
+        if (!mImageSource) {
+            *requestRelayout = true;
+            ComPtr<IDXGISurface> dxSurface;
+            D3D11_TEXTURE2D_DESC desc {
+                .Width = UINT(width),
+                .Height = UINT(height),
+                .MipLevels = 1,
+                .ArraySize = 1,
+                .Format = translateFormat(frame->pixelFormat()),
+                .SampleDesc = {1, 0},
+                .Usage = D3D11_USAGE_DYNAMIC,
+                .BindFlags = D3D11_BIND_SHADER_RESOURCE,
+                .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
+            };
+            hr = mD3D11Device->CreateTexture2D(&desc, nullptr, &mYUVTexture);
+            hr = mYUVTexture.As(&dxSurface);
+            hr = mDeviceContext2->CreateImageSourceFromDxgi(
+                dxSurface.GetAddressOf(),
+                1,
+                DXGI_COLOR_SPACE_YCBCR_FULL_G22_NONE_P709_X601,
+                D2D1_IMAGE_SOURCE_FROM_DXGI_OPTIONS_NONE,
+                &mImageSource
+            );
+        }
+        // Update here
+        D3D11_MAPPED_SUBRESOURCE mapped;
+        hr = mD3D11DeviceContext->Map(mYUVTexture.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+        if (FAILED(hr)) {
+            return;
+        }
+
+        // Copy pixels
+        BYTE *dst = static_cast<BYTE*>(mapped.pData);
+        BYTE *yData = static_cast<BYTE*>(frame->data(0));
+        BYTE *uvData = static_cast<BYTE*>(frame->data(1));
+        int yPitch = frame->linesize(0);
+        int uvPitch = frame->linesize(1);
+
+        for (int i = 0; i < height; i++){
+            ::memcpy(dst + mapped.RowPitch * i, yData + yPitch * i, yPitch);
+        }
+        for (int i = 0; i < height / 2; i++) {
+            ::memcpy(dst + mapped.RowPitch * (height + i), uvData + uvPitch * i, uvPitch);
+        }
+
+        mD3D11DeviceContext->Unmap(mYUVTexture.Get(), 0);
+    }
+    void updateFrameD3D11VA(const Arc<MediaFrame> &frame, bool *requestRelayout) {
+        ID3D11Texture2D *texture = reinterpret_cast<ID3D11Texture2D*>(frame->data(0));
+        intptr_t index = reinterpret_cast<intptr_t>(frame->data(1));
+
+        D3D11_TEXTURE2D_DESC desc;
+        texture->GetDesc(&desc);
+        ComPtr<ID3D11Device> device;
+        texture->GetDevice(&device);
+        ComPtr<ID3D11DeviceContext> context;
+        device->GetImmediateContext(&context);
+
+        int width = frame->width();
+        int height = frame->height();
+        HRESULT hr = 0;
+        if (mImageSource) {
+            D3D11_TEXTURE2D_DESC desc {0};
+            mYUVTexture->GetDesc(&desc);
+            if (desc.Width != width || desc.Height != height) {
+                cleanupD2D1_3_Textures();
+            }
+        }
+        if (!mImageSource) {
+            *requestRelayout = true;
+                D3D11_TEXTURE2D_DESC texDesc {
+                .Width = UINT(width),
+                .Height = UINT(height),
+                .MipLevels = 1,
+                .ArraySize = 1,
+                .Format = desc.Format,
+                .SampleDesc = {1, 0},
+                .Usage = D3D11_USAGE_DEFAULT,
+                .BindFlags = D3D11_BIND_SHADER_RESOURCE,
+                .MiscFlags = D3D11_RESOURCE_MISC_SHARED
+            };
+            hr = mD3D11Device->CreateTexture2D(&texDesc, nullptr, &mYUVTexture);
+            if (FAILED(hr)) {
+                return;
+            }
+            ComPtr<IDXGIResource> resource;
+            ComPtr<IDXGISurface> dxSurface;
+            hr = mYUVTexture.As(&resource);
+            hr = mYUVTexture.As(&dxSurface);
+            hr = resource->GetSharedHandle(&mSharedHandle);
+            if (FAILED(hr)) {
+                return;
+            }
+            hr = mDeviceContext2->CreateImageSourceFromDxgi(
+                dxSurface.GetAddressOf(),
+                1,
+                DXGI_COLOR_SPACE_YCBCR_FULL_G22_NONE_P709_X601,
+                D2D1_IMAGE_SOURCE_FROM_DXGI_OPTIONS_NONE,
+                &mImageSource
+            );
+            if (FAILED(hr)) {
+                return;
+            }
+        }
+        // Update data here
+        ComPtr<ID3D11Texture2D> dstTexture;
+        hr = device->OpenSharedResource(mSharedHandle, IID_PPV_ARGS(&dstTexture));
+        if (FAILED(hr)) {
+            return;
+        }
+        context->CopySubresourceRegion(dstTexture.Get(), 0, 0, 0, 0, texture, index, 0);
+        context->Flush();
     }
     DXGI_FORMAT translateFormat(PixelFormat fmt) const {
         switch (fmt) {
             case PixelFormat::RGBA: return DXGI_FORMAT_R8G8B8A8_UNORM;
             case PixelFormat::BGRA: return DXGI_FORMAT_B8G8R8A8_UNORM;
+            case PixelFormat::NV12: return DXGI_FORMAT_NV12;
             default: ::abort();
         }
     }
 private:
-    HMODULE mDll = nullptr;
+    // D2D1.0
+    ComPtr<ID2D1HwndRenderTarget> mHwndRenderTarget;
+    ComPtr<ID2D1RenderTarget> mRenderTarget;
+    ComPtr<ID2D1Bitmap>       mBitmap;
 
-    ComPtr<ID2D1Factory> mD2DFactory;
-    ComPtr<ID2D1HwndRenderTarget> mRenderTarget;
+    // D2D1.1
     ComPtr<ID2D1DeviceContext>    mDeviceContext;
-    ComPtr<ID2D1Bitmap>           mBitmap;
+
+    // D2D1.3 YUV Support
+    ComPtr<ID2D1DeviceContext2>   mDeviceContext2;
+    ComPtr<ID2D1ImageSource>      mImageSource;
+
+    // D3D11Device
+    ComPtr<ID3D11Device>          mD3D11Device;
+    ComPtr<ID3D11DeviceContext>   mD3D11DeviceContext;
+    ComPtr<IDXGISwapChain>        mSwapChain;
+    ComPtr<ID3D11Texture2D>       mYUVTexture;
+    HANDLE                        mSharedHandle = nullptr;
 };
 #endif
 

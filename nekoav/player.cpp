@@ -98,6 +98,12 @@ bool Player::hasVideo() const noexcept {
     }
     return false;
 }
+bool Player::isSeekable() const noexcept {
+    if (d && d->mDemuxer) {
+        return d->mDemuxer->isSeekable();
+    }
+    return false;
+}
 
 void Player::play() {
     if (mState == State::Null) {

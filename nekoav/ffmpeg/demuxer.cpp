@@ -28,6 +28,14 @@ public:
     void setUrl(std::string_view source) override {
         mSource = source;
     }
+    void setOptions(const Properties *options) override {
+        if (options) {
+            mOptions = *options;
+        }
+        else {
+            mOptions.clear();
+        }
+    }
     double duration() const override {
         if (!mFormatContext) {
             return 0.0;
@@ -37,6 +45,25 @@ public:
         }
         return double(mFormatContext->duration) / AV_TIME_BASE;
     }
+    bool isSeekable() const override {
+        if (!mFormatContext) {
+            return false;
+        }
+        if (!mFormatContext->pb) {
+            return false;
+        }
+        return mFormatContext->pb->seekable != 0;
+    }
+    Properties metadata() const override {
+        if (!mFormatContext) {
+            return Properties();
+        }
+        Properties metadata;
+        for (auto [key, value] : IterDict(mFormatContext->metadata)) {
+            metadata[key] = value;
+        }
+        return metadata;
+    }
     Error onInitialize() override {
         mFormatContext = avformat_alloc_context();
         mFormatContext->interrupt_callback.opaque = this;
@@ -44,7 +71,9 @@ public:
             return static_cast<FFDemuxer*>(self)->_interruptHandler();
         };
 
-        int ret = avformat_open_input(&mFormatContext, mSource.c_str(), nullptr, nullptr);
+        AVDictionary *dict = ParseOpenOptions(&mOptions);
+        int ret = avformat_open_input(&mFormatContext, mSource.c_str(), nullptr, &dict);
+        av_dict_free(&dict);
         if (ret < 0) {
             avformat_close_input(&mFormatContext);
             NEKO_DEBUG(FormatErrorCode(ret));
@@ -172,6 +201,13 @@ public:
             if (stream->duration != AV_NOPTS_VALUE) {
                 prop[Properties::Duration] = double(stream->duration) * av_q2d(stream->time_base);
             }
+            if (stream->metadata) {
+                auto md = Property::newMap();
+                for (auto [key, value] : IterDict(stream->metadata)) {
+                    md[key] = value;
+                }
+                prop[Properties::Metadata] = std::move(md);
+            }
 
             // Map stream id to pad
             mStreamMapping.insert(std::make_pair(n, pad));
@@ -224,6 +260,7 @@ private:
     // bool                mInInterruptHandler = false;
     bool                mSeekRequested = false;
     double              mSeekPosition = -1.0;
+    Properties          mOptions; //< Options for Open
 };
 
 NEKO_REGISTER_ELEMENT(Demuxer, FFDemuxer);

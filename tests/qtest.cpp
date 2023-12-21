@@ -5,24 +5,20 @@
 #include <QVBoxLayout>
 #include <QPushButton>
 #include <QFileDialog>
+#include <QInputDialog>
 #include <QTextEdit>
 #include <QSlider>
 #include <QLabel>
 #include <iostream>
 
 #include "../nekoav/interop/qnekoav.hpp"
-#include "../nekoav/player.hpp"
 #include "../nekoav/log.hpp"
 
 #ifdef _MSC_VER
     #pragma comment(linker, "/subsystem:console")
 #endif
 
-using namespace NEKO_NAMESPACE;
-
 int main(int argc, char **argv) {
-    using NEKO_NAMESPACE::Arc;
-
     QApplication app(argc, argv);
     QMainWindow win;
 
@@ -32,6 +28,7 @@ int main(int argc, char **argv) {
     auto layout = new QVBoxLayout(widget);
     auto sublay = new QHBoxLayout();
     auto btn = new QPushButton("OpenFile");
+    auto openUrlBtn = new QPushButton("OpenURL");
     auto pauseBtn = new QPushButton("Pause");
     auto progressBar = new QSlider(Qt::Horizontal);
     auto videoWidget = new QNekoAV::VideoWidget;
@@ -39,6 +36,7 @@ int main(int argc, char **argv) {
 
     layout->addLayout(sublay);
     sublay->addWidget(btn);
+    sublay->addWidget(openUrlBtn);
     sublay->addWidget(pauseBtn);
     sublay->addWidget(progressBar);
     layout->addWidget(videoWidget);
@@ -58,7 +56,7 @@ int main(int argc, char **argv) {
         NEKO_DEBUG(newState);
         if (newState == QNekoMediaPlayer::PlayingState) {
             progressBar->setRange(0, player.duration());
-            pauseBtn->setEnabled(true);
+            pauseBtn->setEnabled(player.isSeekable());
             QMetaObject::invokeMethod(pauseBtn, "setEnabled", Q_ARG(bool, true));
         }
         else if (newState == QNekoMediaPlayer::StoppedState) {
@@ -69,7 +67,13 @@ int main(int argc, char **argv) {
     QObject::connect(btn, &QPushButton::clicked, [&](bool) {
         auto url = QFileDialog::getOpenFileUrl(nullptr, "Open File");
         if (url.isValid()) {
-            Error err;
+            player.setSource(url);
+            player.play();
+        }
+    });
+    QObject::connect(openUrlBtn, &QPushButton::clicked, [&](bool) {
+        auto url = QInputDialog::getText(nullptr, "Open URL", "URL Here");
+        if (!url.isNull()) {
             player.setSource(url);
             player.play();
         }

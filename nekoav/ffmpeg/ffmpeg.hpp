@@ -44,6 +44,10 @@ inline AVPixelFormat ToAVPixelFormat(PixelFormat fmt) {
         case PixelFormat::BGRA: return AV_PIX_FMT_BGRA;
         case PixelFormat::ARGB: return AV_PIX_FMT_ARGB;
 
+        // Hardware
+        case PixelFormat::DXVA2: return AV_PIX_FMT_DXVA2_VLD;
+        case PixelFormat::D3D11: return AV_PIX_FMT_D3D11;
+
         default: return AV_PIX_FMT_NONE;
     }
 }
@@ -71,6 +75,10 @@ inline   PixelFormat ToPixelFormat(AVPixelFormat fmt) {
         case AV_PIX_FMT_RGBA: return PixelFormat::RGBA;
         case AV_PIX_FMT_BGRA: return PixelFormat::BGRA;
         case AV_PIX_FMT_ARGB: return PixelFormat::ARGB;
+
+        // Hardware
+        case AV_PIX_FMT_DXVA2_VLD: return PixelFormat::DXVA2;
+        case AV_PIX_FMT_D3D11: return PixelFormat::D3D11;
         default: return PixelFormat::None;
     }
 }
@@ -151,6 +159,88 @@ inline Error ToError(int code) noexcept {
         case AVERROR_EOF    : return Error::EndOfFile;
         default             : return Error::Unknown;
     }
+}
+
+inline AVCodecContext *OpenCodecContext4(AVCodecParameters *codecpar) {
+    auto codec = avcodec_find_decoder(codecpar->codec_id);
+    auto ctxt = avcodec_alloc_context3(codec);
+    if (!ctxt) {
+        return nullptr;
+    }
+    int ret = avcodec_parameters_to_context(ctxt, codecpar);
+    if (ret < 0) {
+        avcodec_free_context(&ctxt);
+        return nullptr;
+    }
+    ret = avcodec_open2(ctxt, ctxt->codec, nullptr);
+    if (ret < 0) {
+        avcodec_free_context(&ctxt);
+        return nullptr;
+    }
+    return ctxt;
+}
+/**
+ * @brief Convert Open
+ * 
+ * @param options 
+ * @return AVDictionary* 
+ */
+inline AVDictionary *ParseOpenOptions(const Properties *options) {
+    if (!options) {
+        return nullptr;
+    }
+    AVDictionary *dict = nullptr;
+    for (const auto &[key, value] : *options) {
+        // TODO : Convert
+        if (key == Properties::HttpUserAgent) {
+            av_dict_set(&dict, "user_agent", value.toString().c_str(), 0);
+        }
+        else if (key == Properties::HttpReferer) {
+            av_dict_set(&dict, "referer", value.toString().c_str(), 0);
+        }
+    }
+    return dict;
+}
+
+class AVDictIterater {
+public:
+    AVDictIterater(AVDictionary *dict) : mDict(dict) {
+        if (dict) {
+            ++(*this);
+        }
+    }
+    void operator ++() {
+        mCur = av_dict_get(mDict, "", mCur, AV_DICT_IGNORE_SUFFIX);
+    }
+    bool operator ==(const AVDictIterater &other) const noexcept {
+        return mCur == other.mCur;
+    }
+    bool operator !=(const AVDictIterater &other) const noexcept {
+        return mCur != other.mCur;
+    }
+    AVDictionaryEntry &operator *() const noexcept {
+        return *mCur;
+    }
+    AVDictionaryEntry *operator ->() const noexcept {
+        return mCur;
+    }
+private:
+    AVDictionary      *mDict = nullptr;
+    AVDictionaryEntry *mCur = nullptr;
+};
+class AVDictIteration {
+public:
+    auto begin() const noexcept {
+        return AVDictIterater(mDict);
+    }
+    auto end() const noexcept {
+        return AVDictIterater(nullptr);
+    }
+    AVDictionary *mDict;
+};
+
+inline auto IterDict(AVDictionary *dict) {
+    return AVDictIteration(dict);
 }
 
 }

@@ -132,7 +132,13 @@ public:
                 continue;
             }
             NEKO_LOG("Enum HwConfig format on {}", av_pix_fmt_desc_get(conf->pix_fmt)->name);
-            hwconfigs.emplace_back(conf);
+            if (conf->pix_fmt== AV_PIX_FMT_D3D11) {
+                // Prefer D3D11VA than DXVA
+                hwconfigs.insert(hwconfigs.begin(), conf);
+            }
+            else {
+                hwconfigs.emplace_back(conf);
+            }
         }
         for (auto conf : hwconfigs) {
             // Got
@@ -165,6 +171,14 @@ public:
                 // Failed
                 continue;
             }
+#if !defined(NDEBUG)
+            auto thread = Thread::currentThread();
+            if (thread && mHardwareFmt == AV_PIX_FMT_D3D11) {
+                // Emm D3D11 device_ctx_create will change the thread name in my pc, change it back in debug
+                thread->setName(thread->name());
+            }
+#endif
+
             // hardwareCtxt->hw_device_ctx = av_buffer_ref(hardwareDeviceCtxt);
             mCtxt->hw_device_ctx = hardwareDeviceCtxt;
 

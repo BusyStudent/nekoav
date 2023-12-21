@@ -89,6 +89,7 @@ public:
                 mFrames.pop();
             }
             mNumFramesDropped = 0;
+            mSleepDeviation = 0;
             mCondition.notify_one();
         }
         else if (event->type() == Event::SeekRequested) {
@@ -110,10 +111,10 @@ public:
         mPosition = pts;
         if (diff < -0.01 && diff > -10.0) {
             // Too fast
-            std::unique_lock lock(mCondMutex);
-            mCondition.wait_for(lock, std::chrono::milliseconds(int64_t(-diff * 1000)));
+            doSleep(-diff * 1000);
         }
         else if (diff > 0.3) {
+            mSleepDeviation = 0;
             mNumFramesDropped += 1;
             if (mNumFramesDropped > 10) {
                 // NEKO_BREAKPOINT();
@@ -125,6 +126,17 @@ public:
             return;
         }
         mRenderer->setFrame(frame);
+    }
+    void doSleep(int64_t ms) {
+        ms -= mSleepDeviation; //< Apply prev deviation
+        
+        auto now = GetTicks();
+        
+        std::unique_lock lock(mCondMutex);
+        mCondition.wait_for(lock, std::chrono::milliseconds(ms));
+
+        auto diff = GetTicks() - now - ms;
+        mSleepDeviation = diff;
     }
     Error onLoop() override {
         while (!stopRequested()) {
@@ -180,6 +192,7 @@ private:
     
     Atomic<size_t> mNumFramesDropped {0};
     Atomic<double> mPosition {0.0}; //< Current time
+    Atomic<int64_t> mSleepDeviation {0};
 };
 NEKO_REGISTER_ELEMENT(VideoSink, VideoSinkImpl);
 

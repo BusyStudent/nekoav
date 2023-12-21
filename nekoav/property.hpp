@@ -127,7 +127,7 @@ private:
 
 class Properties final : public Property::Map {
 public:
-    //< MediaFrame
+    //< Pad
     static constexpr const char *PixelFormatList = "pixelFormatList";
     static constexpr const char *PixelFormat = "pixelFormat";
     static constexpr const char *Width = "width";
@@ -137,6 +137,12 @@ public:
     static constexpr const char *SampleFormat = "sampleFormat";
     static constexpr const char *SampleFormatList = "sampleFormatList";
     static constexpr const char *Duration = "duration";
+
+    // Metadata
+    static constexpr const char *Metadata = "metadata";
+    static constexpr const char *Title = "title";
+    static constexpr const char *Artist = "artist";
+    static constexpr const char *Album = "album";
 
     //< HTTP
     static constexpr const char *HttpUserAgent = "HttpUserAgent";

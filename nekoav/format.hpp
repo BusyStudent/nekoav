@@ -28,6 +28,9 @@ enum class PixelFormat : int {
     RGBA,
     BGRA,
     ARGB,
+
+    DXVA2, //< AV_PIX_FMT_DXVA2_VLD in ffmpeg, data[3] contains LPDIRECT3DSURFACE9
+    D3D11, //< AV_PIX_FMT_D3D11 in ffmpeg, data[0] contains a ID3D11Texture2D
 };
 
 enum class SampleFormat : int {
@@ -151,4 +154,14 @@ constexpr SampleFormat GetAltSampleFormat(SampleFormat fmt) noexcept {
 
 // PixelFormat here
 
+/**
+ * @brief Check if the given pixel format is hardware
+ * 
+ * @param fmt 
+ * @return true 
+ * @return false 
+ */
+constexpr bool IsHardwarePixelFormat(PixelFormat fmt) noexcept {
+    return fmt == PixelFormat::D3D11 || fmt == PixelFormat::DXVA2;
+}
 NEKO_NS_END

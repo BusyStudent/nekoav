@@ -29,6 +29,7 @@ public:
     Error onTeardown() override {
         sws_freeContext(mCtxt);
         av_frame_free(&mSwFrame);
+        mCopybackOnly = false;
         mPassthrough = false;
         mCopyback = false;
         mCtxt = nullptr;
@@ -42,7 +43,7 @@ public:
         if (!mSourcePad->isLinked()) {
             return Error::NoLink;
         }
-        if (!mCtxt && !mPassthrough) {
+        if (!mCtxt && !mPassthrough && !mCopybackOnly) {
             if (auto err = _initContext(frame->get()); err != Error::Ok) {
                 return err;
             }
@@ -62,6 +63,12 @@ public:
             }
             av_frame_copy_props(mSwFrame, srcFrame);
             srcFrame = mSwFrame;
+        }
+        if (mCopybackOnly) {
+            // Do not need sws_scale
+            auto dstFrame = av_frame_alloc();
+            av_frame_move_ref(dstFrame, srcFrame);
+            return mSourcePad->push(Frame::make(dstFrame, frame->timebase(), AVMEDIA_TYPE_VIDEO).get());
         }
 
         // TODO Finish it
@@ -144,6 +151,16 @@ public:
             }
             mCopyback = true;
             f = mSwFrame;
+
+            // Check copyback pixel format supported
+            auto &pixfmt = mSourcePad->next()->property(Properties::PixelFormatList);
+            for (const auto &v : pixfmt.toList()) {
+                fmt = ToAVPixelFormat(v.toEnum<PixelFormat>());
+                if (fmt == AVPixelFormat(f->format)) {
+                    mCopybackOnly = true;
+                    return Error::Ok;
+                }
+            }
         }
 
         // Prepare sws conetxt
@@ -174,8 +191,9 @@ private:
     AVFrame    *mSwFrame = nullptr; //< Used when hardware format
     Pad        *mSinkPad = nullptr;
     Pad        *mSourcePad = nullptr;
-    bool        mPassthrough = false;
-    bool        mCopyback = false;
+    bool        mPassthrough = false; //< Directly passthrough
+    bool        mCopyback = false; //< Need copy back
+    bool        mCopybackOnly = false; //< Do not need sws_scale
     PixelFormat mTargetFormat = PixelFormat::None; //< If not None, force
     AVPixelFormat mSwsFormat = AV_PIX_FMT_NONE; //< Current target format
 };

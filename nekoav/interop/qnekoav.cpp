@@ -25,8 +25,8 @@ public:
 
     MediaPlayer::Error mError = MediaPlayer::NoError;
     MediaPlayer::PlaybackState mState = MediaPlayer::StoppedState;
+    MediaPlayer::MediaStatus mStatus = MediaPlayer::NoMedia;
 };
-
 
 static auto translateError(NEKO_NAMESPACE::Error err) {
     using Err = NEKO_NAMESPACE::Error;
@@ -186,6 +186,9 @@ qreal MediaPlayer::duration() const {
 }
 qreal MediaPlayer::position() const {
     return d->mPlayer.position();
+}
+bool MediaPlayer::isSeekable() const {
+    return d->mPlayer.isSeekable();
 }
 
 }  // namespace QNekoAV

@@ -24,19 +24,8 @@ public:
     Error openUrl(std::string_view url, const Properties *options) override {
         _close();
 
-        AVDictionary *dict = nullptr;
+        AVDictionary *dict = ParseOpenOptions(options);
         mFormatContext = avformat_alloc_context();
-        if (options) {
-            for (const auto &[key, value] : *options) {
-                // TODO : Convert
-                if (key == Properties::HttpUserAgent) {
-                    av_dict_set(&dict, "user_agent", value.toString().c_str(), 0);
-                }
-                else if (key == Properties::HttpReferer) {
-                    av_dict_set(&dict, "referer", value.toString().c_str(), 0);
-                }
-            }
-        }
 
         int ret = avformat_open_input(&mFormatContext, std::string(url).c_str(), nullptr, &dict);
         av_dict_free(&dict);

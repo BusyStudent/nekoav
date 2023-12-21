@@ -54,8 +54,6 @@ public:
         }
     }
 
-    void lock() override { }
-    void unlock() override { }
     int  format() const override {
         if (mType == Video) {
             return int(mPixelFormat);
@@ -70,9 +68,6 @@ public:
     double timestamp() const override {
         return mTimestamp;
     }
-    // bool isKeyFrame() const override {
-        // return true;
-    // }
     bool makeWritable() override {
         return true;
     }
@@ -104,12 +99,6 @@ public:
         }
         return true;
     }
-    // void setSampleRate(int sampleRate) override {
-    //     mSampleRate = sampleRate;
-    // }
-    // void setTimestamp(double t) override {
-    //     mTimestamp = t;
-    // }
 private:
     // Header
     enum {

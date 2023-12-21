@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../property.hpp"
 #include "../media.hpp"
 #include "ffmpeg.hpp"
 
@@ -26,12 +27,6 @@ public:
     }
 
     // Impl MediaFrame
-    void lock() override {
-        // return mMutex.lock();        
-    }
-    void unlock() override {
-        // return mMutex.unlock();
-    }
     int  format() const override {
         if (mType == AVMEDIA_TYPE_AUDIO) {
             return int(ToSampleFormat(AVSampleFormat(mFrame->format)));
@@ -117,12 +112,6 @@ public:
         av_packet_free(&mPacket);
     }
 
-    void lock() override {
-
-    }
-    void unlock() override {
-
-    }
     int64_t size() const override {
         return mPacket->size;
     }
@@ -160,25 +149,6 @@ private:
     AVRational mTimebase;
     AVMediaType mType;
 };
-
-inline AVCodecContext *OpenCodecContext4(AVCodecParameters *codecpar) {
-    auto codec = avcodec_find_decoder(codecpar->codec_id);
-    auto ctxt = avcodec_alloc_context3(codec);
-    if (!ctxt) {
-        return nullptr;
-    }
-    int ret = avcodec_parameters_to_context(ctxt, codecpar);
-    if (ret < 0) {
-        avcodec_free_context(&ctxt);
-        return nullptr;
-    }
-    ret = avcodec_open2(ctxt, ctxt->codec, nullptr);
-    if (ret < 0) {
-        avcodec_free_context(&ctxt);
-        return nullptr;
-    }
-    return ctxt;
-}
 
 }
 

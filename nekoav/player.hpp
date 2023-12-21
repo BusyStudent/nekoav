@@ -51,6 +51,13 @@ public:
      */
     bool hasAudio() const noexcept;
     /**
+     * @brief Check current media is seekable
+     * 
+     * @return true 
+     * @return false 
+     */
+    bool isSeekable() const noexcept;
+    /**
      * @brief Get duration of current media
      * 
      * @return double (in seconds)

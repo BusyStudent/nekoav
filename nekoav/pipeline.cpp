@@ -75,7 +75,7 @@ public:
             // Initalize, new a thread
             NEKO_ASSERT(!mThread && "Already initialized");
             mRunning = true;
-            mThread = new Thread(&PipelineImpl::threadEntry, this);
+            mThread = new Thread(&PipelineImpl::_threadEntry, this);
 
             // Init media controller here
             mPosition = 0.0;
@@ -266,7 +266,7 @@ private:
         }
         return Error::Ok;
     }
-    void threadEntry() {
+    void _threadEntry() {
         mThread->setName("NekoPipeline");
         NEKO_DEBUG("Pipeline Thread Started");
         while (mRunning) {
@@ -274,12 +274,12 @@ private:
             NEKO_DEBUG("Pipeline Thread Dispatch once");
             while (state() == State::Running) {
                 mThread->waitTask(10); //< Delay 10ms if no event
-                updateClock();
+                _updateClock();
             }
         }
         NEKO_DEBUG("Pipeline Thread Quit");
     }
-    void updateClock() {
+    void _updateClock() {
         // Update clock if
         auto current = masterClock()->position();
         if (std::abs(current - mPosition) > 1.0) {
