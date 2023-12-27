@@ -76,11 +76,17 @@ target("nekoav")
         add_packages("libass")
     end 
 
-    -- detail
+    -- Elements
+    add_files("nekoav/elements/*.cpp")
+
+    -- Detail
     add_files("nekoav/detail/*.cpp")
 
+    -- Media
+    add_files("nekoav/media/*.cpp")
+
+    -- Core
     add_files("nekoav/*.cpp")
-    add_files("nekoav/elements/*.cpp")
 target_end()
 
 -- Qt

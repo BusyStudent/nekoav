@@ -77,23 +77,44 @@ bool is_debugger_present() {
 #endif
 }
 
-std::string asprintf(const char *fmt, ...) {
+size_t vsprintf(std::string *buf, const char *fmt, va_list userArgs) {
     va_list varg;
     int s;
     
-    va_start(varg, fmt);
+    va_copy(varg, userArgs);
 #ifdef _WIN32
-    s = _vscprintf(fmt, varg);
+    s = ::_vscprintf(fmt, varg);
 #else
-    s = vsnprintf(nullptr, 0, fmt, varg);
+    s = ::vsnprintf(nullptr, 0, fmt, varg);
 #endif
     va_end(varg);
 
-    std::string buf;
-    buf.resize(s);
+    int len = buf->length();
 
+#if NEKO_CXX23
+    buf->resize_and_overwrite(len + s);
+#else
+    buf->resize(len + s);
+#endif
+
+    va_copy(varg, userArgs);
+    ::vsprintf(buf->data() + len, fmt, varg);
+    va_end(varg);
+
+    return s;
+}
+size_t sprintf(std::string *buf, const char *fmt, ...) {
+    va_list varg;
     va_start(varg, fmt);
-    vsprintf(buf.data(), fmt, varg);
+    auto n = vsprintf(buf, fmt, varg);
+    va_end(varg);
+    return n;
+}
+std::string asprintf(const char *fmt, ...) {
+    std::string buf;
+    va_list varg;
+    va_start(varg, fmt);
+    vsprintf(&buf, fmt, varg);
     va_end(varg);
     return buf;
 }

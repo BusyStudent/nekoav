@@ -1,6 +1,7 @@
 #pragma once
 
 #include "defs.hpp"
+#include <cstdarg>
 #include <string>
 #include <span>
 
@@ -17,11 +18,29 @@ namespace libc {
     /**
      * @brief Format string by fmt and args
      * 
-     * @param fmt 
-     * @param ... 
-     * @return Box<char>
+     * @param fmt The format string
+     * @param ... The args
+     * @return std::string
      */
     extern NEKO_API std::string asprintf(const char *fmt, ...);
+    /**
+     * @brief Format string to target buffer
+     * 
+     * @param buf The target buffer (can not be nullptr)
+     * @param fmt The format string
+     * @param varg The args
+     * @return size_t num of chars output 
+     */
+    extern NEKO_API size_t vsprintf(std::string *buf, const char *fmt, va_list varg);
+        /**
+     * @brief Format string to target buffer
+     * 
+     * @param buf The target buffer (can not be nullptr)
+     * @param fmt The format string
+     * @param ... The args
+     * @return size_t num of chars output 
+     */
+    extern NEKO_API size_t sprintf(std::string *buf, const char *fmt, ...);
     /**
      * @brief Map a readonly file
      * 

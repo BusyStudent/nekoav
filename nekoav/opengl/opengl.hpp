@@ -8,6 +8,10 @@ NEKO_NS_BEGIN
 class Thread;
 class GLFunctions;
 
+/**
+ * @brief OpenGL Context
+ * 
+ */
 class GLContext {
 public:
     virtual ~GLContext() = default;
@@ -15,13 +19,27 @@ public:
     virtual bool  makeCurrent() = 0;
     virtual void  doneCurrent() = 0;
     virtual void *getProcAddress(const char *name) const = 0;
+    virtual bool  hasExtension(const char *name) const = 0;
+
+    template <typename PFN>
+    inline  PFN   getProcAddress(const char *name) const {
+        return reinterpret_cast<PFN>(getProcAddress(name));
+    }
 };
+/**
+ * @brief A Display than can create context
+ * 
+ */
 class GLDisplay {
 public:
     virtual ~GLDisplay() = default;
 
     virtual Box<GLContext> createContext() = 0;
 };
+/**
+ * @brief A OpenGL Video Frame
+ * 
+ */
 class GLFrame : public Resource {
 public:
     enum Format : int {
@@ -85,14 +103,7 @@ public:
      * @param duration 
      */
     virtual void        setDuration(double duration) = 0;
-    /**
-     * @brief add a Texture into the frame, like Vec<GLint> mTexs.push_back(textureId)
-     * 
-     * @param textureId 
-     */
-    virtual void        addTexture(unsigned int textureId) = 0;
 };
-
 /**
  * @brief A Controller for OpenGL, you need to register the Controller to the Context, otherwise, The pipeline will fail on setState
  * 
@@ -155,12 +166,22 @@ extern NEKO_API Box<GLController> CreateGLController();
 /**
  * @brief Create a OpenGL Frame
  * 
- * @param ctxt 
+ * @param controller 
  * @param width 
  * @param height 
  * @param format 
  * @return NEKO_API 
  */
-extern NEKO_API Arc<GLFrame>      CreateGLFrame(View<GLContext> ctxt, int width, int height, GLFrame::Format format);
+extern NEKO_API Arc<GLFrame>      CreateGLFrame(View<GLController> controller, int width, int height, GLFrame::Format format);
+/**
+ * @brief Copy OpenGL Frame props (timestamp, duration)
+ * 
+ * @param dst 
+ * @param src 
+ */
+inline void CopyGLFrameProps(GLFrame *dst, GLFrame *src) {
+    dst->setTimestamp(src->timestamp());
+    dst->setDuration(src->duration());
+}
 
 NEKO_NS_END

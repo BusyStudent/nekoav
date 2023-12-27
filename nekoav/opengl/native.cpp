@@ -2,11 +2,11 @@
 #include "../threading.hpp"
 #include "../utils.hpp"
 #include "opengl.hpp"
-#include <mutex>
 
 #if   defined(_WIN32)
     #define HAVE_WGL
     #include <windows.h>
+    #include "opengl_macros.hpp"
 
     #pragma comment(lib, "gdi32.lib")
 #endif
@@ -23,7 +23,12 @@
 
 NEKO_NS_BEGIN
 
+
+
 #ifdef HAVE_WGL
+
+// WGL EXT 
+typedef const char *(APIENTRY * PFNWGLGETEXTENSIONSSTRINGARBPROC)(HDC hdc);
 
 static std::once_flag wglRegister;
 
@@ -31,6 +36,8 @@ class WGLDisplay final : public GLDisplay {
 public:
     Box<GLContext> createContext() override;
 private:
+    void loadExtensions(GLContext *ctxt, HDC hdc);
+
     neko_library_path("opengl32.dll");
     neko_import(wglCreateContext);
     neko_import(wglDeleteContext);
@@ -38,6 +45,12 @@ private:
     neko_import(wglGetCurrentDC);
     neko_import(wglGetCurrentContext);
     neko_import(wglGetProcAddress);
+    neko_import(wglShareLists);
+
+    // WGL Ext
+    PFNWGLGETEXTENSIONSSTRINGARBPROC wglGetExtensionsStringARB = nullptr;
+    const char                      *mExtensions = nullptr;
+    bool                             mExtLoaded = false;
 friend class WGLContext;
 };
 
@@ -63,6 +76,24 @@ public:
 
         mCtxt = mDisplay->wglCreateContext(mDC);
         NEKO_ASSERT(mCtxt);
+
+        // Load basic pfns
+        makeCurrent();
+        glGetString = reinterpret_cast<PFNGLGETSTRINGPROC>(getProcAddress("glGetString"));
+        glEnable = reinterpret_cast<PFNGLENABLEPROC>(getProcAddress("glEnable"));
+        mExtensions = reinterpret_cast<const char *>(glGetString(GL_EXTENSIONS));
+
+        if (!mDisplay->mExtLoaded) {
+            mDisplay->loadExtensions(this, mDC);
+        }
+#ifndef NDEBUG
+        fprintf(stderr, "WGL: Create a Context at thread %s\n", Thread::currentThread() == nullptr ? "main" : Thread::currentThread()->name().data());
+        fprintf(stderr, "WGL: Version %s\n", glGetString(GL_VERSION));
+        fprintf(stderr, "WGL: Vendor: %s\n", glGetString(GL_VENDOR));
+        fprintf(stderr, "WGL: Renderer: %s\n", glGetString(GL_RENDERER));
+        fprintf(stderr, "WGL: Shader: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
+#endif
+        doneCurrent();
     }
     ~WGLContext() {
         NEKO_ASSERT(mThreadId == ::GetCurrentThreadId());
@@ -101,6 +132,16 @@ public:
         }
         return reinterpret_cast<void *>(addr);
     }
+    bool hasExtension(const char *name) const override {
+        if (::strstr(mExtensions, name)) {
+            return true;
+        }
+        // Check is WGL
+        if (mDisplay->mExtensions) {
+            return ::strstr(mDisplay->mExtensions, name);
+        }
+        return false;
+    }
 private:
     WGLDisplay *mDisplay;
     HWND  mHwnd = nullptr;
@@ -110,6 +151,11 @@ private:
     HDC   mprevDC = nullptr;
     HGLRC mprevCtxt = nullptr;
     DWORD mThreadId = ::GetCurrentThreadId();
+
+    // Basic Function
+    PFNGLGETSTRINGPROC glGetString = nullptr;
+    PFNGLENABLEPROC    glEnable    = nullptr;
+    const char        *mExtensions = nullptr;
 };
 
 inline Box<GLContext> WGLDisplay::createContext() {
@@ -128,7 +174,6 @@ inline Box<GLContext> WGLDisplay::createContext() {
         0,
         L"NekoWGLDisplay",
         nullptr,
-
         0,
         0,
         0,
@@ -144,83 +189,28 @@ inline Box<GLContext> WGLDisplay::createContext() {
     }
     return std::make_unique<WGLContext>(this, hwnd);
 }
-
-Box<GLDisplay> CreateGLDisplay() {
-    return std::make_unique<WGLDisplay>();
+inline void WGLDisplay::loadExtensions(GLContext *ctxt, HDC hdc) {
+    mExtLoaded = true;
+    wglGetExtensionsStringARB = ctxt->getProcAddress<PFNWGLGETEXTENSIONSSTRINGARBPROC>(
+        "wglGetExtensionsStringARB"
+    );
+    if (wglGetExtensionsStringARB) {
+        mExtensions = wglGetExtensionsStringARB(hdc);
+#ifndef NDEBUG
+        fprintf(stderr, "WGL: Platform Extensions %s\n", mExtensions);
+#endif
+    }
 }
-
 
 #endif
 
+Box<GLDisplay> CreateGLDisplay() {
+#ifdef HAVE_WGL
+    return std::make_unique<WGLDisplay>();
+#endif
 
-// GLController
-class GLControllerImpl final : public GLController {
-public:
-    GLControllerImpl() {
-
-    }
-    ~GLControllerImpl() {
-        NEKO_ASSERT(mThreadRefcount == 0);
-        NEKO_ASSERT(mContextRefcount == 0);
-        NEKO_ASSERT(mThread == nullptr);
-    }
-    void setDisplay(Box<GLDisplay> display) override {
-        mDisplay = std::move(display);
-    }
-    Thread *allocThread() override {
-        std::lock_guard lock(mMutex);
-        mThreadRefcount ++;
-        if (mThread == nullptr) {
-            mThread = std::make_unique<Thread>();
-            mThread->setName("NekoGLThread");
-        }
-        return mThread.get();
-    }
-    GLContext *allocContext() override {
-        NEKO_ASSERT(Thread::currentThread() == mThread.get());
-        std::lock_guard lock(mMutex);
-        mContextRefcount ++;
-        if (mContext == nullptr) {
-            if (!mDisplay) {
-                mDisplay = CreateGLDisplay();
-            }
-            mContext = mDisplay->createContext();
-        }
-        return mContext.get();
-    }
-    void freeThread(Thread *thread) override {
-        NEKO_ASSERT(thread == mThread.get());
-        NEKO_ASSERT(mThreadRefcount > 0);
-        NEKO_ASSERT(Thread::currentThread() != mThread.get());
-
-        std::lock_guard lock(mMutex);
-        mThreadRefcount --;
-        if (mThreadRefcount == 0) {
-            mThread = nullptr;
-        }
-    }
-    void freeContext(GLContext *context) override {
-        NEKO_ASSERT(context == mContext.get());
-        NEKO_ASSERT(mContextRefcount > 0);
-        std::lock_guard lock(mMutex);
-        mContextRefcount --;
-        if (mContextRefcount == 0) {
-            mContext = nullptr;
-        }
-    }
-private:
-    std::mutex     mMutex;
-    Atomic<size_t> mThreadRefcount {0};
-    Atomic<size_t> mContextRefcount {0};
-
-    // Managed by GLController
-    Box<GLDisplay> mDisplay;
-    Box<GLContext> mContext;
-    Box<Thread>    mThread;
-};
-
-Box<GLController> CreateGLController() {
-    return std::make_unique<GLControllerImpl>();
+    return nullptr;
 }
+
 
 NEKO_NS_END

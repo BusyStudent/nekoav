@@ -9,6 +9,7 @@
 #include "../nekoav/media.hpp"
 #include "../nekoav/enum.hpp"
 #include "../nekoav/time.hpp"
+#include "../nekoav/libc.hpp"
 #include "../nekoav/log.hpp"
 #include "../nekoav/pad.hpp"
 
@@ -171,6 +172,13 @@ TEST(CoreTest, Elem) {
     src.push();
     src.push();
 
+};
+
+TEST(CoreTest, PrintfWrapper) {
+    std::string buf {"Hello"};
+    libc::sprintf(&buf, "%d", 1);
+    ASSERT_EQ(buf, "Hello1");
+    ASSERT_EQ(libc::asprintf("This is a string %s", "str"), "This is a string str");
 };
 
 TEST(MediaLayerTest, Reader) {

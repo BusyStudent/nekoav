@@ -139,7 +139,7 @@ private:
     std::condition_variable           mCondition;
     std::thread                       mThread;
 
-#ifdef NEKO_WIN_DISPATCHER
+#ifdef _WIN32
     uint32_t                          mThreadId = 0;
     uint32_t                          mWeakupMessage = 0;
 #endif

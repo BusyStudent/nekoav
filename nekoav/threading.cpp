@@ -7,6 +7,7 @@
 
 #ifdef _WIN32
     #include <Windows.h>
+    #define NEKO_WIN_DISPATCHER
 #endif
 
 #ifdef _MSC_VER
@@ -57,6 +58,7 @@ void Thread::_run(void *latch) {
         if (!mQueue.empty()) {
             continue;
         }
+        lock.unlock();
         ::WaitMessage();
 #else
         mCondition.wait(lock, [this]() { return !mQueue.empty(); });

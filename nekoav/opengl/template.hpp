@@ -6,6 +6,8 @@
 
 NEKO_NS_BEGIN
 
+class GLFunctions; //< Function for Auto Load
+
 namespace _abiv1 {
 
 template <typename ...Ts>
@@ -43,6 +45,14 @@ protected:
         return mGLContext;
     }
     /**
+     * @brief Get the OpenGL Controller
+     * 
+     * @return GLController* 
+     */
+    GLController *glcontroller() const noexcept {
+        return mController;
+    }
+    /**
      * @brief Make the context current
      * 
      * @return true 
@@ -64,7 +74,18 @@ protected:
      * @return auto 
      */
     auto functionLoader() const noexcept {
-        return std::bind(&GLContext::getProcAddress, mGLContext, std::placeholders::_1);
+        return std::bind(&GLContext::getProcAddress<void*>, mGLContext, std::placeholders::_1);
+    }
+    /**
+     * @brief Create a OpenGL Frame by giveing args
+     * 
+     * @param width 
+     * @param height 
+     * @param format 
+     * @return Arc<GLFrame> 
+     */
+    auto createGLFrame(int width, int height, GLFrame::Format format) {
+        return CreateGLFrame(mController, width, height, format);
     }
 private:
     /**
@@ -77,6 +98,11 @@ private:
         if (!mGLContext) {
             return Error::OutOfMemory;
         }
+        mGLContext->makeCurrent();
+        // Auto Load OpenGL Function
+        if constexpr (std::is_base_of_v<GLFunctions, OpenGLImpl<Ts...> >) {
+            this->load(functionLoader());
+        }
         return onGLInitialize();
     }
     /**
@@ -85,7 +111,10 @@ private:
      * @return Error 
      */
     Error onTeardown() override final {
+        mGLContext->makeCurrent();
         auto err = onGLTeardown();
+        mGLContext->doneCurrent();
+        
         mController->freeContext(mGLContext);
         mGLContext = nullptr;
         return err;
@@ -100,7 +129,10 @@ private:
         }
         mController = ctxt->queryObject<GLController>();
         if (!mController) {
-            return nullptr;
+            // No controller, add one
+            auto controller = CreateGLController();
+            mController = controller.get();
+            ctxt->addObject(std::move(controller));
         }
         return mController->allocThread();
     }
