@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QVariantMap>
+#include <QVariant>
 #include <QWidget>
 #include <QObject>
 #include <QUrl>
@@ -98,6 +100,9 @@ public:
     // void setVideoSink(VideoSink *sink);
     // VideoSink *videoSink() const;
 
+    void *addFilter(const QString &name, const QVariantMap &parameters = QVariantMap());
+    void removeFilter(void *filter);
+
     QUrl source() const;
     const QIODevice *sourceDevice() const;
 
@@ -133,15 +138,8 @@ public:
     void setOption(const QString &key, const QString &value);
     void clearOptions();
 
-    void setHttpUseragent(const QString &useragent);
+    void setHttpUserAgent(const QString &useragent);
     void setHttpReferer(const QString &referer);
-
-    /**
-     * @brief Get the pipeline view
-     * 
-     * @return void* is NekoAV::Pipeline* 
-     */
-    void *pipeline() const;
 public Q_SLOTS:
     void play();
     void pause();

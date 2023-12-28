@@ -1,13 +1,23 @@
 #pragma once
 
-#include "elements.hpp"
+#include "defs.hpp"
 #include <functional>
 #include <string>
+#include <list>
 
 NEKO_NS_BEGIN
 
 class VideoRenderer;
 class PlayerPrivate;
+
+class Filter {
+public:
+    Filter(std::string_view name) : mName(name) { }
+    Filter(const std::type_info &info) : mName(info.name()) { }
+private:
+    std::string mName; //< Filter name
+friend class Player;
+};
 
 /**
  * @brief Wrapper for easily use Pipeline to play Video
@@ -18,12 +28,39 @@ public:
     Player();
     Player(const Player &) = delete;
     ~Player();
+
+    /**
+     * @brief Add a filter
+     * 
+     * @param filter 
+     * @return void * The marks to remove the filter (0 on add failure)
+     */
+    void *addFilter(const Filter &filter);
+    /**
+     * @brief Remove a filter
+     * 
+     * @param id 
+     */
+    void removeFilter(void *id);
     /**
      * @brief Set the Url object
      * 
      * @param url 
      */
     void setUrl(std::string_view url);
+    /**
+     * @brief Set the Options object for Open Url
+     * 
+     * @param options The pointer of options, nyllptr on cleaer
+     */
+    void setOptions(const Properties *options);
+    /**
+     * @brief Add a Option
+     * 
+     * @param key 
+     * @param value 
+     */
+    void setOption(std::string_view key, std::string_view value);
     /**
      * @brief Set the Video Renderer object
      * 
@@ -89,12 +126,19 @@ private:
     void _error(Error err, std::string_view msg);
     void _setState(State state);
     void _translateEvent(View<Event>);
+    void _buildAudioPart();
+    void _buildVideoPart();
+    bool _configureSubtitle();
 
     Box<PlayerPrivate> d;
+    Box<Properties> mOptions; //< The options for open
     Atomic<State>  mState { State::Null };
     Thread        *mThread = nullptr; //< Work Thread
     VideoRenderer *mRenderer = nullptr;
     std::string    mUrl; //< The dest to 
+    std::string    mSubtitleUrl; //< The Url of the subtitle
+
+    std::list<Filter> mFilters; //< List of filter 
 
     // Callbacks
     std::function<void(Error, std::string_view)> mErrorCallback;

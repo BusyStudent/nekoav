@@ -6,6 +6,7 @@
 #include <QPushButton>
 #include <QFileDialog>
 #include <QInputDialog>
+#include <QKeyEvent>
 #include <QTextEdit>
 #include <QSlider>
 #include <QLabel>
@@ -18,9 +19,26 @@
     #pragma comment(linker, "/subsystem:console")
 #endif
 
+class MainWindow final : public QMainWindow {
+public:
+    using QMainWindow::QMainWindow;
+
+    void keyPressEvent(QKeyEvent *event) override {
+        if (event->key() != Qt::Key_F11) {
+            return;
+        }
+        if (isFullScreen()) {
+            showNormal();
+        }
+        else {
+            showFullScreen();
+        }
+    }
+};
+
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
-    QMainWindow win;
+    MainWindow win;
 
     auto widget = new QWidget(&win);
     win.setCentralWidget(widget);
@@ -40,6 +58,9 @@ int main(int argc, char **argv) {
     sublay->addWidget(pauseBtn);
     sublay->addWidget(progressBar);
     layout->addWidget(videoWidget);
+
+    layout->setContentsMargins(0, 0, 0, 0);
+    sublay->setContentsMargins(0, 0, 0, 0);
 
     pauseBtn->setEnabled(false);
 

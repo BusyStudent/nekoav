@@ -446,17 +446,17 @@ public:
         mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::Black));
         auto [screenWidth, screenHeight] = mRenderTarget->GetSize();
         if (mBitmap) {
-            if (mDeviceContext) {
-                // Cubic
-                mDeviceContext->DrawBitmap(
-                    mBitmap.Get(), 
-                    D2D1::RectF(0, 0, screenWidth, screenHeight), 
-                    1.0f, D2D1_INTERPOLATION_MODE_CUBIC
-                );
-            }
-            else {
+            // if (mDeviceContext) {
+            //     // Cubic
+            //     mDeviceContext->DrawBitmap(
+            //         mBitmap.Get(), 
+            //         D2D1::RectF(0, 0, screenWidth, screenHeight), 
+            //         1.0f, D2D1_INTERPOLATION_MODE_CUBIC
+            //     );
+            // }
+            // else {
                 mRenderTarget->DrawBitmap(mBitmap.Get(), D2D1::RectF(0, 0, screenWidth, screenHeight));
-            }
+            // }
         }
         else if (mImageSource) {
             D3D11_TEXTURE2D_DESC desc {0};

@@ -3,6 +3,7 @@
 #include "elements/audiosink.hpp"
 #include "elements/demuxer.hpp"
 #include "elements/decoder.hpp"
+#include "elements/subtitle.hpp"
 #include "elements/mediaqueue.hpp"
 #include "elements/videocvt.hpp"
 #include "elements/audiocvt.hpp"
@@ -11,6 +12,7 @@
 #include "factory.hpp"
 #include "player.hpp"
 #include "media.hpp"
+#include "libc.hpp"
 #include "event.hpp"
 #include "pad.hpp"
 
@@ -22,6 +24,7 @@ public:
     Arc<Demuxer>     mDemuxer;
     Arc<MediaQueue>  mAudioQueue;
     Arc<MediaQueue>  mVideoQueue;
+    Arc<SubtitleFilter> mSubtitleFilter;
     MediaController *mController = nullptr;
 };
 
@@ -32,9 +35,42 @@ Player::~Player() {
     stop();
 }
 
+void *Player::addFilter(const Filter &filter) {
+    if (!GetElementFactory()->createElement(filter.mName)) {
+        // Unexists
+        return nullptr;
+    }
+    return &mFilters.emplace_back(filter);
+}
+void Player::removeFilter(void *where) {
+    if (where == nullptr) {
+        return;
+    }
+    for (auto it = mFilters.begin(); it != mFilters.end(); it++) {
+        if (&*it == where) {
+            mFilters.erase(it);
+            return;
+        }
+    }
+}
+
 void Player::setUrl(std::string_view url) {
     stop();
     mUrl = url;
+}
+void Player::setOptions(const Properties *options) {
+    if (options) {
+        mOptions.reset(new Properties(*options));
+    }
+    else {
+        mOptions.reset();
+    }
+}
+void Player::setOption(std::string_view key, std::string_view value) {
+    if (!mOptions) {
+        mOptions.reset(new Properties);
+    }
+    mOptions->insert(std::make_pair(std::string(key), Property(value)));
 }
 
 void Player::setVideoRenderer(VideoRenderer* renderer) {
@@ -129,7 +165,7 @@ void Player::_load() {
     // Cleanup
     d.reset(new PlayerPrivate);
 
-    // Build pipeline
+    // Build pipeline and demuxer
     auto factory = GetElementFactory();
 
     d->mPipeline = CreatePipeline();
@@ -139,56 +175,17 @@ void Player::_load() {
     // Add into
     d->mPipeline->addElement(d->mDemuxer);
 
-    // Create audio part
-    if (true) {
-        d->mAudioQueue = factory->createElement<MediaQueue>();
-
-        auto decoder = factory->createElement<Decoder>();
-        auto converter = factory->createElement<AudioConverter>();
-        auto audiosink = factory->createElement<AudioSink>();
-
-        //< From Queue to sink
-        auto err = d->mPipeline->addElements(d->mAudioQueue, decoder, converter, audiosink);
-        if (err != Error::Ok) {
-            return _error(err, "Fail to add audio elements");
-        }
-        err = LinkElements(d->mAudioQueue, decoder, converter, audiosink);
-        if (err != Error::Ok) {
-            return _error(err, "Fail to link audio elements");
-        }
-
-        d->mAudioQueue->setName("NekoAudioQueue");
-    }
-    if (mRenderer) {
-        d->mVideoQueue = factory->createElement<MediaQueue>();
-
-        auto decoder = factory->createElement<Decoder>();
-        auto converter = factory->createElement<VideoConverter>();
-        auto renderer = factory->createElement<VideoSink>();
-
-        // From Queue to sink
-        auto err = d->mPipeline->addElements(d->mVideoQueue, decoder, converter, renderer);
-        if (err != Error::Ok) {
-            return _error(err, "Fail to add video elements");
-        }
-        err = LinkElements(d->mVideoQueue, decoder, converter, renderer);
-        if (err != Error::Ok) {
-            return _error(err, "Fail to link video elements");
-        }
-
-        renderer->setRenderer(mRenderer);
-        renderer->setName("NekoVideoSink");
-        d->mVideoQueue->setName("NekoVideoQueue");
-    }
 
     // Check all ready
-    if (!d->mAudioQueue && !d->mVideoQueue) {
-        return _error(Error::InvalidState, "No A/V Output has set");
-    }
+    // if (!d->mAudioQueue && !d->mVideoQueue) {
+    //     return _error(Error::InvalidState, "No A/V Output has set");
+    // }
     d->mPipeline->setEventCallback(std::bind(&Player::_translateEvent, this, std::placeholders::_1));
     d->mDemuxer->setName("NekoDemuxer");
     d->mDemuxer->setUrl(mUrl);
+    d->mDemuxer->setOptions(mOptions.get());
 
+    // Begin actually load
     mThread = new Thread(&Player::_run, this);
 }
 void Player::_error(Error err, std::string_view msg) {
@@ -211,8 +208,9 @@ void Player::_run() {
     if (err != Error::Ok) {
         return _error(err, "Fail to set pipeline state to ready");
     }
-    // Connect Audio
-    if (d->mAudioQueue) {
+    // Connect Audio if
+    if (true) {
+        _buildAudioPart();
         for (auto pad : d->mDemuxer->outputs()) {
             if (pad->name().starts_with("audio")) {
                 err = LinkElement(d->mDemuxer, pad->name(), d->mAudioQueue, "sink");
@@ -223,11 +221,13 @@ void Player::_run() {
     if (err != Error::Ok) {
         return _error(err, "Fail to link audio elements");
     }
-    // Connect Video
-    if (d->mVideoQueue) {
+    // Connect Video if
+    if (mRenderer) {
+        _buildVideoPart();
         for (auto pad : d->mDemuxer->outputs()) {
             if (pad->name().starts_with("video")) {
                 err = LinkElement(d->mDemuxer, pad->name(), d->mVideoQueue, "sink");
+                break;
             }
         }
     }
@@ -246,6 +246,109 @@ void Player::_run() {
         return _error(err, "Fail to set state to running");
     }
     _setState(State::Running);
+}
+void Player::_buildAudioPart() {
+    auto factory = GetElementFactory();
+    d->mAudioQueue = factory->createElement<MediaQueue>();
+
+    auto decoder = factory->createElement<Decoder>();
+    auto converter = factory->createElement<AudioConverter>();
+    auto audiosink = factory->createElement<AudioSink>();
+
+    //< From Queue to sink
+    auto err = d->mPipeline->addElements(d->mAudioQueue, decoder, converter, audiosink);
+    if (err != Error::Ok) {
+        return _error(err, "Fail to add audio elements");
+    }
+    err = LinkElements(d->mAudioQueue, decoder, converter, audiosink);
+    if (err != Error::Ok) {
+        return _error(err, "Fail to link audio elements");
+    }
+
+    d->mAudioQueue->setName("NekoAudioQueue");
+}
+void Player::_buildVideoPart() {
+    auto factory = GetElementFactory();
+    d->mVideoQueue = factory->createElement<MediaQueue>();
+
+    auto decoder = factory->createElement<Decoder>();
+    auto converter = factory->createElement<VideoConverter>();
+    auto renderer = factory->createElement<VideoSink>();
+
+    // From Queue to sink
+    auto err = d->mPipeline->addElements(d->mVideoQueue, decoder, converter, renderer);
+    if (err != Error::Ok) {
+        return _error(err, "Fail to add video elements");
+    }
+    err = LinkElements(d->mVideoQueue, decoder, converter);
+    if (err != Error::Ok) {
+        return _error(err, "Fail to link video elements");
+    }
+
+    // Last of it
+    Arc<Element> currentElement = converter;
+
+    // Check has subtitle
+    bool hasSubtitle = true;
+    if (mSubtitleUrl.empty()) {
+        // Try detect it from the src
+        hasSubtitle = false;
+        for (auto pad : d->mDemuxer->outputs()) {
+            if (pad->name().starts_with("subtitle")) {
+                hasSubtitle = true;
+                break;
+            }
+        }
+    }
+    if (hasSubtitle) {
+        d->mSubtitleFilter = factory->createElement<SubtitleFilter>();
+        if (d->mSubtitleFilter) {
+            // Configure it
+            if (_configureSubtitle()) {
+                // Configure ok
+                LinkElements(currentElement, d->mSubtitleFilter);
+                currentElement = d->mSubtitleFilter;
+            }
+        }
+    }
+
+    // Begin add filters into chain
+    for (const auto &filter : mFilters) {
+        currentElement = factory->createElement(filter.mName);
+        if (!currentElement) {
+            return _error(Error::InvalidArguments, libc::asprintf("Fail to create filter '%s'", filter.mName.c_str()));
+        }
+        d->mPipeline->addElement(currentElement);
+    }
+
+    // Link the last element to renderer
+    err = LinkElements(currentElement, renderer);
+    if (err != Error::Ok) {
+        return _error(err, "Fail to link video elements");
+    }
+
+    renderer->setRenderer(mRenderer);
+    renderer->setName("NekoVideoSink");
+    d->mVideoQueue->setName("NekoVideoQueue");
+}
+bool Player::_configureSubtitle() {
+    d->mPipeline->addElements(d->mSubtitleFilter);
+    d->mSubtitleFilter->setName("NekoSubtitleFilter");
+    std::string_view url = mSubtitleUrl;
+    if (mSubtitleUrl.empty()) {
+        url = mUrl;
+    }
+    d->mSubtitleFilter->setUrl(url);
+    // Let it load
+    if (auto err = d->mSubtitleFilter->setState(State::Paused); err != Error::Ok) {
+        // Fail
+        d->mPipeline->removeElement(d->mSubtitleFilter);
+        return false;
+    }
+    // Select subtite
+    d->mSubtitleFilter->setSubtitle(0);
+    // Done
+    return true;
 }
 void Player::_translateEvent(View<Event> event) {
     switch (event->type()) {

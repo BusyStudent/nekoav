@@ -5,6 +5,7 @@
 #include "qnekoav.hpp"
 #include "qnekoav_p.hpp"
 #include "../player.hpp"
+#include "../property.hpp"
 
 #include <QPainter>
 #include <QWidget>
@@ -115,6 +116,20 @@ void MediaPlayer::setSource(const QUrl &source) {
 void MediaPlayer::setSourceDevice(QIODevice *device, const QUrl &sourceUrl) {
 
 }
+void MediaPlayer::setHttpUserAgent(const QString &userAgent) {
+    d->mPlayer.setOption(Properties::HttpUserAgent, userAgent.toUtf8().constData());
+}
+void MediaPlayer::setHttpReferer(const QString &referer) {
+    d->mPlayer.setOption(Properties::HttpReferer, referer.toUtf8().constData());
+}
+void *MediaPlayer::addFilter(const QString &string, const QVariantMap &parameters) {
+    return d->mPlayer.addFilter(Filter(string.toUtf8().constData()));
+}
+void MediaPlayer::removeFilter(void *filter) {
+    return d->mPlayer.removeFilter(filter);
+}
+
+
 MediaPlayer::PlaybackState MediaPlayer::playbackState() const {
     return d->mState;
 }
