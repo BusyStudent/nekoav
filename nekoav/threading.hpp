@@ -72,6 +72,7 @@ public:
     size_t waitTask(int64_t timeout = -1);
     /**
      * @brief Send a task into queue and wait for it finish
+     * @note If you throw an exception at callback, The exception will be rethrow to the caller
      * 
      * @param func the callable function
      */
@@ -83,6 +84,18 @@ public:
      * @param func the callable function
      */
     void postTask(std::function<void()> &&func);
+    /**
+     * @brief Wrap a callable and args and send it to the queue, wait for it done
+     * @note If you throw an exception at callback, The exception will be rethrow to the caller
+     * 
+     * @tparam Callable 
+     * @tparam Args 
+     * @param callable 
+     * @param args 
+     * @return std::invoke_result_t<T, Args...> 
+     */
+    template <typename Callable, typename ...Args>
+    auto invokeQueued(Callable &&callable, Args &&...args) -> std::invoke_result_t<Callable, Args...>;
     /**
      * @brief Check the thread is idle, waiting for task
      * 
@@ -145,5 +158,19 @@ private:
 #endif
 
 };
+
+// -- IMPL
+template <typename Callable, typename ...Args>
+auto Thread::invokeQueued(Callable &&callable, Args &&...args) -> std::invoke_result_t<Callable, Args...> {
+    using RetT = std::invoke_result_t<Callable, Args...>;
+    if constexpr (std::is_same_v<RetT, void>) {
+        return sendTask(std::bind(std::forward<Callable>(callable), std::forward<Args>(args)...));
+    }
+    else {
+        RetT ret {};
+        sendTask([&]() { ret = std::invoke(std::forward<Callable>(callable), std::forward<Args>(args)...); });
+        return ret;
+    }
+}
 
 NEKO_NS_END

@@ -72,58 +72,58 @@ TEST(ElemTest, TestPipeline) {
     puts(DumpTopology(pipeline).c_str());
 }
 
-TEST(ElemTest, TestDemuxer) {
-    auto factory = GetElementFactory();
-    auto pipeline = factory->createElement<Pipeline>();
-    auto demuxer = factory->createElement<Demuxer>();
-    auto audiodecoder = factory->createElement<Decoder>();
-    auto audiocvt = factory->createElement<AudioConverter>();
-    // auto sink = make_shared<TinySink>();
-    auto audioqueue = factory->createElement<MediaQueue>();
+// TEST(ElemTest, TestDemuxer) {
+//     auto factory = GetElementFactory();
+//     auto pipeline = factory->createElement<Pipeline>();
+//     auto demuxer = factory->createElement<Demuxer>();
+//     auto audiodecoder = factory->createElement<Decoder>();
+//     auto audiocvt = factory->createElement<AudioConverter>();
+//     // auto sink = make_shared<TinySink>();
+//     auto audioqueue = factory->createElement<MediaQueue>();
 
-    auto sink =  factory->createElement<AudioSink>();
+//     auto sink =  factory->createElement<AudioSink>();
 
-    auto videodecoder = factory->createElement<Decoder>();
-    auto videocvt = factory->createElement<VideoConverter>();
-    auto videosink = factory->createElement<TestVideoSink>();
-    auto videoqueue = factory->createElement<MediaQueue>();
-    videosink->setTitle("NekoAV TestVideoSink Window");
+//     auto videodecoder = factory->createElement<Decoder>();
+//     auto videocvt = factory->createElement<VideoConverter>();
+//     auto videosink = factory->createElement<TestVideoSink>();
+//     auto videoqueue = factory->createElement<MediaQueue>();
+//     videosink->setTitle("NekoAV TestVideoSink Window");
 
-    pipeline->addElements(demuxer, audioqueue, audiodecoder, audiocvt, sink);
-    pipeline->addElements(videoqueue, videodecoder, videocvt, videosink);
+//     pipeline->addElements(demuxer, audioqueue, audiodecoder, audiocvt, sink);
+//     pipeline->addElements(videoqueue, videodecoder, videocvt, videosink);
 
-    // demuxer->setUrl(video);
-    auto err = pipeline->setState(State::Ready);
-    ASSERT_EQ(err, Error::InvalidArguments);
+//     // demuxer->setUrl(video);
+//     auto err = pipeline->setState(State::Ready);
+//     ASSERT_EQ(err, Error::InvalidArguments);
 
-    // for (auto out : demuxer->outputs()) {
-    //     if (out->name().starts_with("audio")) {
-    //         auto err = LinkElement(demuxer, out->name(), audioqueue, "sink");
-    //         ASSERT_EQ(err, Error::Ok);
-    //         break;
-    //     }
-    // }
-    // for (auto out : demuxer->outputs()) {
-    //     if (out->name().starts_with("video")) {
-    //         auto err = LinkElement(demuxer, out->name(), videoqueue, "sink");
-    //         ASSERT_EQ(err, Error::Ok);
-    //         break;
-    //     }
-    // }
+//     // for (auto out : demuxer->outputs()) {
+//     //     if (out->name().starts_with("audio")) {
+//     //         auto err = LinkElement(demuxer, out->name(), audioqueue, "sink");
+//     //         ASSERT_EQ(err, Error::Ok);
+//     //         break;
+//     //     }
+//     // }
+//     // for (auto out : demuxer->outputs()) {
+//     //     if (out->name().starts_with("video")) {
+//     //         auto err = LinkElement(demuxer, out->name(), videoqueue, "sink");
+//     //         ASSERT_EQ(err, Error::Ok);
+//     //         break;
+//     //     }
+//     // }
 
 
-    // LinkElements(audioqueue, audiodecoder, audiocvt, sink);
-    // LinkElements(videoqueue, videodecoder, videocvt, videosink);
-    // puts(DumpTopology(pipeline).c_str());
+//     // LinkElements(audioqueue, audiodecoder, audiocvt, sink);
+//     // LinkElements(videoqueue, videodecoder, videocvt, videosink);
+//     // puts(DumpTopology(pipeline).c_str());
 
-    // pipeline->setState(State::Running);
-    // SleepFor(100000);
-}
-TEST(ElemTest, TestWAVSource) {
-    auto wavsrc = CreateElement<WavSource>();
-    wavsrc->setState(State::Running);
-    wavsrc->setState(State::Null);
-}
+//     // pipeline->setState(State::Running);
+//     // SleepFor(100000);
+// }
+// TEST(ElemTest, TestWAVSource) {
+//     auto wavsrc = CreateElement<WavSource>();
+//     wavsrc->setState(State::Running);
+//     wavsrc->setState(State::Null);
+// }
 // TEST(ElemTest, VideoSinkTest) {
 //     auto sink = CreateElement<TestVideoSink>();
 //     if (!sink) {

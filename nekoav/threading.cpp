@@ -118,12 +118,31 @@ void Thread::postTask(std::function<void()> &&fn) {
 #endif
 }
 void Thread::sendTask(std::function<void()> &&fn) {
+#ifndef NEKO_NO_EXCEPTIONS
+    std::exception_ptr exceptionPtr;
+    std::latch latch {1};
+    postTask([&]() {
+        try {
+            fn();
+        }
+        catch (...) {
+            exceptionPtr = std::current_exception();
+        }
+        latch.count_down();
+    });
+    latch.wait();
+
+    if (exceptionPtr) {
+        std::rethrow_exception(exceptionPtr);
+    }
+#else
     std::latch latch {1};
     postTask([&]() {
         fn();
         latch.count_down();
     });
     latch.wait();
+#endif
 }
 size_t Thread::dispatchTask() {
     _dispatchWin32();

@@ -18,6 +18,12 @@ enum class TestFlag : uint32_t {
 };
 NEKO_DECLARE_FLAGS(TestFlag);
 
+int add(int a, int b) {
+    return a + b;
+}
+std::vector<int> returnVector(int a, int b, int c, int d, int e, int f) {
+    return std::vector {a, b, c, d, e, f};
+}
 int main() {
     NekoAV::Thread worker;
     worker.postTask([]() {
@@ -31,6 +37,18 @@ int main() {
         NEKO_DEBUG("C from worker");
         NEKO_DEBUG("Task from");
     });
+    NEKO_DEBUG(worker.invokeQueued(add, 1, 3));
+    NEKO_DEBUG(worker.invokeQueued(returnVector, 1, 6, 9, 114514, 996, 10086));
+
+    try {
+        worker.invokeQueued([]() {
+            throw int(114514);
+        });
+    }
+    catch (int &value) {
+        NEKO_DEBUG(value);
+    }
+
     NEKO_DEBUG("H from main");
 
     auto str = std::vector<int> {1, 1, 114514};

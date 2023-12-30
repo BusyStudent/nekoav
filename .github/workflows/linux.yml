@@ -20,7 +20,9 @@ jobs:
       run: sudo apt update -y
     - name: Install packages
       run: sudo apt install libavcodec-dev libavformat-dev libavutil-dev libswresample-dev libswscale-dev libavdevice-dev libpostproc-dev -y
-    - name: Build release
+    - name: Configure
+      run: xmake f -m debug --test=y -y
+    - name: Build
       run: xmake -y
     - name: Run Core Test
       run: xmake run coretest
