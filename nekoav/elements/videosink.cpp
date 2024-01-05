@@ -8,10 +8,8 @@
 #include "../log.hpp"
 #include "videosink.hpp"
 
-// #ifdef _WIN32
-#if 0
+#if defined(_WIN32)
     #include <wrl/client.h>
-    #include <d2d1_1.h>
     #include <d2d1.h>
 #endif
 
@@ -43,11 +41,17 @@ public:
             prop.push_back(fmt);
         }
         mSink->addProperty(Properties::PixelFormatList, std::move(prop));
+        if (context()) {
+            mRenderer->setContext(context());
+        }
         return Error::Ok;
     }
     Error onTeardown() override {
         mSink->properties().clear();
         mRenderer->setFrame(nullptr); //< Tell Renderer is no frame now
+        if (context()) {
+            mRenderer->setContext(nullptr);
+        }
         mController = nullptr;
         mAfterSeek = false;
         return Error::Ok;
@@ -195,5 +199,193 @@ private:
     Atomic<int64_t> mSleepDeviation {0};
 };
 NEKO_REGISTER_ELEMENT(VideoSink, VideoSinkImpl);
+
+#if defined(_WIN32)
+using Microsoft::WRL::ComPtr;
+static std::once_flag d2dMessageWindow;
+
+class D2DRendererImpl final : public D2DRenderer {
+public:
+    constexpr static UINT WM_D2D_PAINT = WM_USER;
+    constexpr static UINT WM_D2D_UPDATE = WM_USER + 1;
+
+    D2DRendererImpl(HWND hwnd) : mHwnd(hwnd) {
+        mDll = ::LoadLibraryA("d2d1.dll");
+        auto proc = reinterpret_cast<HRESULT (__stdcall *)(D2D1_FACTORY_TYPE, REFIID, CONST D2D1_FACTORY_OPTIONS *, void **)>(
+            ::GetProcAddress(mDll, "D2D1CreateFactory")
+        );
+        std::call_once(d2dMessageWindow, []() {
+            WNDCLASSEXW wx {};
+            wx.cbSize = sizeof(wx);
+            wx.lpfnWndProc = [](HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) -> LRESULT {
+                D2DRendererImpl *renderer = reinterpret_cast<D2DRendererImpl*>(::GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+                if (renderer) {
+                    return renderer->_wndProc(hwnd, msg, wParam, lParam);
+                }
+                return ::DefWindowProcW(hwnd, msg, wParam, lParam);
+            };
+            wx.hInstance = ::GetModuleHandleW(nullptr);
+            wx.lpszClassName = L"NekoD2DMessageWindow";
+            ::RegisterClassExW(&wx);
+        });
+        if (proc) {
+            proc(D2D1_FACTORY_TYPE_MULTI_THREADED, __uuidof(ID2D1Factory), nullptr, reinterpret_cast<void**>(mFactory.GetAddressOf()));
+        }
+        _initMessageWindow();
+    }
+    ~D2DRendererImpl() {
+        if (mMessageHwnd) {
+            ::DestroyWindow(mMessageHwnd);
+        }
+        mFactory.Reset();
+        ::FreeLibrary(mDll);
+    }
+    PixelFormatList supportedFormats() override {
+        static PixelFormat fmts [] { PixelFormat::RGBA };
+        return fmts;
+    }
+    Error setFrame(View<MediaFrame> frame) override {
+        if (frame) {
+            mFrame = frame->shared_from_this<MediaFrame>();
+        }
+        else {
+            mFrame.store(nullptr);
+        }
+        ::PostMessageW(mMessageHwnd, WM_D2D_UPDATE, 0, 0);
+        return Error::Ok;
+    }
+    Error setContext(Context *) override {
+        return Error::Ok;
+    }
+
+    Error moveToThread(Thread *thread) override {
+        if (thread) {
+            thread->invokeQueued(&D2DRendererImpl::_initMessageWindow, this);
+        }
+        else {
+            _initMessageWindow();
+        }
+        return Error::Ok;
+    }
+    Error paint() override {
+        ::SendMessageW(mMessageHwnd, WM_D2D_PAINT, 0, 0);
+        return Error::Ok;
+    }
+
+    void _doUpdate() {
+        auto frame = mFrame.load();
+        if (!frame) {
+            mBitmap.Reset();
+            _doPaint();
+            return;
+        }
+        if (!mBitmap) {
+            auto hr = mRenderTarget->CreateBitmap(
+                D2D1::SizeU(frame->width(), frame->height()),
+                D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)),
+                mBitmap.GetAddressOf()
+            );
+            if (FAILED(hr)) {
+                return;
+            }
+        }
+        mBitmap->CopyFromMemory(nullptr, frame->data(0), frame->linesize(0));
+        _doPaint();
+    }
+    void _doPaint() {
+        RECT rect;
+        ::GetClientRect(mHwnd, &rect);
+        auto size = D2D1::SizeU(rect.right - rect.left, rect.bottom - rect.top);
+        if (size != mRenderTarget->GetPixelSize()) {
+            mRenderTarget->Resize(size);
+        }
+
+        mRenderTarget->BeginDraw();
+        mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::Black));
+        if (mBitmap) {
+            auto [width, height] = mRenderTarget->GetSize();
+            auto rect = D2D1::RectF(0, 0, width, height);
+            mRenderTarget->DrawBitmap(mBitmap.Get(), rect);
+        }
+        if (mRenderTarget->EndDraw() == D2DERR_RECREATE_TARGET) {
+            _createD2D();
+        }
+    }
+    void _createD2D() {
+        mBitmap.Reset();
+        mRenderTarget.Reset();
+
+        auto hr = mFactory->CreateHwndRenderTarget(
+            D2D1::RenderTargetProperties(
+                D2D1_RENDER_TARGET_TYPE_DEFAULT, 
+                D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)
+            ),
+            D2D1::HwndRenderTargetProperties(mHwnd),
+            &mRenderTarget
+        );
+    }
+
+    LRESULT _wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+        switch (msg) {
+            case WM_D2D_UPDATE: {
+                _doUpdate();
+                return 0;
+            }
+            case WM_D2D_PAINT: {
+                _doPaint();
+                return 0;
+            }
+            case WM_DESTROY: {
+                // Release D2D
+                mBitmap.Reset();
+                mRenderTarget.Reset();
+                break;
+            }
+        }
+        return ::DefWindowProcW(hwnd, msg, wParam, lParam);
+    }
+    void _initMessageWindow() {
+        if (mMessageHwnd) {
+            ::DestroyWindow(mMessageHwnd);
+        }
+        mMessageHwnd = ::CreateWindowExW(
+            0,
+            L"NekoD2DMessageWindow",
+            nullptr,
+            0,
+            10,
+            10,
+            10,
+            10,
+            HWND_MESSAGE,
+            nullptr,
+            ::GetModuleHandleW(nullptr),
+            nullptr
+        );
+        if (mMessageHwnd) {
+            ::SetWindowLongPtrW(mMessageHwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+            mThreadId = std::this_thread::get_id();
+
+            _createD2D();
+        }
+    }
+private:
+    std::thread::id               mThreadId;
+    Atomic<Arc<MediaFrame> >      mFrame; //< Current frame
+
+    HMODULE                       mDll = nullptr;
+    ComPtr<ID2D1Factory>          mFactory;
+    ComPtr<ID2D1HwndRenderTarget> mRenderTarget;
+    ComPtr<ID2D1Bitmap>           mBitmap;
+    HWND                          mHwnd = nullptr;
+    HWND                          mMessageHwnd = nullptr;
+};
+
+Box<D2DRenderer> CreateD2DRenderer(void *hwnd) {
+    return std::make_unique<D2DRendererImpl>(static_cast<HWND>(hwnd));
+}
+
+
+#endif
 
 NEKO_NS_END

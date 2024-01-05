@@ -1,12 +1,10 @@
 #define CL_HPP_ENABLE_EXCEPTIONS
-#include <CL/opencl.hpp>
+#include "../nekoav/compute/opencl_env.hpp"
 #include "../nekoav/log.hpp"
+#include <CL/opencl.hpp>
 
 
-int main() {
-    cl::Context ctxt(cl::Device::getDefault());
-    cl::CommandQueue queue(ctxt);    
-
+void doCompute(cl::Context &ctxt, cl::CommandQueue &queue) {
     cl::Program program(ctxt, R"(
         __kernel void mul(__global const float* a, __global const float* b, __global const float* c, __global float *d) {
             int i = get_global_id(0);
@@ -35,4 +33,9 @@ int main() {
 
     // Print result
     NEKO_DEBUG(arrayD);
+}
+
+int main() {
+    auto ctxt = NekoAV::OpenCLContext::create();
+    doCompute(ctxt->context(), ctxt->commandQueue());
 }

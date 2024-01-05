@@ -16,6 +16,8 @@
 #include "event.hpp"
 #include "pad.hpp"
 
+#include <filesystem>
+
 NEKO_NS_BEGIN
 
 class PlayerPrivate {
@@ -36,7 +38,8 @@ Player::~Player() {
 }
 
 void *Player::addFilter(const Filter &filter) {
-    if (!GetElementFactory()->createElement(filter.mName)) {
+    // Print in hex
+    if (!GetElementFactory()->createElement(filter.name())) {
         // Unexists
         return nullptr;
     }
@@ -286,7 +289,7 @@ void Player::_buildVideoPart() {
     }
 
     // Last of it
-    Arc<Element> currentElement = converter;
+    Arc<Element> prevElement = converter;
 
     // Check has subtitle
     bool hasSubtitle = true;
@@ -300,29 +303,54 @@ void Player::_buildVideoPart() {
             }
         }
     }
+#if 1
+    if (!hasSubtitle) {
+        // Avoid code-page mismatch
+        // We use utf8 
+        std::filesystem::path path(reinterpret_cast<const char8_t *>(mUrl.c_str()));
+        std::u8string subtitleUrl;
+        path.replace_extension(".srt");
+        if (path.replace_extension(".srt"); std::filesystem::exists(path)) {
+            hasSubtitle = true;
+            subtitleUrl = path.u8string();
+        }
+        else if (path.replace_extension(".ass"); std::filesystem::exists(path)) {
+            hasSubtitle = true;
+            subtitleUrl = path.u8string();
+        }
+        if (!subtitleUrl.empty()) {
+            mSubtitleUrl = reinterpret_cast<const char *>(subtitleUrl.c_str());
+        }
+    }
+#endif
     if (hasSubtitle) {
         d->mSubtitleFilter = factory->createElement<SubtitleFilter>();
         if (d->mSubtitleFilter) {
             // Configure it
             if (_configureSubtitle()) {
                 // Configure ok
-                LinkElements(currentElement, d->mSubtitleFilter);
-                currentElement = d->mSubtitleFilter;
+                LinkElements(prevElement, d->mSubtitleFilter);
+                prevElement = d->mSubtitleFilter;
             }
         }
     }
 
     // Begin add filters into chain
     for (const auto &filter : mFilters) {
-        currentElement = factory->createElement(filter.mName);
+        auto currentElement = factory->createElement(filter.mName);
         if (!currentElement) {
-            return _error(Error::InvalidArguments, libc::asprintf("Fail to create filter '%s'", filter.mName.c_str()));
+            return _error(Error::InvalidArguments, libc::asprintf("Fail to create filter '%s'", filter.mName));
+        }
+        if (filter.mConfigure) {
+            filter.mConfigure(*currentElement);
         }
         d->mPipeline->addElement(currentElement);
+        LinkElements(prevElement, currentElement);
+        prevElement = currentElement;
     }
 
     // Link the last element to renderer
-    err = LinkElements(currentElement, renderer);
+    err = LinkElements(prevElement, renderer);
     if (err != Error::Ok) {
         return _error(err, "Fail to link video elements");
     }

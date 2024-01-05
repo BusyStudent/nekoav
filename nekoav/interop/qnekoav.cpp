@@ -122,11 +122,14 @@ void MediaPlayer::setHttpUserAgent(const QString &userAgent) {
 void MediaPlayer::setHttpReferer(const QString &referer) {
     d->mPlayer.setOption(Properties::HttpReferer, referer.toUtf8().constData());
 }
-void *MediaPlayer::addFilter(const QString &string, const QVariantMap &parameters) {
-    return d->mPlayer.addFilter(Filter(string.toUtf8().constData()));
-}
+// void *MediaPlayer::addFilter(const QString &string, const QVariantMap &parameters) {
+//     return d->mPlayer.addFilter(Filter(string.toUtf8().constData()));
+// }
 void MediaPlayer::removeFilter(void *filter) {
     return d->mPlayer.removeFilter(filter);
+}
+void *MediaPlayer::nekoPlayer() {
+    return &d->mPlayer;
 }
 
 

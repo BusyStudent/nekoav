@@ -140,6 +140,8 @@ public:
 
     void setHttpUserAgent(const QString &useragent);
     void setHttpReferer(const QString &referer);
+
+    void *nekoPlayer(); //< return NEKO_NAMESPACE::Player *
 public Q_SLOTS:
     void play();
     void pause();

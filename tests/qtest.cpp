@@ -1,3 +1,5 @@
+#include <string>
+
 #include <QApplication>
 #include <QMainWindow>
 #include <QPushButton>
@@ -8,11 +10,16 @@
 #include <QInputDialog>
 #include <QKeyEvent>
 #include <QTextEdit>
+#include <QMenuBar>
+#include <QMenu>
+#include <QAction>
 #include <QSlider>
 #include <QLabel>
 #include <iostream>
 
 #include "../nekoav/interop/qnekoav.hpp"
+#include "../nekoav/elements/filters.hpp"
+#include "../nekoav/player.hpp"
 #include "../nekoav/log.hpp"
 
 #ifdef _MSC_VER
@@ -21,7 +28,10 @@
 
 class MainWindow final : public QMainWindow {
 public:
-    using QMainWindow::QMainWindow;
+    MainWindow() {
+        auto bar = new QMenuBar(this);
+        setMenuBar(bar);
+    }
 
     void keyPressEvent(QKeyEvent *event) override {
         if (event->key() != Qt::Key_F11) {
@@ -37,6 +47,10 @@ public:
 };
 
 int main(int argc, char **argv) {
+    fprintf(stderr, "std::vector<PixelFormat> sizeof(%d)\n", int(sizeof(std::vector<NekoAV::PixelFormat>)));
+    fprintf(stderr, "std::string sizeof(%d)\n", int(sizeof(std::string)));
+    fprintf(stderr, "Filter: sizeof(%d)\n", int(sizeof(NekoAV::Filter)));
+
     QApplication app(argc, argv);
     MainWindow win;
 
@@ -66,6 +80,17 @@ int main(int argc, char **argv) {
 
     QNekoMediaPlayer player;
     player.setVideoOutput(videoWidget);
+
+    auto nekoPlayer = static_cast<NekoAV::Player*>(player.nekoPlayer());
+
+    auto bar = win.menuBar();
+    auto filter = bar->addMenu("Filter");
+    filter->addAction("EdgeDetect", [&]() {
+        NekoAV::Filter filter(typeid(NekoAV::KernelFilter), [](auto &element) {
+            static_cast<NekoAV::KernelFilter&>(element).setEdgeDetectKernel();
+        });
+        nekoPlayer->addFilter(filter);
+    });
 
     QObject::connect( &player, &QNekoMediaPlayer::positionChanged, [&](double v) {
         if (!progressBar->isSliderDown()) {

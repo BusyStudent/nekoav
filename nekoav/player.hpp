@@ -10,12 +10,67 @@ NEKO_NS_BEGIN
 class VideoRenderer;
 class PlayerPrivate;
 
+/**
+ * @brief A Filter description
+ * 
+ * @internal I donn't known why qt motified the sizeof(std::string), so we use plain malloc / free instead of std::string
+ * 
+ */
 class Filter {
 public:
-    Filter(std::string_view name) : mName(name) { }
-    Filter(const std::type_info &info) : mName(info.name()) { }
+    using Configure = std::function<void(Element &)>;
+    
+    Filter(std::string_view name) { _setName(name); }
+    Filter(std::string_view name, Configure &&conf) : mConfigure(std::move(conf)) { _setName(name); }
+    Filter(const std::type_info &info) : Filter(info.name()) { }
+    Filter(const std::type_info &info, Configure &&conf) : Filter(info.name(), std::move(conf)) { }
+    Filter(const Filter &other) : mConfigure(other.mConfigure) { _setName(other.mName); }
+    Filter(Filter &&other) : mName(other.mName), mConfigure(std::move(other.mConfigure)) { other.mName = nullptr; }
+    ~Filter() { _tidy(); }
+
+    Filter &operator =(const Filter &other) {
+        if (this != &other) {
+            _setName(other.mName);
+            mConfigure = other.mConfigure;
+        }
+        return *this;
+    }
+    Filter &operator =(Filter &&other) {
+        if (this != &other) {
+            _tidy();
+            mName = other.mName;
+            mConfigure = std::move(other.mConfigure);
+            other.mName = nullptr;
+        }
+        return *this;
+    }
+    
+
+    std::string_view name() const noexcept {
+        return mName;
+    }
+    const Configure &configure() const noexcept {
+        return mConfigure;
+    }
 private:
-    std::string mName; //< Filter name
+    void _tidy() {
+        if (mName) {
+            libc::free(mName);
+            mName = nullptr;
+        }
+    }
+    void _setName(std::string_view name) {
+        _tidy();
+        if (name.empty()) {
+            return;
+        }
+        mName = static_cast<char *>(libc::malloc(name.size() + 1));
+        ::memcpy(mName, name.data(), name.size());
+        mName[name.size()] = '\0';
+    }
+
+    char       *mName = nullptr; //< Filter name
+    Configure   mConfigure; //< Callback to configure
 friend class Player;
 };
 

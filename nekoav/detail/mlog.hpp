@@ -663,8 +663,13 @@ inline std::string _Neko_FormatLogBody(std::string_view fmt, const std::string *
 }
 template <typename ...Args>
 inline std::string _Neko_FormatLog(std::string_view fmt, Args &&...args) {
-    std::string arrs [] = {_Neko_ToString(std::forward<Args>(args))...};
-    return _Neko_FormatLogBody(fmt, arrs);
+    if constexpr (sizeof ...(args) == 0) {
+        return std::string(fmt);
+    }
+    else {
+        std::string arrs [] = {_Neko_ToString(std::forward<Args>(args))...};
+        return _Neko_FormatLogBody(fmt, arrs);
+    }
 }
 inline void       _Neko_LogPath(const char *file, int line, const char *func) {
     const char *fmt = "[%s:%d (%s)] ";

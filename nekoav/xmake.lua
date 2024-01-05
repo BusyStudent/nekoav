@@ -11,10 +11,10 @@ option("qt_interop")
    set_description("Qt support for nekoav")
 option_end()
 
-option("opengl")
+option("openmp")
     set_default(false)
     set_showmenu(true)
-    set_description("OpenGL support")
+    set_description("OpenMP support")
 option_end()
 
 option("subtitle")
@@ -54,9 +54,9 @@ target("nekoav")
         add_files("elements/audiodev/miniaudio.cpp")
     end
 
-    -- OpenGL
-    if has_config("opengl") then 
-        add_files("opengl/*.cpp")
+    -- OpenMP
+    if has_config("openmp") then 
+        add_rules("c++.openmp")
     end
 
     -- FFmpeg

@@ -21,6 +21,10 @@ public:
 protected:
     virtual void updateFrame(const Arc<MediaFrame> &frame) = 0;
     virtual void clearFrame() = 0;
+    
+    Error setContext(Context *ctxt) override {
+        return Error::Ok;
+    }
 
     Vec<PixelFormat> mPixelFormats {PixelFormat::RGBA};
 private:

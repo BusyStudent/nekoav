@@ -40,6 +40,8 @@ int main() {
     NEKO_DEBUG(worker.invokeQueued(add, 1, 3));
     NEKO_DEBUG(worker.invokeQueued(returnVector, 1, 6, 9, 114514, 996, 10086));
 
+    NEKO_LOG("A");
+
     try {
         worker.invokeQueued([]() {
             throw int(114514);
@@ -96,4 +98,7 @@ int main() {
     NEKO_DEBUG(NekoAV::GetTicks());
     NEKO_DEBUG(NekoAV::SleepFor(10));
     NEKO_DEBUG(NekoAV::GetTicks());
+
+    NEKO_DEBUG(sizeof(std::string));
+    NEKO_DEBUG(sizeof(std::vector<int>));
 }

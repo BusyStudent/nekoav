@@ -53,4 +53,15 @@ if has_config("test") then
             add_files("qtest.cpp")
         target_end()
     end
+
+    -- Gui Win32
+    if is_plat("windows") then 
+        target("winplay")
+            set_kind("binary")
+            add_deps("nekoav")
+
+            add_files("winplay.cpp")
+            add_links("user32", "shcore", "gdi32", "Comdlg32")
+        target_end()
+    end
 end

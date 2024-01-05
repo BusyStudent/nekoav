@@ -2,7 +2,9 @@
     #define _QNEKO_SOURCE
 #endif
 
-#include "../media.hpp"
+#include "../media/sharing.hpp"
+#include "../media/frame.hpp"
+#include "../context.hpp"
 #include "../format.hpp"
 #include "qnekoav_p.hpp"
 #include <QResizeEvent>
@@ -121,7 +123,7 @@ void main() {
 }
 )";
 
-class OpenGLWidget final : public QOpenGLWidget, public VideoWidgetPrivate, public QOpenGLFunctions_3_3_Core {
+class OpenGLWidget final : public QOpenGLWidget, public VideoWidgetPrivate, public QOpenGLFunctions_3_3_Core, public OpenGLSharing {
 public:
     OpenGLWidget(QWidget *parent) : QOpenGLWidget(parent) {
 
@@ -352,6 +354,20 @@ public:
         cleanupTexture();
         update();
     }
+    void invokeAtGLThread(std::function<void()> &&fn) override {
+        QMetaObject::invokeMethod(this, std::move(fn), Qt::BlockingQueuedConnection);
+    }
+    Error setContext(Context *ctxt) override {
+        if (ctxt) {
+            ctxt->addObjectView<OpenGLSharing>(this);
+        }
+        else {
+            // Remove
+            mContext->removeObject<OpenGLSharing>(this);
+        }
+        mContext = ctxt;
+        return Error::Ok;
+    }
 
     // OpenGL Data
     GLuint mVertexArray = 0;
@@ -361,6 +377,8 @@ public:
 
     GLuint mTextureWidth = 0;
     GLuint mTextureHeight = 0;
+
+    Context *mContext = nullptr;
 };
 #endif
 
