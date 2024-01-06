@@ -7,7 +7,6 @@
 NEKO_NS_BEGIN
 
 class MediaFrame;
-
 class VideoRenderer {
 public:
     using PixelFormatList = std::span<const PixelFormat>;
@@ -40,7 +39,20 @@ protected:
 
 class D2DRenderer : public VideoRenderer {
 public:
+    enum AspectMode : int {
+        KeepAspect,
+        IgnoreAspect,
+        Auto = KeepAspect
+    };
+
     virtual ~D2DRenderer() = default;
+    /**
+     * @brief Set the Aspect Mode
+     * 
+     * @param mode 
+     * @return Error 
+     */
+    virtual Error setAspectMode(AspectMode mode) = 0;
     /**
      * @brief Move Current 
      * 

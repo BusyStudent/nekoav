@@ -7,6 +7,7 @@
 #include <ShellScalingApi.h>
 #include <algorithm>
 #include <cstdio>
+#include <cwchar>
 
 #pragma comment(linker,"\"/manifestdependency:type='win32' \
     name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
@@ -30,14 +31,15 @@ public:
             }
             return ::DefWindowProcW(hwnd, msg, wParam, lParam);
         };
+        wx.hCursor = ::LoadCursor(nullptr, IDC_ARROW);
         wx.lpszClassName = L"MainWindow";
         ::RegisterClassExW(&wx);
 
-        HMENU menu = CreateMenu();
+        HMENU menu = ::CreateMenu();
 
         // Add Menu
-        InsertMenuW(menu, MenuOpenId, MF_STRING, 0, L"Open");
-        InsertMenuW(menu, MenuPauseId, MF_STRING, 0, L"Pause");
+        ::InsertMenuW(menu, MenuOpenId, MF_STRING, MenuOpenId, L"Open");
+        ::InsertMenuW(menu, MenuPauseId, MF_STRING, MenuPauseId, L"Pause");
 
         mHwnd = ::CreateWindowExW(
             0,
@@ -97,21 +99,19 @@ public:
                     }
                     // Forward
                     case VK_RIGHT: {
-                        _applyOffset(10);
+                        _applyOffset(1);
                         return 0;
                     }
                     // Rewind
                     case VK_LEFT: {
-                        _applyOffset(-10);
+                        _applyOffset(-1);
                         return 0;
                     }
                 }
                 return 0;
             }
             case WM_PLAYER_UPDATE_CLOCK: {
-                wchar_t buffer[1024] {0};
-                swprintf(buffer, L"NekoAV Player  %d : %d", int(lParam), int(mPlayer.duration()));
-                ::SetWindowTextW(hwnd, buffer);
+                _updateTitle();
             }
         }
         return ::DefWindowProcW(hwnd, msg, wParam, lParam);
@@ -124,12 +124,13 @@ public:
         filename.lpstrFile = path;
         filename.nMaxFile = MAX_PATH;
         filename.lpstrTitle = L"Open media file to play";
+        filename.hwndOwner = mHwnd;
         if (!::GetOpenFileNameW(&filename)) {
             return;
         }
         // Convert Utf8
         char buffer[1024] {0};
-        WideCharToMultiByte(CP_UTF8, 0, path, -1, buffer, sizeof(buffer), nullptr, nullptr);
+        ::WideCharToMultiByte(CP_UTF8, 0, path, -1, buffer, sizeof(buffer), nullptr, nullptr);
         
         mPlayer.setUrl(buffer);
         mPlayer.play();
@@ -141,12 +142,28 @@ public:
         else if (mPlayer.state() == State::Running) {
             mPlayer.pause();
         }
+        _updateTitle();
     }
     void _applyOffset(double f) {
         if (mPlayer.state() == State::Null) {
             return;
         }
         mPlayer.setPosition(std::clamp(mPlayer.position() + f, 0.0, mPlayer.duration()));
+    }
+    void _updateTitle() {
+        wchar_t buffer[1024] {0};
+        ::swprintf(buffer, L"NekoAV Player %d : %d", int(mPlayer.position()), int(mPlayer.duration()));
+        switch (mPlayer.state()) {
+            case State::Running: {
+                wcscat(buffer, L" Playing");
+                break;
+            }
+            case State::Paused: {
+                wcscat(buffer, L" Paused");
+                break;
+            }
+        }
+        ::SetWindowTextW(mHwnd, buffer);
     }
 private:
     Box<D2DRenderer> mRenderer;

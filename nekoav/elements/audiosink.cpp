@@ -97,6 +97,7 @@ public:
         }
         if (mAfterSeek) {
             mAfterSeek = false;
+            mPosition = frame->timestamp();
             NEKO_LOG("After seek, first frame arrived pts {}", frame->timestamp());
         }
 

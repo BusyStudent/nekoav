@@ -131,7 +131,26 @@ class NEKO_API Pad {
      * @return false 
      */
     bool             hasProperty(std::string_view name) const noexcept;
+    /**
+     * @brief Add a property by name
+     * 
+     * @param name The name 
+     * @param p The property
+     */
     void             addProperty(std::string_view name, Property &&p);
+    /**
+     * @brief Remove the property by name
+     * 
+     * @param name The name
+     * @return true 
+     * @return false No property founded 
+     */
+    bool             removeProperty(std::string_view name);
+    /**
+     * @brief Clear all property
+     * 
+     */
+    void             clearProperties();
 
     void *operator new(size_t size) {
         return libc::malloc(size);
@@ -194,6 +213,17 @@ inline bool Pad::hasProperty(std::string_view name) const noexcept {
 }
 inline void Pad::addProperty(std::string_view name, Property &&property) {
     mProperties.emplace(std::string(name), std::move(property));
+}
+inline bool Pad::removeProperty(std::string_view name) {
+    auto iter = mProperties.find(name);
+    if (iter != mProperties.end()) {
+        mProperties.erase(iter);
+        return true;
+    }
+    return false;
+}
+inline void Pad::clearProperties() {
+    mProperties.clear();
 }
 
 

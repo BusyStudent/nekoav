@@ -132,12 +132,15 @@ int main(int argc, char **argv) {
             player.play();
         }
     });
-    int position = 0;
+    // int position = 0;
+    // QObject::connect(progressBar, &QSlider::sliderMoved, [&](int newPosition) {
+    //     position = newPosition;
+    // });
+    // QObject::connect(progressBar, &QSlider::sliderReleased, [&]() {
+    //     player.setPosition(position);
+    // });
     QObject::connect(progressBar, &QSlider::sliderMoved, [&](int newPosition) {
-        position = newPosition;
-    });
-    QObject::connect(progressBar, &QSlider::sliderReleased, [&]() {
-        player.setPosition(position);
+        player.setPosition(newPosition);
     });
 
 

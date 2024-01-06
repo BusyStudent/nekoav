@@ -241,7 +241,7 @@ public:
         ::FreeLibrary(mDll);
     }
     PixelFormatList supportedFormats() override {
-        static PixelFormat fmts [] { PixelFormat::RGBA };
+        static PixelFormat fmts [] { PixelFormat::RGBA, PixelFormat::BGRA};
         return fmts;
     }
     Error setFrame(View<MediaFrame> frame) override {
@@ -267,6 +267,10 @@ public:
         }
         return Error::Ok;
     }
+    Error setAspectMode(AspectMode mode) override {
+        mMode = mode;
+        return paint();
+    }
     Error paint() override {
         ::SendMessageW(mMessageHwnd, WM_D2D_PAINT, 0, 0);
         return Error::Ok;
@@ -282,7 +286,7 @@ public:
         if (!mBitmap) {
             auto hr = mRenderTarget->CreateBitmap(
                 D2D1::SizeU(frame->width(), frame->height()),
-                D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)),
+                D2D1::BitmapProperties(D2D1::PixelFormat(_translateFormat(frame->pixelFormat()), D2D1_ALPHA_MODE_PREMULTIPLIED)),
                 mBitmap.GetAddressOf()
             );
             if (FAILED(hr)) {
@@ -303,9 +307,7 @@ public:
         mRenderTarget->BeginDraw();
         mRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::Black));
         if (mBitmap) {
-            auto [width, height] = mRenderTarget->GetSize();
-            auto rect = D2D1::RectF(0, 0, width, height);
-            mRenderTarget->DrawBitmap(mBitmap.Get(), rect);
+            mRenderTarget->DrawBitmap(mBitmap.Get(), _dstRectangle());
         }
         if (mRenderTarget->EndDraw() == D2DERR_RECREATE_TARGET) {
             _createD2D();
@@ -369,9 +371,40 @@ public:
             _createD2D();
         }
     }
+    D2D1_RECT_F _dstRectangle() const noexcept {
+        auto [winWidth, winHeight] = mRenderTarget->GetSize();
+        if (mMode == IgnoreAspect) {
+            return D2D1::RectF(0, 0, winWidth, winHeight);
+        }
+        // Keep aspect
+        auto [texWidth, texHeight] = mBitmap->GetSize();
+
+        float x, y, w, h;
+
+        if (texWidth * winHeight > texHeight * winWidth) {
+            w = winWidth;
+            h = texHeight * winWidth / texWidth;
+        }
+        else {
+            w = texWidth * winHeight / texHeight;
+            h = winHeight;
+        }
+        x = (winWidth - w) / 2;
+        y = (winHeight - h) / 2;
+
+        return D2D1::RectF(x, y, x + w, y + h);
+    }
+    DXGI_FORMAT _translateFormat(PixelFormat fmt) const {
+        switch (fmt) {
+            case PixelFormat::BGRA: return DXGI_FORMAT_B8G8R8A8_UNORM;
+            case PixelFormat::RGBA: return DXGI_FORMAT_R8G8B8A8_UNORM;
+            default: ::abort();
+        }
+    }
 private:
     std::thread::id               mThreadId;
     Atomic<Arc<MediaFrame> >      mFrame; //< Current frame
+    AspectMode                    mMode = Auto;
 
     HMODULE                       mDll = nullptr;
     ComPtr<ID2D1Factory>          mFactory;

@@ -75,12 +75,13 @@ public:
         }
         // Send a event by task queue
         std::latch latch {1};
+        mInterrupted = true;
         mThread->postTask([&, this]() {
+            mInterrupted = false;
             NEKO_LOG("Push {} event at {}", event->type(), name());
             mSrc->pushEvent(event);
             latch.count_down();
         });
-        mInterrupted = true;
         mCond.notify_one();
         latch.wait();
         return Error::Ok;
@@ -124,13 +125,12 @@ public:
     void _pullQueue() {
         std::unique_lock lock(mMutex);
         while (mRunning && mQueue.empty()) {
-            mCond.wait(lock);
-
             if (mInterrupted) {
                 NEKO_DEBUG("Interrupted by pad event");
-                mInterrupted = false;
+                mThread->dispatchTask();
                 return;
             }
+            mCond.wait(lock);
         }
         if (!mQueue.empty()) {
             Item item = std::move(mQueue.front());

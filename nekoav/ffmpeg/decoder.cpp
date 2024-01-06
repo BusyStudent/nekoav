@@ -28,6 +28,9 @@ public:
             if (eventView->type() == Event::FlushRequested) {
                 avcodec_flush_buffers(mCtxt);
             }
+            else if (eventView->type() == Event::SeekRequested) {
+                mSeekTime = eventView.viewAs<SeekEvent>()->position();
+            }
             // Forward to next
             return mSrc->pushEvent(eventView);
         });
@@ -38,6 +41,7 @@ public:
     }
     Error onTeardown() override {
         avcodec_free_context(&mCtxt);
+        mSeekTime = 0.0;
         return Error::Ok;
     }
     Error _process(View<Packet> packet) {
@@ -61,6 +65,12 @@ public:
             }
             if (ret < 0) {
                 return ToError(ret);
+            }
+            auto pts = packet->timestamp();
+            if (pts < mSeekTime) {
+                // Drop 
+                NEKO_LOG("Packet({}) in pts {}, want pts {}, drop !", packet->stream()->codecpar->codec_type, pts, mSeekTime);
+                return Error::Ok;
             }
 
             // Push data if
@@ -209,6 +219,7 @@ private:
     Pad            *mSrc = nullptr;
     AVPixelFormat   mHardwareFmt = AV_PIX_FMT_NONE;
     HardwarePolicy  mHardwarePolicy = HardwarePolicy::Auto;
+    double          mSeekTime = 0.0;
 };
 
 NEKO_REGISTER_ELEMENT(Decoder, FFDecoderImpl);
