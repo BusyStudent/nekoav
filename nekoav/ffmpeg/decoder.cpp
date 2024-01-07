@@ -50,7 +50,8 @@ public:
                 return err;
             }
         }
-
+        auto pts = packet->timestamp();
+        auto drop = (pts < mSeekTime); //< Need we drop the frame ?
         int ret = avcodec_send_packet(mCtxt, packet->get());
         if (ret < 0) {
             return ToError(ret);
@@ -59,6 +60,10 @@ public:
             if (!mFrame) {
                 mFrame = av_frame_alloc();
             }
+            mFrame->flags = 0;
+            if (drop) {
+                mFrame->flags |= AV_FRAME_FLAG_DISCARD;
+            }
             ret = avcodec_receive_frame(mCtxt, mFrame);
             if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
                 break;
@@ -66,8 +71,7 @@ public:
             if (ret < 0) {
                 return ToError(ret);
             }
-            auto pts = packet->timestamp();
-            if (pts < mSeekTime) {
+            if (drop) {
                 // Drop 
                 NEKO_LOG("Packet({}) in pts {}, want pts {}, drop !", packet->stream()->codecpar->codec_type, pts, mSeekTime);
                 return Error::Ok;

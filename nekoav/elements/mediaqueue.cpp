@@ -75,6 +75,8 @@ public:
         }
         // Send a event by task queue
         std::latch latch {1};
+
+        std::unique_lock lock(mMutex);
         mInterrupted = true;
         mThread->postTask([&, this]() {
             mInterrupted = false;
@@ -82,6 +84,8 @@ public:
             mSrc->pushEvent(event);
             latch.count_down();
         });
+        lock.unlock(); //< Protect mInterrupted and tasks, Critical Section of event
+
         mCond.notify_one();
         latch.wait();
         return Error::Ok;
@@ -127,7 +131,6 @@ public:
         while (mRunning && mQueue.empty()) {
             if (mInterrupted) {
                 NEKO_DEBUG("Interrupted by pad event");
-                mThread->dispatchTask();
                 return;
             }
             mCond.wait(lock);

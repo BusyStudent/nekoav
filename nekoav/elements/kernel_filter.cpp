@@ -24,7 +24,29 @@ NEKO_NS_BEGIN
 
 static auto filterCommonCode = R"(
 __kernel void convolution(__read_only image2d_t input, __write_only image2d_t output, sampler_t imageSampler) {
-    
+    int x = get_global_id(0);
+    int y = get_global_id(1);
+
+    if (x >= get_image_width(input) || y >= get_image_height(input)) {
+        return;
+    }
+
+    float4 sum = (float4)(0.0f);
+    int2 coords;
+
+#ifdef UNROLL
+    __attribute__((opencl_unroll_hint))
+#endif
+    for (int i = -kernelHeight/2; i <= kernelHeight/2; i++) {
+        for (int j = -kernelWidth/2; j <= kernelWidth/2; j++) {
+            coords = (int2)(x + j, y + i);
+            sum += read_imagef(input, imageSampler, coords) * convKernel[i + kernelHeight/2][j + kernelWidth/2];
+        }
+    }
+    // Ignore Alpha channel
+    sum.w = 1.0f;
+
+    write_imagef(output, (int2)(x, y), sum);
 }
 )";
 
@@ -144,20 +166,31 @@ public:
         cl_int err = 0;
         auto &commandQueue = mOpenCLContext->commandQueue();
         auto &ctxt = mOpenCLContext->context();
+        int width = frame->width();
+        int height = frame->height();
+        int pitch = frame->linesize(0);
         if (mSrcImage.get() == nullptr) {
             cl::ImageFormat format(CL_RGBA, CL_UNORM_INT8);
-            mSrcImage = cl::Image2D(ctxt, CL_MEM_READ_ONLY, format, frame->width(), frame->height(), frame->linesize(0), nullptr, &err);
-            mDstImage = cl::Image2D(ctxt, CL_MEM_WRITE_ONLY, format, frame->width(), frame->height(), frame->linesize(0), nullptr, &err);
+            mSrcImage = cl::Image2D(ctxt, CL_MEM_READ_ONLY, format, width, height, pitch, nullptr, &err);
+            mDstImage = cl::Image2D(ctxt, CL_MEM_WRITE_ONLY, format, width, height, pitch, nullptr, &err);
             mSampler = cl::Sampler(ctxt, CL_FALSE, CL_ADDRESS_MIRRORED_REPEAT, CL_FILTER_NEAREST, &err);
         }
 
         // Update to buffer
         cl::array<cl::size_type, 2> origin = {0, 0};
-        cl::array<cl::size_type, 2> region = {cl::size_type(frame->width()), cl::size_type(frame->height())};
+        cl::array<cl::size_type, 2> region = {cl::size_type(width), cl::size_type(height)};
         err = commandQueue.enqueueWriteImage(mSrcImage, CL_TRUE, origin, region, 0, 0, frame->data(0));
         // err = commandQueue.enqueueReadImage(mSrcImage, CL_TRUE, origin, region, 0, 0, frame->data(0));
 
-        cl::KernelFunctor<cl::Image2D, cl::Image2D, cl::Sampler> fn(mCLKernel);
+        cl::KernelFunctor<cl::Image2D, cl::Image2D, cl::Sampler> fn {mCLKernel};
+        fn(
+            cl::EnqueueArgs(commandQueue, cl::NDRange(width, height)), 
+            mSrcImage, 
+            mDstImage, 
+            mSampler, 
+            err
+        );
+        err = commandQueue.enqueueReadImage(mDstImage, CL_TRUE, origin, region, 0, 0, frame->data(0));
 
         return Error::Ok;
     }
@@ -187,6 +220,10 @@ public:
     Error _compileCLProgram() {
         std::string programCode;
         cl_int err = 0;
+        auto [major, minor] = mOpenCLContext->version();
+        if (major >= 2) {
+            programCode += "#define UNROLL\n"; //< OpenCL 2.0 support __attribute__((opencl_unroll_hint))
+        }
         libc::sprintf(&programCode, "__constant float convKernel[%d][%d] = {\n", mKernelRow, mKernelCol);
         for (int i = 0; i < mKernelRow; i++) {
             programCode.append("{ ");

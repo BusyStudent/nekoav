@@ -33,9 +33,9 @@ public:
     }
     inline Error setSharpenKernel() {
         const double kernel[3][3] = {
-            {0,  -1,  0},
-            {-1,  4, -1},
-            {0,  -1,  0}
+            {0.0,  -0.5,  0.0},
+            {-0.5,  3,   -0.5},
+            {0.0,  -0.5,  0.0}
         };
         return setKernel(kernel);
     }

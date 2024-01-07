@@ -1,5 +1,6 @@
 // Pure Windows Player
 #include "../nekoav/elements/videosink.hpp"
+#include "../nekoav/elements/filters.hpp"
 #include "../nekoav/player.hpp"
 
 #include <Windows.h>
@@ -19,6 +20,8 @@ class MainWindow {
 public:
     static constexpr UINT_PTR MenuOpenId = 0;
     static constexpr UINT_PTR MenuPauseId = 1;
+    static constexpr UINT_PTR MenuFilterEdgeDetect = 100;
+    static constexpr UINT_PTR MenuFilterSharpen = 101;
     static constexpr UINT     WM_PLAYER_UPDATE_CLOCK = WM_USER;
     MainWindow() {
         WNDCLASSEXW wx {};
@@ -36,10 +39,15 @@ public:
         ::RegisterClassExW(&wx);
 
         HMENU menu = ::CreateMenu();
+        HMENU submenu = ::CreatePopupMenu();
 
         // Add Menu
-        ::InsertMenuW(menu, MenuOpenId, MF_STRING, MenuOpenId, L"Open");
-        ::InsertMenuW(menu, MenuPauseId, MF_STRING, MenuPauseId, L"Pause");
+        ::AppendMenuW(menu, MF_STRING, MenuOpenId, L"Open");
+        ::AppendMenuW(menu, MF_STRING, MenuPauseId, L"Pause");
+        ::AppendMenuW(menu, MF_STRING | MF_POPUP, UINT_PTR(submenu), L"Filters");
+
+        ::AppendMenuW(submenu, MF_STRING, MenuFilterEdgeDetect, L"Edge Detect");
+        ::AppendMenuW(submenu, MF_STRING, MenuFilterSharpen, L"Sharpen");
 
         mHwnd = ::CreateWindowExW(
             0,
@@ -86,6 +94,14 @@ public:
                     }
                     case MenuPauseId: {
                         _pause();
+                        return 0;
+                    }
+                    case MenuFilterEdgeDetect: {
+                        _addEdgeDetectFilter();
+                        return 0;
+                    }
+                    case MenuFilterSharpen: {
+                        _addSharpenFilter();
                         return 0;
                     }
                 }
@@ -164,6 +180,18 @@ public:
             }
         }
         ::SetWindowTextW(mHwnd, buffer);
+    }
+    void _addEdgeDetectFilter() {
+        Filter filter(typeid(KernelFilter), [](Element &elem) {
+            static_cast<KernelFilter&>(elem).setEdgeDetectKernel();
+        });
+        mPlayer.addFilter(filter);
+    }
+    void _addSharpenFilter() {
+        Filter filter(typeid(KernelFilter), [](Element &elem) {
+            static_cast<KernelFilter&>(elem).setSharpenKernel();
+        });
+        mPlayer.addFilter(filter);
     }
 private:
     Box<D2DRenderer> mRenderer;

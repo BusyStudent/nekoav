@@ -29,6 +29,20 @@ public:
      */
     cl::CommandQueue &commandQueue() noexcept;
     /**
+     * @brief Get the version of OpenCL
+     * 
+     * @return std::pair<int, int> 
+     */
+    std::pair<int, int> version() const noexcept;
+    /**
+     * @brief Check has this extension
+     * 
+     * @param v 
+     * @return true 
+     * @return false 
+     */
+    bool  hasExtension(std::string_view v) const noexcept;
+    /**
      * @brief A Helper to release OpenCL object
      * 
      * @tparam Args... 
@@ -56,6 +70,9 @@ public:
 private:
     cl::Context      mContext;
     cl::CommandQueue mCommandQueue;
+    int              mMajorVersion = 0;
+    int              mMinorVersion = 0;
+    std::string      mExtensions;
 };
 
 
@@ -64,6 +81,13 @@ inline OpenCLContext::OpenCLContext() {
     auto device = cl::Device::getDefault();
     mContext = cl::Context(device);
     mCommandQueue = cl::CommandQueue(mContext, device);
+
+    if (mCommandQueue.get() == nullptr) {
+        return;
+    }
+    auto version = device.getInfo<CL_DEVICE_VERSION>();
+    mExtensions = device.getInfo<CL_DEVICE_EXTENSIONS>();
+    ::sscanf(version.c_str(), "OpenCL %d.%d", &mMajorVersion, &mMinorVersion);
 }
 inline OpenCLContext::~OpenCLContext() {
 
@@ -74,6 +98,12 @@ inline cl::Context &OpenCLContext::context() noexcept {
 }
 inline cl::CommandQueue &OpenCLContext::commandQueue() noexcept {
     return mCommandQueue;
+}
+inline std::pair<int, int> OpenCLContext::version() const noexcept {
+    return std::make_pair(mMajorVersion, mMinorVersion);
+}
+inline bool OpenCLContext::hasExtension(std::string_view name) const noexcept {
+    return mExtensions.find(name) != std::string::npos;
 }
 
 inline Arc<OpenCLContext> OpenCLContext::create(Element *element) {
