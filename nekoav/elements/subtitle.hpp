@@ -24,6 +24,19 @@ public:
      * @param idx 
      */
     virtual void             setSubtitle(int idx) = 0;
+    /**
+     * @brief Set the Default Font object for ass render
+     * 
+     * @param font 
+     */
+    virtual void             setFont(std::string_view font) = 0;
+    /**
+     * @brief Set the fallback font Family
+     * 
+     * @param family 
+     */
+    virtual void             setFamily(std::string_view family) = 0;
+
 };
 
 NEKO_NS_END

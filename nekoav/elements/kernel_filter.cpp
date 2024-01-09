@@ -194,7 +194,7 @@ public:
 
         return Error::Ok;
     }
-    Error onSinkPush(View<Pad>, View<Resource> resource) {
+    Error onSinkPush(View<Pad>, View<Resource> resource) override {
         if (mKernel.empty()) {
             // Just forward
             return pushTo(mSrc, resource);

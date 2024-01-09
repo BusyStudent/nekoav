@@ -118,6 +118,11 @@ std::string asprintf(const char *fmt, ...) {
     va_end(varg);
     return buf;
 }
+std::string vasprintf(const char *fmt, va_list varg) {
+    std::string buf;
+    vsprintf(&buf, fmt, varg);
+    return buf;
+}
 
 const char *typenameof(const std::type_info &info) {
 #ifdef NEKO_GCC_ABI

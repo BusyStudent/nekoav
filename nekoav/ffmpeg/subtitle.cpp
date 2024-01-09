@@ -1,8 +1,11 @@
 #define _NEKO_SOURCE
 #include "../elements/subtitle.hpp"
+#include "../detail/pixutils.hpp"
 #include "../detail/base.hpp"
 #include "../factory.hpp"
 #include "../format.hpp"
+#include "../libc.hpp"
+#include "../log.hpp"
 #include "../pad.hpp"
 #include "common.hpp"
 #include <functional>
@@ -15,6 +18,16 @@ extern "C" {
 #if __has_include(<ass.h>)
     #define HAVE_ASS
     #include <ass.h>
+#endif
+
+#if __has_include(<ass/ass.h>)
+    #define HAVE_ASS
+    #include <ass/ass.h>
+#endif
+
+#if __has_include(<libass/ass.h>)
+    #define HAVE_ASS
+    #include <libass/ass.h>
 #endif
 }
 
@@ -36,7 +49,6 @@ static constexpr std::array<std::string_view, 10> FontMimeTypes {
     "application/x-font-ttf"
 };
 
-// FIXME: ASS subtitle still has blend bug and can not get font problem
 // FIXME: add plain text subtitle
 
 // Subtitle Process function
@@ -84,7 +96,27 @@ public:
 
     // SubtitleFilter here
     void setUrl(std::string_view url) override {
+        std::lock_guard locker(mMutex);
         mUrl = url;
+    }
+    void setFont(std::string_view font) override {
+        std::lock_guard locker(mMutex);
+        mFont = font;
+
+#ifdef HAVE_ASS
+        if (mAssRenderer) {
+            _configureAssRenderer();
+        }
+#endif
+    }
+    void setFamily(std::string_view family) override {
+        std::lock_guard locker(mMutex);
+        mFamily = family;
+#ifdef HAVE_ASS
+        if (mAssRenderer) {
+            _configureAssRenderer();
+        }
+#endif
     }
     Vec<std::string> subtitles() override {
         return mSubtitles;
@@ -100,7 +132,7 @@ public:
             onTeardown();
             return Error::OutOfMemory;
         }
-        ass_set_extract_fonts(mAssLibrary, 1);
+        _configureAssLibrary();
         mAssRenderer = ass_renderer_init(mAssLibrary);
         if (!mAssRenderer) {
             onTeardown();
@@ -179,6 +211,9 @@ public:
                 if (ctxt->subtitle_header) {
                     if (!subtitleStream->mAssTrack) {
                         subtitleStream->mAssTrack = ass_new_track(mAssLibrary);
+#if LIBASS_VERSION >= 0x01600010
+                        ass_track_set_feature(subtitleStream->mAssTrack, ASS_FEATURE_WRAP_UNICODE, 1);
+#endif
                     }
                     ass_process_codec_private(subtitleStream->mAssTrack, (char*) ctxt->subtitle_header, ctxt->subtitle_header_size);
                 }
@@ -225,8 +260,10 @@ public:
         }
 
 #ifdef HAVE_ASS
-        // Set Font to renderer
-        ass_set_fonts(mAssRenderer, nullptr, nullptr, 0, nullptr, 0);
+        {
+            std::lock_guard locker(mMutex);
+            _configureAssRenderer();
+        }
 #endif
 
         // Mapping stream index in our subtitle index space
@@ -289,20 +326,23 @@ public:
         if (!frame) {
             return Error::UnsupportedResource;
         }
-        Arc<MediaFrame> out;
-        auto stream = mSubtitleStreams[mSubtitleIndex];
+        auto idx = mSubtitleIndex.load();
+        if (idx < 0 || idx >= mSubtitleStreams.size()) {
+            return pushTo(mSrc, resource);
+        }
+        auto stream = mSubtitleStreams[idx];
         // Get stream
         switch (stream->mType) {
             // Forward
-            case SubtitleStream::Bitmap: out = _processBitmapSubtitle(frame, *stream); break;
+            case SubtitleStream::Bitmap: _processBitmapSubtitle(frame, *stream); break;
 #ifdef HAVE_ASS
-            case SubtitleStream::Ass: out = _processAssSubtitle(frame, *stream); break;
+            case SubtitleStream::Ass: _processAssSubtitle(frame, *stream); break;
 #endif
-            default: pushTo(mSrc, resource);
+            default: break;
 
         }
 
-        return pushTo(mSrc, out);
+        return pushTo(mSrc, resource);
     }
 
     void _resizeRGBABuffer(int w, int h) {
@@ -329,6 +369,9 @@ public:
             }
             if (!stream.mAssTrack) {
                 stream.mAssTrack = ass_new_track(mAssLibrary);
+#if LIBASS_VERSION >= 0x01600010
+                ass_track_set_feature(stream.mAssTrack, ASS_FEATURE_WRAP_UNICODE, 1);
+#endif
             }
             int duration = subtitle.end_display_time - subtitle.start_display_time;
             if (duration == 0) {
@@ -347,7 +390,7 @@ public:
         avsubtitle_free(&subtitle);
     }
 
-    Arc<MediaFrame> _processBitmapSubtitle(View<MediaFrame> input, SubtitleStream &stream) {
+    void _processBitmapSubtitle(View<MediaFrame> input, SubtitleStream &stream) {
         // Search target pts
         int64_t pts = input->timestamp() * 1000;
         if (mCurrentAVSubtitle) {
@@ -374,7 +417,7 @@ public:
         }
         if (!mCurrentAVSubtitle) {
             // No Subtitle in this range, break
-            return input->shared_from_this<MediaFrame>();
+            return;
         }
 
         auto sub = mCurrentAVSubtitle;
@@ -416,7 +459,7 @@ public:
                 );
                 if (!stream.mSubConvertContext) {
                     // Fail
-                    return input->shared_from_this<MediaFrame>();
+                    return;
                 }
                 int dstLinesize[4] {rect->w * 4, 0};
                 uint8_t *dstData[4] {
@@ -449,95 +492,116 @@ public:
             for (int k = 0; k < h; k++) {
                 uint32_t &dstPixel = buffer[(y + k) * imageWidth  + (x + i)];
                 uint32_t srcPixel = mRGBABuffer[k * w + i];
-
                 if (srcPixel != 0) {
                     dstPixel = srcPixel;
                 }
             }
         }
-
-        return input->shared_from_this<MediaFrame>();
     }
 #ifdef HAVE_ASS
-    Arc<MediaFrame> _processAssSubtitle(View<MediaFrame> input, SubtitleStream &stream) {
+    void _processAssSubtitle(View<MediaFrame> input, SubtitleStream &stream) {
         int isChange = 0;
+        std::unique_lock lock(mMutex);
         if (!mAssConfigured) {
             mAssConfigured = true;
             ass_set_frame_size(mAssRenderer, input->width(), input->height());
             ass_set_storage_size(mAssRenderer, input->width(), input->height());
         }
         ASS_Image *image = ass_render_frame(mAssRenderer, stream.mAssTrack, input->timestamp() * 1000, &isChange);
+        lock.unlock();
         if (isChange) {
-            ::fprintf(stderr, "[ass] ass_render_frame Change in %lf s\n", input->timestamp());
+            NEKO_LOG("[ass] ass_render_frame Change in {} s\n", input->timestamp());
         }
         if (!image || image->w == 0 || image->h == 0) {
-            return input->shared_from_this<MediaFrame>();
+            return;
         }
-        _blendAssImage(input, image);
-        return input->shared_from_this<MediaFrame>();
-    }
-
-    void _blendAssImage(View<MediaFrame> input, ASS_Image *assImage) {
-        input->makeWritable();
-
-        // Blend texture
-        uint32_t *dstPixels = (uint32_t *) input->data(0);
-        int width = input->width();
-        int height = input->height();
-        for (auto image = assImage; image; image = image->next) {
-            for (int x = 0; x < image->w; x++) {
-                for (int y = 0; y < image->h; y++) {
-                    uint8_t alpha = image->bitmap[y * image->stride + x];
-
-                    if (alpha == 0) {
-                        continue;
-                    }
-
-                    uint32_t srcPixel = image->color;
-                    uint32_t &dstPixel = dstPixels[(image->dst_y + y) * width + (image->dst_x + x)];
-
-                    uint8_t r = _r(srcPixel);
-                    uint8_t g = _g(srcPixel);
-                    uint8_t b = _b(srcPixel);
-                    uint8_t opicity = 255 - _a(srcPixel);
-                    if (image == assImage) {
-                        // Just over
-                        dstPixel = _rgba(r, g, b, _a(dstPixel));
-                    }
-                    else {
-                        // Blend alpha to srcPixel
-                        int32_t k = alpha * opicity / 255;
-                        r = (r * k + (255 - k) * _r(dstPixel)) / 255;
-                        g = (g * k + (255 - k) * _g(dstPixel)) / 255;
-                        b = (b * k + (255 - k) * _b(dstPixel)) / 255;
-
-                        dstPixel = _rgba(r, g, b, _a(dstPixel));
-                    }
-                }
+        if (input->makeWritable()) {
+            for (auto cur = image; cur != nullptr; cur = cur->next) {
+                _blendSingleImage(input, cur);
             }
         }
     }
-    static uint8_t _r(uint32_t pixel) noexcept {
-        return (pixel >> 24) & 0xFF;
+    void _blendSingleImage(View<MediaFrame> input, const ASS_Image *image) {
+        uint8_t *dst = reinterpret_cast<uint8_t*>(input->data(0));
+        const int pitch = input->linesize(0);
+        const int width = input->width();
+        const int height = input->height();
+
+        // Read src Pixels RGBA
+        // Code from MPV ass_mp.c
+        const uint32_t r = (image->color >> 24) & 0xff;
+        const uint32_t g = (image->color >> 16) & 0xff;
+        const uint32_t b = (image->color >>  8) & 0xff;
+        const uint32_t a = 0xff - (image->color & 0xff);
+        for (int x = 0; x < image->w; x++) {
+            for (int y = 0; y < image->h; y++) {
+                const uint32_t v = image->bitmap[y * image->stride + x];
+                const int rr = (r * a * v);
+                const int gg = (g * a * v);
+                const int bb = (b * a * v);
+                const int aa =      a * v;
+
+                uint32_t dstr = dst[(image->dst_y + y) * pitch + (image->dst_x + x) * 4 + 0]; //< R
+                uint32_t dstg = dst[(image->dst_y + y) * pitch + (image->dst_x + x) * 4 + 1]; //< G
+                uint32_t dstb = dst[(image->dst_y + y) * pitch + (image->dst_x + x) * 4 + 2]; //< B
+                uint32_t dsta = dst[(image->dst_y + y) * pitch + (image->dst_x + x) * 4 + 3]; //< A
+
+                dstr = (rr       + dstr * (255 * 255 - aa)) / (255 * 255);
+                dstg = (gg       + dstg * (255 * 255 - aa)) / (255 * 255);
+                dstb = (bb       + dstb * (255 * 255 - aa)) / (255 * 255);
+                dsta = (aa * 255 + dsta * (255 * 255 - aa)) / (255 * 255);
+
+                dst[(image->dst_y + y) * pitch + (image->dst_x + x) * 4 + 0] = dstr;
+                dst[(image->dst_y + y) * pitch + (image->dst_x + x) * 4 + 1] = dstg;
+                dst[(image->dst_y + y) * pitch + (image->dst_x + x) * 4 + 2] = dstb;
+                dst[(image->dst_y + y) * pitch + (image->dst_x + x) * 4 + 3] = dsta;
+            }
+        }
     }
-    static uint8_t _g(uint32_t pixel) noexcept {
-        return (pixel >> 16) & 0xFF;
+    void _assLog(int level, const char *fmt, va_list va) {
+        if (level >= 6) {
+            return;
+        }
+        NEKO_LOG("ASS[{}]: {}", level, libc::vasprintf(fmt, va));
     }
-    static uint8_t _b(uint32_t pixel) noexcept {
-        return (pixel >> 8) & 0xFF;
+    void _configureAssLibrary() {
+        ass_set_extract_fonts(mAssLibrary, 1);
+        ass_set_message_cb(mAssLibrary, [](int level, const char *fmt, va_list varg, void *self) {
+            static_cast<SubtitleFilterImpl*>(self)->_assLog(level, fmt, varg);
+        }, this);
+
+        // Check provders
+        ASS_DefaultFontProvider *providers = nullptr;
+        size_t numOfProviders = 0;
+        ass_get_available_font_providers(mAssLibrary, &providers, &numOfProviders);
+        for (size_t n = 0; n < numOfProviders; n++) {
+            NEKO_DEBUG(providers[n]);
+        }
+        if (numOfProviders == 2) {
+            // No font providers
+            NEKO_DEBUG("No OS Font providers");
+        }
+        ::free(providers);
     }
-    static uint8_t _a(uint32_t pixel) noexcept { 
-        return pixel & 0xFF; 
-    }
-    static uint32_t _rgba(uint32_t r, uint32_t g, uint32_t b, uint32_t a) noexcept {
-        return (r << 24) | (g << 16) | (b << 8) | a;
+    void _configureAssRenderer() {
+        // Set Font to renderer
+        ass_set_fonts(
+            mAssRenderer, 
+            mFont.empty() ? nullptr : mFont.c_str(), 
+            mFamily.empty() ? nullptr : mFamily.c_str(), 
+            ASS_FONTPROVIDER_AUTODETECT, 
+            nullptr, 
+            0
+        );
     }
 #endif
 private:
     std::string      mUrl;
-    Pad             *mSink;
-    Pad             *mSrc;
-    int              mSubtitleIndex = -1; //< In Subtitle array position
+    std::string      mFont;
+    std::string      mFamily;
+    Pad             *mSink = nullptr;
+    Pad             *mSrc = nullptr;
+    Atomic<int>      mSubtitleIndex {-1}; //< In Subtitle array position
 
 #ifdef HAVE_ASS
     // ASS Here
@@ -554,9 +618,12 @@ private:
     uint32_t        *mRGBABuffer = nullptr;
     size_t           mRGBABufferSize = 0;
 
+    // Subtitle Data here
     Vec<std::string> mSubtitles; 
     Vec<SubtitleStream*> mSubtitleStreams; //< Streams of subtitle
 
+    // Mutex here, protect some shared vae like ASS_Renderer *
+    std::mutex       mMutex;
 };
 
 // TODO : It stll not done

@@ -44,11 +44,16 @@ public:
         return mFrame->pts * av_q2d(mTimebase);
     }
     double duration() const override {
-        // return mFrame->pkt_duration * av_q2d(mFrame->time_base);
-        if (mFrame->pkt_duration == AV_NOPTS_VALUE) {
+        // Check API
+#if LIBAVUTIL_VERSION_INT == AV_VERSION_INT(58, 29, 100)
+        int64_t duration = mFrame->duration;
+#else
+        int64_t duration = mFrame->pkt_duration;
+#endif
+        if (duration == AV_NOPTS_VALUE) {
             return 0;
         }
-        return mFrame->pkt_duration * av_q2d(mTimebase);
+        return duration * av_q2d(mTimebase);
     }
     // bool isKeyFrame() const override {
     //     return mFrame->key_frame;

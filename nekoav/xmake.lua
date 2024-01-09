@@ -42,7 +42,7 @@ target("nekoav")
     -- set_warnings("error")
 
     if is_plat("windows") then
-        add_links("user32")
+        add_links("user32", "gdi32")
         add_defines("NOMINMAX")
     end
 
@@ -69,6 +69,9 @@ target("nekoav")
     if has_config("subtitle") then
         add_packages("libass")
     end 
+
+    -- Compute
+    add_files("compute/*.cpp")
 
     -- Elements
     add_files("elements/*.cpp")

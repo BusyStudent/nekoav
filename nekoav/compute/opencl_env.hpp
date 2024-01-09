@@ -1,8 +1,6 @@
 #pragma once
 
 #include <cl/opencl.hpp>
-#include "../elements.hpp"
-#include "../context.hpp"
 #include "../defs.hpp"
 
 NEKO_NS_BEGIN
@@ -11,7 +9,7 @@ NEKO_NS_BEGIN
  * @brief A Shared OpenCL Context in pipelines
  * 
  */
-class OpenCLContext final : public std::enable_shared_from_this<OpenCLContext> {
+class NEKO_API OpenCLContext final : public std::enable_shared_from_this<OpenCLContext> {
 public:
     OpenCLContext();
     ~OpenCLContext();
@@ -77,22 +75,6 @@ private:
 
 
 // -- IMPL
-inline OpenCLContext::OpenCLContext() {
-    auto device = cl::Device::getDefault();
-    mContext = cl::Context(device);
-    mCommandQueue = cl::CommandQueue(mContext, device);
-
-    if (mCommandQueue.get() == nullptr) {
-        return;
-    }
-    auto version = device.getInfo<CL_DEVICE_VERSION>();
-    mExtensions = device.getInfo<CL_DEVICE_EXTENSIONS>();
-    ::sscanf(version.c_str(), "OpenCL %d.%d", &mMajorVersion, &mMinorVersion);
-}
-inline OpenCLContext::~OpenCLContext() {
-
-}
-
 inline cl::Context &OpenCLContext::context() noexcept {
     return mContext;
 }
@@ -104,22 +86,6 @@ inline std::pair<int, int> OpenCLContext::version() const noexcept {
 }
 inline bool OpenCLContext::hasExtension(std::string_view name) const noexcept {
     return mExtensions.find(name) != std::string::npos;
-}
-
-inline Arc<OpenCLContext> OpenCLContext::create(Element *element) {
-    auto elementContext = element->context();
-    if (!elementContext) {
-        return OpenCLContext::create();
-    }
-    auto context = new OpenCLContext();
-    elementContext->addObjectView<OpenCLContext>(context);
-    return Arc<OpenCLContext>(context, [elementContext](OpenCLContext *ctxt) {
-        elementContext->removeObject<OpenCLContext>(ctxt);
-        delete ctxt;
-    });
-}
-inline Arc<OpenCLContext> OpenCLContext::create() {
-    return MakeShared<OpenCLContext>();
 }
 
 template <typename ...Args>

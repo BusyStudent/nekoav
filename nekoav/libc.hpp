@@ -24,6 +24,14 @@ namespace libc {
      */
     extern NEKO_API std::string asprintf(const char *fmt, ...);
     /**
+     * @brief Format string by fmt and args
+     * 
+     * @param fmt The format string
+     * @param varg The args
+     * @return std::string
+     */
+    extern NEKO_API std::string vasprintf(const char *fmt, va_list varg);
+    /**
      * @brief Format string to target buffer
      * 
      * @param buf The target buffer (can not be nullptr)
