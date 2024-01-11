@@ -626,7 +626,6 @@ private:
     std::mutex       mMutex;
 };
 
-// TODO : It stll not done
 NEKO_REGISTER_ELEMENT(SubtitleFilter, SubtitleFilterImpl);
 
 }

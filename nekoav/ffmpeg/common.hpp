@@ -1,7 +1,7 @@
 #pragma once
 
+#include "../media/frame.hpp"
 #include "../property.hpp"
-#include "../media.hpp"
 #include "ffmpeg.hpp"
 
 extern "C" {

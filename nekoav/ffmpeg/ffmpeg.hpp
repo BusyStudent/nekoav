@@ -3,6 +3,8 @@
 #include "../defs.hpp"
 #include "../format.hpp"
 #include "../error.hpp"
+#include "../property.hpp"
+#include "../media/io.hpp"
 #include <string>
 
 extern "C" {
@@ -242,7 +244,33 @@ public:
 inline auto IterDict(AVDictionary *dict) {
     return AVDictIteration(dict);
 }
-
+/**
+ * @brief Wrap a IOStream to AVIOContext
+ * 
+ * @param bufferSize 
+ * @param io 
+ * @return AVIOContext* 
+ */
+inline AVIOContext *WrapIOStream(int64_t bufferSize, IOStream *io) {
+    return avio_alloc_context(
+        (uint8_t*) av_malloc(bufferSize),
+        bufferSize,
+        io->isWritable(),
+        io,
+        io->isReadable() ?
+        [](void *self, uint8_t *buf, int bufSize) -> int {
+            return static_cast<IOStream *>(self)->read(buf, bufSize);
+        } : nullptr,
+        io->isWritable() ?
+        [](void *self, uint8_t *buf, int bufSize) -> int {
+            return static_cast<IOStream *>(self)->write(buf, bufSize);
+        } : nullptr,
+        io->isSeekable() ?
+        [](void *self, int64_t offset, int whence) -> int64_t {
+            return static_cast<IOStream *>(self)->seek(offset, whence);
+        } : nullptr
+    );
+}
 }
 
 NEKO_NS_END

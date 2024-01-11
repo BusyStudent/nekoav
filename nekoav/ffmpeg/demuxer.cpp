@@ -70,6 +70,9 @@ public:
         mFormatContext->interrupt_callback.callback = [](void *self) {
             return static_cast<FFDemuxer*>(self)->_interruptHandler();
         };
+        if (mIOStream) {
+            mFormatContext->pb = WrapIOStream(1024 * 32, mIOStream);
+        }
 
         AVDictionary *dict = ParseOpenOptions(&mOptions);
         int ret = avformat_open_input(&mFormatContext, mSource.c_str(), nullptr, &dict);
@@ -95,6 +98,9 @@ public:
         return Error::Ok;
     }
     Error onTeardown() override {
+        if (mIOStream && mFormatContext) {
+            avio_context_free(&mFormatContext->pb);
+        }
         avformat_close_input(&mFormatContext);
         mStreamMapping.clear();
         mEof = false;
@@ -251,6 +257,13 @@ public:
         // NEKO_ASSERT(mInInterruptHandler);
         return stopRequested();
     }
+    void _clearIOStream() {
+        if (mOwnIOStream) {
+            mIOStream = nullptr;
+        }
+        mOwnIOStream = false;
+        mIOStream = nullptr;
+    }
 private:
     AVFormatContext *mFormatContext = nullptr;
     AVPacket        *mPacket = nullptr;
@@ -261,6 +274,8 @@ private:
     bool                mSeekRequested = false;
     double              mSeekPosition = -1.0;
     Properties          mOptions; //< Options for Open
+    IOStream           *mIOStream = nullptr;
+    bool                mOwnIOStream = false;
 };
 
 NEKO_REGISTER_ELEMENT(Demuxer, FFDemuxer);
