@@ -85,12 +85,58 @@ int main(int argc, char **argv) {
 
     auto bar = win.menuBar();
     auto filter = bar->addMenu("Filter");
-    filter->addAction("EdgeDetect", [&]() {
-        NekoAV::Filter filter(typeid(NekoAV::KernelFilter), [](auto &element) {
-            static_cast<NekoAV::KernelFilter&>(element).setEdgeDetectKernel();
-        });
-        nekoPlayer->addFilter(filter);
+
+#if 1
+    auto edgeDetect = filter->addAction("EdgeDetect");
+    edgeDetect->setCheckable(true);
+    QObject::connect(edgeDetect, &QAction::triggered, [&, mark = (void*) nullptr]() mutable {
+        if (edgeDetect->isChecked())  {
+            NekoAV::Filter filter(typeid(NekoAV::KernelFilter), [](auto &element) {
+                static_cast<NekoAV::KernelFilter&>(element).setEdgeDetectKernel();
+            });
+            mark = nekoPlayer->addFilter(filter);
+        }
+        else {
+            nekoPlayer->removeFilter(mark);
+            mark = nullptr;
+        }
     });
+
+    auto sharpen = filter->addAction("Sharpen");
+    sharpen->setCheckable(true);
+    QObject::connect(sharpen, &QAction::triggered, [&, mark = (void*) nullptr]() mutable {
+        if (sharpen->isChecked())  {
+            NekoAV::Filter filter(typeid(NekoAV::KernelFilter), [](auto &element) {
+                static_cast<NekoAV::KernelFilter&>(element).setSharpenKernel();
+            });
+            mark = nekoPlayer->addFilter(filter);
+        }
+        else {
+            nekoPlayer->removeFilter(mark);
+            mark = nullptr;
+        }
+    });
+
+    auto blur = filter->addAction("Blur");
+    blur->setCheckable(true);
+    QObject::connect(blur, &QAction::triggered, [&, mark = (void*) nullptr]() mutable {
+        if (blur->isChecked())  {
+            NekoAV::Filter filter(typeid(NekoAV::KernelFilter), [](auto &element) {
+                const double kernel [3][3] = {
+                    {1.0 / 9, 1.0 / 9, 1.0 / 9},
+                    {1.0 / 9, 1.0 / 9, 1.0 / 9},
+                    {1.0 / 9, 1.0 / 9, 1.0 / 9}
+                };
+                static_cast<NekoAV::KernelFilter&>(element).setKernel(kernel);
+            });
+            mark = nekoPlayer->addFilter(filter);
+        }
+        else {
+            nekoPlayer->removeFilter(mark);
+            mark = nullptr;
+        }
+    });
+#endif
 
     QObject::connect( &player, &QNekoMediaPlayer::positionChanged, [&](double v) {
         if (!progressBar->isSliderDown()) {

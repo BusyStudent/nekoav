@@ -11,6 +11,12 @@ option("qt_interop")
    set_description("Qt support for nekoav")
 option_end()
 
+option("qt_opengl")
+    set_default(true)
+    set_showmenu(true)
+    set_description("Use OpenGL for video output")
+option_end()
+
 option("openmp")
     set_default(false)
     set_showmenu(true)
@@ -96,7 +102,7 @@ if has_config("qt_interop") then
         add_defines("_QNEKO_SOURCE")
         add_frameworks("QtCore", "QtGui", "QtWidgets")
 
-        if is_plat("linux") then 
+        if has_config("qt_opengl") then 
             add_defines("QNEKO_HAS_OPENGL")
             add_frameworks("QtOpenGL", "QtOpenGLWidgets")
         end

@@ -2,7 +2,7 @@
     #define _QNEKO_SOURCE
 #endif
 
-#include "../media/sharing.hpp"
+// #include "../media/sharing.hpp"
 #include "../media/frame.hpp"
 #include "../context.hpp"
 #include "../format.hpp"
@@ -20,7 +20,8 @@
     #include <QOpenGLFunctions_3_3_Core>
 #endif
 
-#if defined(_WIN32)
+// #if defined(_WIN32)
+#if 0
     #define QNEKO_HAS_D2D1
     #include <d2d1.h>
     #include <d2d1_1.h>
@@ -123,10 +124,10 @@ void main() {
 }
 )";
 
-class OpenGLWidget final : public QOpenGLWidget, public VideoWidgetPrivate, public QOpenGLFunctions_3_3_Core, public OpenGLSharing {
+class OpenGLWidget final : public QOpenGLWidget, public VideoWidgetPrivate, public QOpenGLFunctions_3_3_Core {
 public:
     OpenGLWidget(QWidget *parent) : QOpenGLWidget(parent) {
-
+    
     }
     ~OpenGLWidget() {
         QObject::disconnect(
@@ -144,6 +145,10 @@ public:
             this, &OpenGLWidget::cleanupGL
         );
         initializeOpenGLFunctions();
+
+#ifdef _WIN32
+        detectWGLExtension();
+#endif
 
 #ifndef NDEBUG
         // Enable Debugger layer if
@@ -354,20 +359,30 @@ public:
         cleanupTexture();
         update();
     }
-    void invokeAtGLThread(std::function<void()> &&fn) override {
-        QMetaObject::invokeMethod(this, std::move(fn), Qt::BlockingQueuedConnection);
-    }
+    // void invokeAtGLThread(std::function<void()> &&fn) override {
+    //     QMetaObject::invokeMethod(this, std::move(fn), Qt::BlockingQueuedConnection);
+    // }
     Error setContext(Context *ctxt) override {
+#ifdef _WIN32
         if (ctxt) {
-            ctxt->addObjectView<OpenGLSharing>(this);
+            // ctxt->addObjectView<OpenGLSharing>(this);
+            // mD3D11SharedContext = GetD3D11SharedContext(ctxt);
         }
         else {
             // Remove
-            mContext->removeObject<OpenGLSharing>(this);
+            // mContext->removeObject<OpenGLSharing>(this)
+            // mD3D11SharedContext = nullptr;
         }
+#endif
         mContext = ctxt;
         return Error::Ok;
     }
+
+#ifdef _WIN32
+    void detectWGLExtension() {
+
+    }
+#endif
 
     // OpenGL Data
     GLuint mVertexArray = 0;
@@ -379,6 +394,13 @@ public:
     GLuint mTextureHeight = 0;
 
     Context *mContext = nullptr;
+
+    // Ext here
+    bool mHasDXInterop = false;
+
+#ifdef _WIN32
+    // Arc<D3D11SharedContext> mD3D11SharedContext;
+#endif
 };
 #endif
 

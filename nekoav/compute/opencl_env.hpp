@@ -5,6 +5,7 @@
 
 NEKO_NS_BEGIN
 
+class OpenCLContextPrivate;
 /**
  * @brief A Shared OpenCL Context in pipelines
  * 
@@ -71,6 +72,9 @@ private:
     int              mMajorVersion = 0;
     int              mMinorVersion = 0;
     std::string      mExtensions;
+    
+    // Private Data here
+    Box<OpenCLContextPrivate> d;
 };
 
 

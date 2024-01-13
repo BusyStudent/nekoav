@@ -68,6 +68,9 @@ public:
     inline  auto sampleFormat() const -> SampleFormat { return SampleFormat(format()); }
     inline  auto pixelFormat() const -> PixelFormat { return PixelFormat(format()); }
 
+    template <typename T>
+    inline  auto data(int plane) -> T { return reinterpret_cast<T>(data(plane)); }
+
     inline  auto setSampleRate(int sampleRate) -> bool { return set(Value::SampleRate, &sampleRate); }
     inline  auto setTimestamp(double timestamp) -> bool { return set(Value::Timestamp, &timestamp); }
     inline  auto setDuration(double duration) -> bool { return set(Value::Duration, &duration); }

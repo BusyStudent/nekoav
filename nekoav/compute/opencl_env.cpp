@@ -5,7 +5,17 @@
 #include "../context.hpp"
 #include "../log.hpp"
 
+#ifdef _WIN32
+    #include <CL/cl_d3d11.h>
+    #include <wrl/client.h>
+#endif
+
 NEKO_NS_BEGIN
+
+class OpenCLContextPrivate {
+public:
+
+};
 
 OpenCLContext::OpenCLContext() {
     auto device = cl::Device::getDefault();
@@ -23,7 +33,7 @@ OpenCLContext::OpenCLContext() {
     NEKO_LOG("OCL Version: {}", device.getInfo<CL_DEVICE_VERSION>());
 }
 OpenCLContext::~OpenCLContext() {
-
+    d.reset();
 }
 
 Arc<OpenCLContext> OpenCLContext::create(Element *element) {

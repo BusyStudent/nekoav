@@ -101,6 +101,7 @@ class EventSink;
 class Resource;
 class Element;
 class ElementFactory;
+class Context;
 class Container;
 class Properties;
 class Property;
