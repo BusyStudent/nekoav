@@ -20,6 +20,8 @@ namespace FFmpeg {
 class FFDemuxer final : public Template::GetThreadImpl<Demuxer, MediaElement> {
 public:
     FFDemuxer() {
+        setFlags(ElementFlags::DynamicOutput);
+        
         mPacket = av_packet_alloc();
     }
     ~FFDemuxer() {

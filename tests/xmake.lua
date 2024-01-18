@@ -3,6 +3,7 @@
 set_languages("c++20")
 
 if has_config("test") then
+    add_requires("gtest")
 
     target("utilstest")
         set_kind("binary")

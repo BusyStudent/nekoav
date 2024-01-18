@@ -1,6 +1,5 @@
 
-add_requires("opencl", "vulkan-headers", "ffmpeg", "gtest", "miniaudio")
-add_packages("opencl", "vulkan-headers", "miniaudio")
+add_requires("opencl", "ffmpeg", "miniaudio")
 
 set_languages("c++20")
 
@@ -35,6 +34,10 @@ if is_plat("windows") then
     add_cxxflags("cl::/permissive-")
 end
 
+if is_plat("linux") then 
+    add_requires("opencl-clhpp")
+end
+
 if has_config("subtitle") then
     add_requires("libass")
 end 
@@ -46,10 +49,15 @@ target("nekoav")
     set_languages("c++20")
     -- set_warnings("all")
     -- set_warnings("error")
+    add_packages("miniaudio", "opencl")
 
     if is_plat("windows") then
         add_links("user32", "gdi32")
         add_defines("NOMINMAX")
+    end
+
+    if is_plat("linux") then 
+        add_packages("opencl-clhpp")
     end
 
     if is_mode("release") then 

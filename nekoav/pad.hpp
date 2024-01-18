@@ -12,7 +12,10 @@ class NEKO_API Pad {
  public:
     enum Type {
         Input,
-        Output
+        Output,
+
+        Sink = Input,
+        Source = Output,
     };
     using Callback = std::function<Error(View<Resource> )>;
     using EventCallback = std::function<Error(View<Event> )>;
@@ -79,11 +82,29 @@ class NEKO_API Pad {
      */
     Element         *element() const noexcept;
     /**
+     * @brief Get the master of the peer pad
+     * 
+     * @return Element* 
+     */
+    Element         *peerElement() const noexcept;
+    /**
      * @brief Get next pad (valid for Output pad)
      * 
      * @return Pad* 
      */
     Pad             *next() const noexcept;
+    /**
+     * @brief Get prev pad (valid for Input pad)
+     * 
+     * @return Pad* 
+     */
+    Pad             *prev() const noexcept;
+    /**
+     * @brief Get the peer pad
+     * 
+     * @return Pad* 
+     */
+    Pad             *peer() const noexcept;
     /**
      * @brief Get the type of the pad
      * 
@@ -162,6 +183,7 @@ private:
     Element *mElement = nullptr;
     Type        mType;
     std::string mName;
+    Pad        *mPrev = nullptr;
     Pad        *mNext = nullptr;
     Properties mProperties;
     Callback   mCallback;
@@ -179,8 +201,25 @@ inline Pad::Type Pad::type() const noexcept {
 inline Pad *Pad::next() const noexcept {
     return mNext;
 }
+inline Pad *Pad::prev() const noexcept {
+    return mPrev;
+}
+inline Pad *Pad::peer() const noexcept {
+    if (mType == Input) {
+        return mPrev;
+    }
+    else {
+        return mNext;
+    }
+}
 inline Element *Pad::element() const noexcept {
     return mElement;
+}
+inline Element *Pad::peerElement() const noexcept {
+    if (auto p = peer(); p) {
+        return p->element();
+    }
+    return nullptr;
 }
 inline std::string_view Pad::name() const noexcept {
     return mName;

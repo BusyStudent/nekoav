@@ -2,9 +2,27 @@
 
 #include "defs.hpp"
 #include <cstdint>
+#include <utility>
+#include <bit>
 
 NEKO_NS_BEGIN
 
+/**
+ * @brief Internal for select native endiain
+ * 
+ * @param big 
+ * @param little 
+ * @return constexpr int 
+ */
+template <typename T>
+constexpr T _NativeEndian(T big, T little) noexcept {
+    return std::endian::native == std::endian::big ? big : little;
+}
+
+/**
+ * @brief Pixel Format, as same as FFmpeg
+ * 
+ */
 enum class PixelFormat : int {
     None    = -1,
     YUV420P ,
@@ -12,9 +30,6 @@ enum class PixelFormat : int {
     YUV444P ,
     YUV410P ,
     YUV411P ,
-    YUVJ420P,
-    YUVJ422P,
-    YUVJ444P,
     UYVY422 ,
     UYYVYY411,
     BGR8,
@@ -25,12 +40,24 @@ enum class PixelFormat : int {
     NV12,
     NV21,
 
-    RGBA,
+    RGBA, //< R8G8B8A8
     BGRA,
     ARGB,
 
+    RGBA64LE, //< R16 G16 B16 A16
+    RGBA64BE, //< R16 G16 B16 A16
+
+    P010LE,
+    P010BE,
+
     DXVA2, //< AV_PIX_FMT_DXVA2_VLD in ffmpeg, data[3] contains LPDIRECT3DSURFACE9
-    D3D11, //< AV_PIX_FMT_D3D11 in ffmpeg, data[0] contains a ID3D11Texture2D
+    D3D11, //< AV_PIX_FMT_D3D11 in ffmpeg, data[0] contains a ID3D11Texture2D, data[1] contains intptr_t
+    VDPAU, //< AV_PIX_FMT_VDPAU in ffmpeg, data[3] contains a VdpVideoSurface
+    VAAPI, //< AV_PIX_FMT_VAAPI in ffmpeg, data[3] contains a VASurfaceID
+    OpenCL, //< AV_PIX_FMT_OPENCL in ffmpeg, data[i] contains a cl_mem
+
+    RGBA64 = _NativeEndian(RGBA64BE, RGBA64LE),
+    P010   = _NativeEndian(P010BE  , P010LE),
 };
 
 enum class SampleFormat : int {
@@ -162,6 +189,14 @@ constexpr SampleFormat GetAltSampleFormat(SampleFormat fmt) noexcept {
  * @return false 
  */
 constexpr bool IsHardwarePixelFormat(PixelFormat fmt) noexcept {
-    return fmt == PixelFormat::D3D11 || fmt == PixelFormat::DXVA2;
+    constexpr PixelFormat hwfmts [] {
+        PixelFormat::OpenCL,
+        PixelFormat::D3D11,
+        PixelFormat::DXVA2,
+        PixelFormat::VAAPI,
+        PixelFormat::VDPAU,
+    };
+    return std::find(std::begin(hwfmts), std::end(hwfmts), fmt) != std::end(hwfmts);
 }
+
 NEKO_NS_END

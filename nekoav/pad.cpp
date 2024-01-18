@@ -46,15 +46,27 @@ Error Pad::link(View<Pad> pad) {
     if (!pad) {
         return Error::InvalidArguments;
     }
-    if (mType == Input) {
-        // You can not link an Input pad
+    if (mType == pad->mType) {
+        // Can not link in same types pad
         return Error::InvalidArguments;
     }
+    if (mType == Input) {
+        // Exchange
+        return pad->link(this);
+    }
     mNext = pad.get();
+    mNext->mPrev = this;
     return Error::Ok;
 }
 Error Pad::unlink() {
-    mNext = nullptr;
+    if (mPrev) {
+        mPrev->mNext = nullptr;
+        mPrev = nullptr;
+    }
+    if (mNext) {
+        mNext->mPrev = nullptr;
+        mNext = nullptr;
+    }
     return Error::Ok;
 }
 void Pad::setCallback(Callback &&callback) {

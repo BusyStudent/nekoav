@@ -29,9 +29,6 @@ inline AVPixelFormat ToAVPixelFormat(PixelFormat fmt) {
         case PixelFormat::YUV444P: return AV_PIX_FMT_YUV444P;
         case PixelFormat::YUV410P: return AV_PIX_FMT_YUV410P;
         case PixelFormat::YUV411P: return AV_PIX_FMT_YUV411P;
-        case PixelFormat::YUVJ420P: return AV_PIX_FMT_YUVJ420P;
-        case PixelFormat::YUVJ422P: return AV_PIX_FMT_YUVJ422P;
-        case PixelFormat::YUVJ444P: return AV_PIX_FMT_YUVJ444P;
         case PixelFormat::UYVY422: return AV_PIX_FMT_UYVY422;
         case PixelFormat::UYYVYY411: return AV_PIX_FMT_UYYVYY411;
         case PixelFormat::BGR8: return AV_PIX_FMT_BGR8;
@@ -46,9 +43,18 @@ inline AVPixelFormat ToAVPixelFormat(PixelFormat fmt) {
         case PixelFormat::BGRA: return AV_PIX_FMT_BGRA;
         case PixelFormat::ARGB: return AV_PIX_FMT_ARGB;
 
+        case PixelFormat::RGBA64LE: return AV_PIX_FMT_RGBA64LE;
+        case PixelFormat::RGBA64BE: return AV_PIX_FMT_RGBA64BE;
+
+        case PixelFormat::P010LE: return AV_PIX_FMT_P010LE;
+        case PixelFormat::P010BE: return AV_PIX_FMT_P010BE;
+
         // Hardware
         case PixelFormat::DXVA2: return AV_PIX_FMT_DXVA2_VLD;
         case PixelFormat::D3D11: return AV_PIX_FMT_D3D11;
+        case PixelFormat::VAAPI: return AV_PIX_FMT_VAAPI;
+        case PixelFormat::VDPAU: return AV_PIX_FMT_VDPAU;
+        case PixelFormat::OpenCL: return AV_PIX_FMT_OPENCL;
 
         default: return AV_PIX_FMT_NONE;
     }
@@ -61,9 +67,6 @@ inline   PixelFormat ToPixelFormat(AVPixelFormat fmt) {
         case AV_PIX_FMT_YUV444P: return PixelFormat::YUV444P;
         case AV_PIX_FMT_YUV410P: return PixelFormat::YUV410P;
         case AV_PIX_FMT_YUV411P: return PixelFormat::YUV411P;
-        case AV_PIX_FMT_YUVJ420P: return PixelFormat::YUVJ420P;
-        case AV_PIX_FMT_YUVJ422P: return PixelFormat::YUVJ422P;
-        case AV_PIX_FMT_YUVJ444P: return PixelFormat::YUVJ444P;
         case AV_PIX_FMT_UYVY422: return PixelFormat::UYVY422;
         case AV_PIX_FMT_UYYVYY411: return PixelFormat::UYYVYY411;
         case AV_PIX_FMT_BGR8: return PixelFormat::BGR8;
@@ -78,9 +81,18 @@ inline   PixelFormat ToPixelFormat(AVPixelFormat fmt) {
         case AV_PIX_FMT_BGRA: return PixelFormat::BGRA;
         case AV_PIX_FMT_ARGB: return PixelFormat::ARGB;
 
+        case AV_PIX_FMT_RGBA64LE: return PixelFormat::RGBA64LE;
+        case AV_PIX_FMT_RGBA64BE: return PixelFormat::RGBA64BE;
+
+        case AV_PIX_FMT_P010LE: return PixelFormat::P010LE;
+        case AV_PIX_FMT_P010BE: return PixelFormat::P010BE;
+
         // Hardware
         case AV_PIX_FMT_DXVA2_VLD: return PixelFormat::DXVA2;
         case AV_PIX_FMT_D3D11: return PixelFormat::D3D11;
+        case AV_PIX_FMT_VDPAU: return PixelFormat::VDPAU;
+        case AV_PIX_FMT_VAAPI: return PixelFormat::VAAPI;
+        case AV_PIX_FMT_OPENCL: return PixelFormat::OpenCL;
         default: return PixelFormat::None;
     }
 }

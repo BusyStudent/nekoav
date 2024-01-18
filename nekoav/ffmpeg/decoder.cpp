@@ -178,7 +178,6 @@ public:
                 return AV_PIX_FMT_NONE;
             };
 
-            
             // Try init hw
             AVBufferRef *hardwareDeviceCtxt = nullptr;
             if (av_hwdevice_ctx_create(&hardwareDeviceCtxt, hardwareType, nullptr, nullptr, 0) < 0) {
