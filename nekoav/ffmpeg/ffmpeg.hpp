@@ -270,15 +270,15 @@ inline AVIOContext *WrapIOStream(int64_t bufferSize, IOStream *io) {
         io->isWritable(),
         io,
         io->isReadable() ?
-        [](void *self, uint8_t *buf, int bufSize) -> int {
+        +[](void *self, uint8_t *buf, int bufSize) -> int {
             return static_cast<IOStream *>(self)->read(buf, bufSize);
         } : nullptr,
         io->isWritable() ?
-        [](void *self, uint8_t *buf, int bufSize) -> int {
+        +[](void *self, uint8_t *buf, int bufSize) -> int {
             return static_cast<IOStream *>(self)->write(buf, bufSize);
         } : nullptr,
         io->isSeekable() ?
-        [](void *self, int64_t offset, int whence) -> int64_t {
+        +[](void *self, int64_t offset, int whence) -> int64_t {
             return static_cast<IOStream *>(self)->seek(offset, whence);
         } : nullptr
     );

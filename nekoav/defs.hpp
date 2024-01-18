@@ -70,6 +70,7 @@
 
 #include "detail/cxx20.hpp"
 #include <typeinfo>
+#include <cstring>
 #include <cstddef>
 #include <cstdint>
 #include <cassert>

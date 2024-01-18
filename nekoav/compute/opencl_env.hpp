@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cl/opencl.hpp>
+#include <CL/opencl.hpp>
 #include "../defs.hpp"
 
 NEKO_NS_BEGIN
