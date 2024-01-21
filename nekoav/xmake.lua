@@ -75,8 +75,8 @@ target("nekoav")
         add_packages("libass")
     end 
 
-    -- Compute
-    add_files("compute/*.cpp")
+    -- HWcontext
+    add_files("hwcontext/*.cpp")
 
     -- Elements
     add_files("elements/*.cpp")

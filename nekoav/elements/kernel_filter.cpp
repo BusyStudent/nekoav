@@ -1,6 +1,6 @@
 #define _NEKO_SOURCE
 
-#include "../compute/opencl_env.hpp"
+#include "../hwcontext/opencl.hpp"
 #include "../media/frame.hpp"
 #include "../detail/base.hpp"
 #include "../threading.hpp"

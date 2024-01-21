@@ -10,8 +10,8 @@
 #ifdef _WIN32
     #define HAVE_D3D11VA
     #include <VersionHelpers.h>
-    #include <wrl/client.h>
-    #include <d3d11.h>
+    #include "../hwcontext/d3d11va_utils.hpp"
+    #include "../hwcontext/d3d11va.hpp"
 #endif
 
 
@@ -136,7 +136,8 @@ public:
 
         // D3D11VA here
 #ifdef HAVE_D3D11VA
-        if (f->format == AV_PIX_FMT_D3D11 && IsWindows8OrGreater()) {
+        if (f->format == AV_PIX_FMT_D3D11 && IsWindows8OrGreater() && f->width > 1920 && f->height > 1080) {
+            // Has D3D11VA and is 1080P higher
             if (auto err = _initD3D11Convert(f); err == Error::Ok) {
                 return err;
             }
@@ -275,78 +276,30 @@ public:
         texture->GetDevice(&mD3D11Device);
         texture->GetDesc(&textureDesc);
         mD3D11Device->GetImmediateContext(&mD3D11Context);
-        if (FAILED(mD3D11Context.As(&mD3D11VideoContext)) || FAILED(mD3D11Device.As(&mD3D11VideoDevice))) {
+        mD3D11VAConverter = D3D11VAConverter::create(mD3D11Device.Get());
+        mD3D11VAContext = D3D11VAContext::create(this); //< Get Pipeline Current Context
+        if (!mD3D11VAConverter || !mD3D11VAContext) {
             return Error::External;
         }
+        // Lock Context
+        std::lock_guard locker(*mD3D11VAContext);
 
-        // Detect output format and create 
-        D3D11_VIDEO_PROCESSOR_CONTENT_DESC processorDesc {
-            .InputFrameFormat = D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE,
-            .InputWidth = textureDesc.Width,
-            .InputHeight = textureDesc.Height,
-            .OutputWidth = textureDesc.Width,
-            .OutputHeight = textureDesc.Height,
-            .Usage = D3D11_VIDEO_USAGE_OPTIMAL_QUALITY,
-        };
-        auto hr = mD3D11VideoDevice->CreateVideoProcessorEnumerator(&processorDesc, &mD3D11VideoProcessorEnumerator);
-        if (FAILED(hr)) {
-            return Error::External;
-        }
-
-        // Check Input
-        UINT flags = 0;
-        hr = mD3D11VideoProcessorEnumerator->CheckVideoProcessorFormat(textureDesc.Format, &flags);
-        if (FAILED(hr) || !(flags & D3D11_VIDEO_PROCESSOR_FORMAT_SUPPORT_INPUT)) {
-            return Error::External;
-        }
-        // Check Output
         DXGI_FORMAT outputFormat = DXGI_FORMAT_UNKNOWN;
-        for (auto fmt : _translateToDXGIFormat(_peerSupportedPixelFormat()) ) {
-            hr = mD3D11VideoProcessorEnumerator->CheckVideoProcessorFormat(fmt, &flags);
-            if (SUCCEEDED(hr) && (flags & D3D11_VIDEO_PROCESSOR_FORMAT_SUPPORT_OUTPUT)) {
-                outputFormat = fmt;
+        HRESULT hr = S_OK;
+        for (const auto &format : _peerSupportedDXGIFormat()) {
+            hr = mD3D11VAConverter->initialize(
+                textureDesc.Width,textureDesc.Height, textureDesc.Format,
+                textureDesc.Width,textureDesc.Height, format
+            );
+            if (SUCCEEDED(hr)) {
+                outputFormat = format;
                 break;
             }
         }
         if (outputFormat == DXGI_FORMAT_UNKNOWN) {
             return Error::External;
         }
-        // Create Processor
-        RECT srcRect {0, 0, LONG(textureDesc.Width), LONG(textureDesc.Height)};
-        RECT dstRect {0, 0, LONG(textureDesc.Width), LONG(textureDesc.Height)};
-        hr = mD3D11VideoDevice->CreateVideoProcessor(mD3D11VideoProcessorEnumerator.Get(), 0, &mD3D11VideoProcessor);
-        if (FAILED(hr)) {
-            return Error::External;
-        }
 
-        mD3D11VideoContext->VideoProcessorSetStreamFrameFormat(mD3D11VideoProcessor.Get(), 0, D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE);
-        mD3D11VideoContext->VideoProcessorSetStreamOutputRate(mD3D11VideoProcessor.Get(), 0, D3D11_VIDEO_PROCESSOR_OUTPUT_RATE_NORMAL, TRUE, nullptr);
-            
-        mD3D11VideoContext->VideoProcessorSetStreamSourceRect(mD3D11VideoProcessor.Get(), 0, TRUE, &srcRect);
-        mD3D11VideoContext->VideoProcessorSetStreamDestRect(mD3D11VideoProcessor.Get(), 0, TRUE, &dstRect);
-        mD3D11VideoContext->VideoProcessorSetOutputTargetRect(mD3D11VideoProcessor.Get(), TRUE, &dstRect);
-
-        // Create done, setup basic in / output texture and view
-        D3D11_TEXTURE2D_DESC inputTextureDesc {
-            .Width          = textureDesc.Width,
-            .Height         = textureDesc.Height,
-            .MipLevels      = 1,
-            .ArraySize      = 1,
-            .Format         = textureDesc.Format,
-            .SampleDesc     = { 1, 0 },
-            .Usage          = D3D11_USAGE_DEFAULT,
-            // .BindFlags      = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
-        };
-        D3D11_TEXTURE2D_DESC outputTextureDesc {
-            .Width          = textureDesc.Width,
-            .Height         = textureDesc.Height,
-            .MipLevels      = 1,
-            .ArraySize      = 1,
-            .Format         = outputFormat,
-            .SampleDesc     = { 1, 0 },
-            .Usage          = D3D11_USAGE_DEFAULT,
-            .BindFlags      = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
-        };
         D3D11_TEXTURE2D_DESC stagingTextureDesc {
             .Width          = textureDesc.Width,
             .Height         = textureDesc.Height,
@@ -357,38 +310,11 @@ public:
             .Usage          = D3D11_USAGE_STAGING,
             .CPUAccessFlags = D3D11_CPU_ACCESS_READ,
         };
-        hr = mD3D11Device->CreateTexture2D(&outputTextureDesc, nullptr, &mD3D11OutputTexture);
         hr = mD3D11Device->CreateTexture2D(&stagingTextureDesc, nullptr, &mD3D11StagingTexture);
-        hr = mD3D11Device->CreateTexture2D(&inputTextureDesc, nullptr, &mD3D11InputTexture);
-        if (!mD3D11OutputTexture || !mD3D11StagingTexture || !mD3D11InputTexture) {
+        if (FAILED(hr)) {
             return Error::External;
         }
 
-        // Create Output view
-        D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC outputDesc {};
-        outputDesc.ViewDimension = D3D11_VPOV_DIMENSION_TEXTURE2D;
-        outputDesc.Texture2D.MipSlice = 0;
-        hr = mD3D11VideoDevice->CreateVideoProcessorOutputView(
-            mD3D11OutputTexture.Get(), 
-            mD3D11VideoProcessorEnumerator.Get(), 
-            &outputDesc, 
-            &mD3D11OutputView
-        );
-        if (FAILED(hr)) {
-            return Error::External;
-        }
-        D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC inputDesc {};
-        inputDesc.ViewDimension = D3D11_VPIV_DIMENSION_TEXTURE2D;
-        inputDesc.Texture2D.MipSlice = 0;
-        hr = mD3D11VideoDevice->CreateVideoProcessorInputView(
-            mD3D11InputTexture.Get(),
-            mD3D11VideoProcessorEnumerator.Get(),
-            &inputDesc,
-            &mD3D11InputView
-        );
-        if (FAILED(hr)) {
-            return Error::External;
-        }
         mD3D11OutputAVFormat = _translateToAVPixelFormat(outputFormat);
         NEKO_LOG("Init D3D11VA Convert, from {} to {}", textureDesc.Format, outputFormat);
         return Error::Ok;
@@ -405,26 +331,9 @@ public:
         auto textureIndex = reinterpret_cast<intptr_t>(srcFrame->data[1]);
         HRESULT hr = 0;
 
-        mD3D11Context->CopySubresourceRegion(
-            mD3D11InputTexture.Get(),
-            0,
-            0, 0, 0,
-            texture,
-            textureIndex,
-            nullptr
-        );
-
-        D3D11_VIDEO_PROCESSOR_STREAM stream = {};
-        stream.Enable = TRUE;
-        stream.pInputSurface = mD3D11InputView.Get();
-        
-        hr = mD3D11VideoContext->VideoProcessorBlt(mD3D11VideoProcessor.Get(), mD3D11OutputView.Get(), 0, 1, &stream);
-        if (FAILED(hr)) {
-            return Error::External;
-        }
-
-        // Copy 
-        mD3D11Context->CopyResource(mD3D11StagingTexture.Get(), mD3D11OutputTexture.Get());
+        // Lock Context
+        std::lock_guard locker(*mD3D11VAContext);
+        hr = mD3D11VAConverter->convert(mD3D11StagingTexture.Get(), 0, texture, textureIndex);
 
         // Convert to AVFrame
         D3D11_MAPPED_SUBRESOURCE mappedResource;
@@ -450,17 +359,10 @@ public:
         return Error::Ok;
     }
     void _d3d11Cleanup() {
-        mD3D11VideoProcessorEnumerator.Reset();
-        mD3D11VideoContext.Reset();
-        mD3D11VideoDevice.Reset();
-        mD3D11VideoProcessor.Reset();
-        mD3D11InputTexture.Reset();
-        mD3D11OutputTexture.Reset();
         mD3D11StagingTexture.Reset();
-        mD3D11InputView.Reset();
-        mD3D11OutputView.Reset();
         mD3D11Context.Reset();
         mD3D11Device.Reset();
+        mD3D11VAContext.reset();
         mD3D11OutputAVFormat = AV_PIX_FMT_NONE;
     }
     Vec<DXGI_FORMAT> _translateToDXGIFormat(std::span<const AVPixelFormat> formats) {
@@ -473,6 +375,9 @@ public:
             }
         }
         return dxgiFormats;
+    }
+    Vec<DXGI_FORMAT> _peerSupportedDXGIFormat() {
+        return _translateToDXGIFormat(_peerSupportedPixelFormat());
     }
     AVPixelFormat _translateToAVPixelFormat(DXGI_FORMAT format) {
         switch (format) {
@@ -503,19 +408,13 @@ private:
     template <typename T>
     using ComPtr = Microsoft::WRL::ComPtr<T>;
 
+    Arc<D3D11VAContext>         mD3D11VAContext; //< Shared Context at
+    Box<D3D11VAConverter>       mD3D11VAConverter; //< A helper for convert format
     ComPtr<ID3D11Device>        mD3D11Device;
     ComPtr<ID3D11DeviceContext> mD3D11Context;
-    ComPtr<ID3D11VideoDevice>   mD3D11VideoDevice;
-    ComPtr<ID3D11VideoContext> mD3D11VideoContext;
-    ComPtr<ID3D11VideoProcessor> mD3D11VideoProcessor;
-    ComPtr<ID3D11Texture2D>    mD3D11InputTexture;
-    ComPtr<ID3D11Texture2D>    mD3D11OutputTexture;
-    ComPtr<ID3D11Texture2D>    mD3D11StagingTexture; //< Texture for copy back to CPU
-    ComPtr<ID3D11VideoProcessorInputView> mD3D11InputView;
-    ComPtr<ID3D11VideoProcessorOutputView> mD3D11OutputView;
-    ComPtr<ID3D11VideoProcessorEnumerator> mD3D11VideoProcessorEnumerator;
+    ComPtr<ID3D11Texture2D>     mD3D11StagingTexture; //< Texture for copy back to CPU
     //< Output format for AVFrame
-    AVPixelFormat                          mD3D11OutputAVFormat = AV_PIX_FMT_NONE;
+    AVPixelFormat               mD3D11OutputAVFormat = AV_PIX_FMT_NONE;
 #endif
 };
 

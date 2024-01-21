@@ -1,6 +1,5 @@
 #define _NEKO_SOURCE
-#include "opencl_env.hpp"
-#include "../media/sharing.hpp"
+#include "opencl.hpp"
 #include "../elements.hpp"
 #include "../context.hpp"
 #include "../log.hpp"

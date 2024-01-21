@@ -7,6 +7,10 @@
 #include "common.hpp"
 #include "ffmpeg.hpp"
 
+#ifdef _WIN32
+    #include "../hwcontext/d3d11va.hpp"
+#endif
+
 NEKO_NS_BEGIN
 
 namespace FFmpeg {
@@ -178,26 +182,28 @@ public:
                 return AV_PIX_FMT_NONE;
             };
 
-            // Try init hw
-            AVBufferRef *hardwareDeviceCtxt = nullptr;
-            if (av_hwdevice_ctx_create(&hardwareDeviceCtxt, hardwareType, nullptr, nullptr, 0) < 0) {
-                // Failed
-                continue;
-            }
-#if !defined(NDEBUG)
-            auto thread = Thread::currentThread();
-            if (thread && mHardwareFmt == AV_PIX_FMT_D3D11) {
-                // Emm D3D11 device_ctx_create will change the thread name in my pc, change it back in debug
-                thread->setName(thread->name());
+#ifdef _WIN32
+            if (hardwareType == AV_HWDEVICE_TYPE_D3D11VA) {
+                auto d3d11Context = D3D11VAContext::create(this);
+                if (!d3d11Context) {
+                    continue;
+                }
+                mCtxt->hw_device_ctx = av_buffer_ref(d3d11Context->ffd3d11context());
             }
 #endif
-
-            // hardwareCtxt->hw_device_ctx = av_buffer_ref(hardwareDeviceCtxt);
-            mCtxt->hw_device_ctx = hardwareDeviceCtxt;
+            if (!mCtxt->hw_device_ctx) {
+                // Try init hw
+                AVBufferRef *hardwareDeviceCtxt = nullptr;
+                if (av_hwdevice_ctx_create(&hardwareDeviceCtxt, hardwareType, nullptr, nullptr, 0) < 0) {
+                    // Failed
+                    continue;
+                }
+                mCtxt->hw_device_ctx = hardwareDeviceCtxt;
+            }
 
             // Init codec
             if (avcodec_open2(mCtxt, codec, nullptr) < 0) {
-                av_buffer_unref(&hardwareDeviceCtxt);
+                av_buffer_unref(&mCtxt->hw_device_ctx);
                 mCtxt->hw_device_ctx = nullptr;
                 continue;
             }

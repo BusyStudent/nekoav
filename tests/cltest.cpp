@@ -1,5 +1,5 @@
 #define CL_HPP_ENABLE_EXCEPTIONS
-#include "../nekoav/compute/opencl_env.hpp"
+#include "../nekoav/hwcontext/opencl.hpp"
 #include "../nekoav/log.hpp"
 #include <CL/opencl.hpp>
 

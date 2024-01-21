@@ -18,6 +18,12 @@
     #include <QOpenGLContext>
     #include <QOpenGLFunctions>
     #include <QOpenGLFunctions_3_3_Core>
+
+    #ifdef QNEKOAV_OPENGL_INTEROP
+        #include "../hwcontext/opengl_utils.hpp"
+        #include "../hwcontext/d3d11va.hpp"
+        #include <wrl/client.h>
+    #endif
 #endif
 
 // #if defined(_WIN32)
@@ -146,8 +152,8 @@ public:
         );
         initializeOpenGLFunctions();
 
-#ifdef _WIN32
-        detectWGLExtension();
+#ifdef QNEKOAV_OPENGL_INTEROP
+        mDXInteropHelper = WGLDXInteropHelper::create();
 #endif
 
 #ifndef NDEBUG
@@ -263,6 +269,10 @@ public:
             mProgram = 0;
         }
         cleanupTexture();
+
+#ifdef QNEKOAV_OPENGL_INTEROP
+        mDXInteropHelper.reset();
+#endif
     }
     void cleanupTexture() {
         for (auto &texture : mTextures) {
@@ -362,23 +372,39 @@ public:
     // void invokeAtGLThread(std::function<void()> &&fn) override {
     //     QMetaObject::invokeMethod(this, std::move(fn), Qt::BlockingQueuedConnection);
     // }
+    // It will be invoked at Worker Thread
     Error setContext(Context *ctxt) override {
-#ifdef _WIN32
-        if (ctxt) {
-            // ctxt->addObjectView<OpenGLSharing>(this);
-            // mD3D11SharedContext = GetD3D11SharedContext(ctxt);
+#ifdef QNEKOAV_OPENGL_INTEROP
+        if (ctxt && mDXInteropHelper) {
+            // Has WGL Interop
+            QMetaObject::invokeMethod(this, [this, ctxt]() {
+                mD3D11VAContext = D3D11VAContext::create(ctxt);
+                if (!mD3D11VAContext) {
+                    return;
+                }
+                makeCurrent();
+                mDXInteropHelper->openDevice(mD3D11VAContext->device());
+            }, Qt::BlockingQueuedConnection);
         }
         else {
-            // Remove
-            // mContext->removeObject<OpenGLSharing>(this)
-            // mD3D11SharedContext = nullptr;
+            QMetaObject::invokeMethod(this, [this]() {
+                // Remove
+                makeCurrent();
+                if (mDXInteropHelper) {
+                    if (mDXSharedObject) {
+                        mDXInteropHelper->unregisterObject(mDXSharedObject);
+                    }
+                    mDXInteropHelper->closeDevice();
+                }
+                mD3D11VAContext.reset();
+            }, Qt::QueuedConnection);
         }
 #endif
         mContext = ctxt;
         return Error::Ok;
     }
 
-#ifdef _WIN32
+#ifdef QNEKOAV_OPENGL_INTEROP
     void detectWGLExtension() {
 
     }
@@ -398,9 +424,12 @@ public:
     // Ext here
     bool mHasDXInterop = false;
 
-#ifdef _WIN32
-    // Arc<D3D11SharedContext> mD3D11SharedContext;
+#ifdef QNEKOAV_OPENGL_INTEROP
+    Arc<D3D11VAContext>     mD3D11VAContext;
+    Box<WGLDXInteropHelper> mDXInteropHelper;
+    HANDLE                  mDXSharedObject = nullptr;
 #endif
+
 };
 #endif
 
