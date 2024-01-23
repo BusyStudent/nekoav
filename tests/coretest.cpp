@@ -172,6 +172,7 @@ TEST(CoreTest, Elem) {
     src.push();
     src.push();
 
+    NEKO_DEBUG(src.toDocoument());
 };
 
 TEST(CoreTest, PrintfWrapper) {

@@ -14,7 +14,7 @@
 
 NEKO_NS_BEGIN
 
-class MediaQueueImpl final : public MediaQueue {
+class MediaQueueImpl final : public MediaQueue, public MediaElement {
 public:
     MediaQueueImpl() {
         mSink = addInput("sink");
@@ -165,6 +165,15 @@ public:
     void setCapacity(size_t n) override {
         mMaxSize = n;
     }
+
+    // Media Element
+    MediaClock *clock() const override {
+        return nullptr;
+    }
+    bool isEndOfFile() const override {
+        std::lock_guard locker(mMutex);
+        return mQueue.empty();
+    }
 private:
     class Item {
     public:
@@ -174,7 +183,7 @@ private:
     };
     std::queue<Item>        mQueue;
     std::condition_variable mCond;
-    std::mutex              mMutex;
+    mutable std::mutex      mMutex;
     Atomic<double>          mDuration {0.0};
     Atomic<bool>            mRunning {false};
     Atomic<bool>            mInterrupted {false};

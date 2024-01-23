@@ -64,6 +64,7 @@
     #include <pthread.h>
     #include <dlfcn.h>
     #include <string>
+    #include <array>
     #define NEKO_LoadLibrary(name) ::dlopen(name, RTLD_LAZY)
     #define NEKO_GetProcAddress(handle, name) ::dlsym(handle, name)
     #define NEKO_FreeLibrary(handle) ::dlclose(handle)

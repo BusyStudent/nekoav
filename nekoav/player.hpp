@@ -1,6 +1,7 @@
 #pragma once
 
 #include "defs.hpp"
+#include "enum.hpp"
 #include <functional>
 #include <string>
 #include <list>
@@ -44,13 +45,38 @@ public:
         }
         return *this;
     }
-    
 
+    /**
+     * @brief Get the create by name
+     * 
+     * @return std::string_view 
+     */
     std::string_view name() const noexcept {
         return mName;
     }
+    /**
+     * @brief Get the configure callback
+     * 
+     * @return const Configure& 
+     */
     const Configure &configure() const noexcept {
         return mConfigure;
+    }
+    /**
+     * @brief Set the Configure callback object
+     * 
+     * @param conf 
+     */
+    void setConfigure(Configure &&conf) noexcept { mConfigure = std::move(conf); }
+    /**
+     * @brief Create filter by type
+     * 
+     * @tparam T 
+     * @return Filter 
+     */
+    template <typename T>
+    static Filter fromType() {
+        return Filter(typeid(T));
     }
 private:
     void _tidy() {
@@ -71,6 +97,7 @@ private:
 
     char       *mName = nullptr; //< Filter name
     Configure   mConfigure; //< Callback to configure
+    Element    *mElement = nullptr; //< Created elements
 friend class Player;
 };
 
@@ -103,6 +130,12 @@ public:
      * @param url 
      */
     void setUrl(std::string_view url);
+    /**
+     * @brief Set the Url of reading subtitle (empty on auto select)
+     * 
+     * @param url 
+     */
+    void setSubtitleUrl(std::string_view url);
     /**
      * @brief Set the Options object for Open Url
      * 
@@ -167,6 +200,15 @@ public:
      * @return State 
      */
     State state() const noexcept;
+
+    // Streams
+    Vec<Properties> audioStreams() const;
+    Vec<Properties> videoStreams() const;
+    Vec<Properties> subtitleStreams() const;
+
+    void setAudioStream(int index);
+    void setVideoStream(int index);
+    void setSubtitleStream(int index);
 
     void play();
     void pause();

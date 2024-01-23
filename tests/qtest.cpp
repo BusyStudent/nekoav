@@ -91,7 +91,8 @@ int main(int argc, char **argv) {
     edgeDetect->setCheckable(true);
     QObject::connect(edgeDetect, &QAction::triggered, [&, mark = (void*) nullptr]() mutable {
         if (edgeDetect->isChecked())  {
-            NekoAV::Filter filter(typeid(NekoAV::KernelFilter), [](auto &element) {
+            auto filter = NekoAV::Filter::fromType<NekoAV::KernelFilter>();
+            filter.setConfigure([](auto &element) {
                 static_cast<NekoAV::KernelFilter&>(element).setEdgeDetectKernel();
             });
             mark = nekoPlayer->addFilter(filter);
@@ -106,7 +107,8 @@ int main(int argc, char **argv) {
     sharpen->setCheckable(true);
     QObject::connect(sharpen, &QAction::triggered, [&, mark = (void*) nullptr]() mutable {
         if (sharpen->isChecked())  {
-            NekoAV::Filter filter(typeid(NekoAV::KernelFilter), [](auto &element) {
+            auto filter = NekoAV::Filter::fromType<NekoAV::KernelFilter>();
+            filter.setConfigure([](auto &element) {
                 static_cast<NekoAV::KernelFilter&>(element).setSharpenKernel();
             });
             mark = nekoPlayer->addFilter(filter);
@@ -121,7 +123,8 @@ int main(int argc, char **argv) {
     blur->setCheckable(true);
     QObject::connect(blur, &QAction::triggered, [&, mark = (void*) nullptr]() mutable {
         if (blur->isChecked())  {
-            NekoAV::Filter filter(typeid(NekoAV::KernelFilter), [](auto &element) {
+            auto filter = NekoAV::Filter::fromType<NekoAV::KernelFilter>();
+            filter.setConfigure([](auto &element) {
                 const double kernel [3][3] = {
                     {1.0 / 9, 1.0 / 9, 1.0 / 9},
                     {1.0 / 9, 1.0 / 9, 1.0 / 9},

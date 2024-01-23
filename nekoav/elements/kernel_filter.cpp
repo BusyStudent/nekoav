@@ -172,15 +172,27 @@ public:
         if (mSrcImage.get() == nullptr) {
             cl::ImageFormat format(CL_RGBA, CL_UNORM_INT8);
             mSrcImage = cl::Image2D(ctxt, CL_MEM_READ_ONLY, format, width, height, pitch, nullptr, &err);
+            if (err != CL_SUCCESS) { 
+                NEKO_DEBUG(GetOpenCLErrorCodeName(err)); 
+            }
             mDstImage = cl::Image2D(ctxt, CL_MEM_WRITE_ONLY, format, width, height, pitch, nullptr, &err);
+            if (err != CL_SUCCESS) { 
+                NEKO_DEBUG(GetOpenCLErrorCodeName(err)); 
+            }
             mSampler = cl::Sampler(ctxt, CL_FALSE, CL_ADDRESS_MIRRORED_REPEAT, CL_FILTER_NEAREST, &err);
+            if (err != CL_SUCCESS) { 
+                NEKO_DEBUG(GetOpenCLErrorCodeName(err)); 
+            }
         }
 
         // Update to buffer
         cl::array<cl::size_type, 2> origin = {0, 0};
         cl::array<cl::size_type, 2> region = {cl::size_type(width), cl::size_type(height)};
-        err = commandQueue.enqueueWriteImage(mSrcImage, CL_TRUE, origin, region, 0, 0, frame->data(0));
+        err = commandQueue.enqueueWriteImage(mSrcImage, CL_TRUE, origin, region, pitch, 0, frame->data(0));
         // err = commandQueue.enqueueReadImage(mSrcImage, CL_TRUE, origin, region, 0, 0, frame->data(0));
+        if (err != CL_SUCCESS) { 
+            NEKO_DEBUG(GetOpenCLErrorCodeName(err)); 
+        }
 
         cl::KernelFunctor<cl::Image2D, cl::Image2D, cl::Sampler> fn {mCLKernel};
         fn(
@@ -190,8 +202,13 @@ public:
             mSampler, 
             err
         );
-        err = commandQueue.enqueueReadImage(mDstImage, CL_TRUE, origin, region, 0, 0, frame->data(0));
-
+        if (err != CL_SUCCESS) { 
+            NEKO_DEBUG(GetOpenCLErrorCodeName(err)); 
+        }
+        err = commandQueue.enqueueReadImage(mDstImage, CL_TRUE, origin, region, pitch, 0, frame->data(0));
+        if (err != CL_SUCCESS) { 
+            NEKO_DEBUG(GetOpenCLErrorCodeName(err)); 
+        }
         return Error::Ok;
     }
     Error onSinkPush(View<Pad>, View<Resource> resource) override {

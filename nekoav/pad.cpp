@@ -1,5 +1,7 @@
 #define _NEKO_SOURCE
+#include "event.hpp"
 #include "time.hpp"
+#include "libc.hpp"
 #include "pad.hpp"
 
 NEKO_NS_BEGIN
@@ -60,10 +62,12 @@ Error Pad::link(View<Pad> pad) {
 }
 Error Pad::unlink() {
     if (mPrev) {
+        NEKO_ASSERT(mType == Input);
         mPrev->mNext = nullptr;
         mPrev = nullptr;
     }
     if (mNext) {
+        NEKO_ASSERT(mType == Output);
         mNext->mPrev = nullptr;
         mNext = nullptr;
     }
@@ -79,6 +83,21 @@ void Pad::setEventCallback(EventCallback &&callback) {
 }
 void Pad::setName(std::string_view name) {
     mName = name;
+}
+std::string Pad::toDocoument() const {
+    std::string ret;
+    libc::sprintf(&ret, "Pad %p\n", this);
+    libc::sprintf(&ret, "    name: %s\n", mName.c_str());
+    libc::sprintf(&ret, "    type: %s\n", mType == Input ? "input" : "output");
+    libc::sprintf(&ret, "    next: %p\n", mNext);
+    libc::sprintf(&ret, "    prev: %p\n", mPrev);
+    ret += "    properties:\n";
+
+    // Print properties
+    for (const auto &[key, value] : mProperties) {
+        libc::sprintf(&ret, "        %s: %s\n", key.c_str(), value.toDocoument().c_str());
+    }
+    return ret;
 }
 
 NEKO_NS_END

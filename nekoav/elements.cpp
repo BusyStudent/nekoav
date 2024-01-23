@@ -10,6 +10,10 @@
     #include <format>
 #endif
 
+#ifdef __cpp_lib_ranges
+    #include <ranges>
+#endif
+
 NEKO_NS_BEGIN
 
 Element::Element() {
@@ -68,6 +72,25 @@ std::string Element::name() const {
     auto typename_ = libc::typenameof(typeid(*this));
     ::snprintf(buffer, sizeof(buffer), "%s-%p", typename_, this);
     return std::string(buffer);
+}
+std::string Element::toDocoument() const {
+    std::string ret;
+    libc::sprintf(&ret, "Element '%s'\n", name().c_str());
+    ret += "    Inputs:\n";
+    for (const auto in : mInputs) {
+        ret += "    ";
+        ret += in->toDocoument();
+    }
+    ret += "    Outputs:\n";
+    for (const auto out : mOutputs) {
+        ret += "    ";
+        for (auto view : std::views::split(out->toDocoument(), '\n')) {
+            ret += "    ";
+            ret += std::string_view(view.begin(), view.end());
+            ret += '\n';
+        }
+    }
+    return ret;
 }
 Pad *Element::findInput(std::string_view name) const {
     auto it = std::find_if(mInputs.begin(), mInputs.end(), [&](auto &p) { return p->name() == name; });

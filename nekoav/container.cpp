@@ -6,7 +6,7 @@
 
 NEKO_NS_BEGIN
 
-Vec<View<Element> > topologySort(const View<Container> &container) {
+static Vec<View<Element> > topologySort(const View<Container> &container) {
     std::map<View<Element>, int> inDeg;
     container->forElements([inDeg](View<Element> element) mutable {
         inDeg.insert(std::make_pair(element, 0));
@@ -182,6 +182,15 @@ std::string DumpTopology(View<Container> container) {
     }
 
     return result;
+}
+std::string DumpContainer(View<Container> container) {
+    std::string ret;
+    container->forElements([&](View<Element> element) mutable {
+        ret += element->toDocoument();
+        ret += '\n';
+        return true;
+    });
+    return ret;
 }
 
 Arc<Container> CreateContainer() {

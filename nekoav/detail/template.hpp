@@ -47,7 +47,7 @@ class GetThreadImpl : public Ts..., protected StateDispatch {
 public:
     Error sendEvent(View<Event> ev) override {
         if (!mThread) {
-            return Error::InvalidState;
+            return onEvent(ev);
         }
         Error err;
         mThread->sendTask([&, this]() {

@@ -71,6 +71,7 @@ namespace libc {
      * @return NEKO_API* 
      */
     extern NEKO_API FILE              *u8fopen(const char *path, const char *mode);
+#ifdef _WIN32
     /**
      * @brief Convert u8 to 16
      * 
@@ -85,6 +86,34 @@ namespace libc {
      * @return NEKO_API 
      */
     extern NEKO_API std::string        to_utf8(std::u16string_view u16);
+    /**
+     * @brief Convert u16 to local
+     * 
+     * @param u16 
+     * @return NEKO_API 
+     */
+    extern NEKO_API std::string        to_local(std::u16string_view u16);
+    /**
+     * @brief Convert u8 to local
+     * 
+     * @param u8 
+     * @return NEKO_API 
+     */
+    inline std::string                  to_local(std::string_view u8) {
+        static_assert(sizeof(wchar_t) == sizeof(char16_t));
+        return to_local(to_utf16(u8));
+    }
+    /**
+     * @brief Convert
+     * 
+     * @param u16 
+     * @return std::string 
+     */
+    inline std::string                  to_utf8(std::wstring_view u16) {
+        static_assert(sizeof(wchar_t) == sizeof(char16_t));
+        return to_utf8({reinterpret_cast<const char16_t *>(u16.data()), u16.size()});
+    }
+#endif
 }
 
 NEKO_NS_END

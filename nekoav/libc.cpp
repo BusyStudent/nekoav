@@ -215,6 +215,40 @@ void munmap(std::span<uint8_t> span) {
 #endif
 }
 
+#ifdef _WIN32
+std::u16string to_utf16(std::string_view u8) {
+    std::u16string result;
+    if (u8.empty()) {
+        return result;
+    }
+    int len = ::MultiByteToWideChar(CP_UTF8, 0, u8.data(), u8.size(), nullptr, 0);
+    result.resize(len);
+    len = ::MultiByteToWideChar(CP_UTF8, 0, u8.data(), u8.size(), (LPWSTR) result.data(), len);
+    return result;
+}
+std::string to_utf8(std::u16string_view u16) {
+    std::string result;
+    if (u16.empty()) {
+        return result;
+    }
+    int len = ::WideCharToMultiByte(CP_UTF8, 0, (LPCWSTR) u16.data(), u16.size(), nullptr, 0, nullptr, nullptr);
+    result.resize(len);
+    len = ::WideCharToMultiByte(CP_UTF8, 0, (LPCWSTR) u16.data(), u16.size(), result.data(), len, nullptr, nullptr);
+    return result;
+}
+std::string to_local(std::u16string_view u16) {
+    std::string result;
+    if (u16.empty()) {
+        return result;
+    }
+    int len = ::WideCharToMultiByte(CP_UTF8, 0, (LPCWSTR) u16.data(), u16.size(), nullptr, 0, nullptr, nullptr);
+    result.resize(len);
+    len = ::WideCharToMultiByte(CP_UTF8, 0, (LPCWSTR) u16.data(), u16.size(), result.data(), len, nullptr, nullptr);
+    return result;
+}
+
+#endif
+
 }
 
 NEKO_NS_END

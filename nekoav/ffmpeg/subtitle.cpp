@@ -8,6 +8,7 @@
 #include "../log.hpp"
 #include "../pad.hpp"
 #include "common.hpp"
+#include "ffmpeg.hpp"
 #include <functional>
 #include <algorithm>
 #include <array>
@@ -118,7 +119,7 @@ public:
         }
 #endif
     }
-    Vec<std::string> subtitles() override {
+    Vec<Properties> subtitles() override {
         return mSubtitles;
     }
     void setSubtitle(int idx) override {
@@ -219,15 +220,12 @@ public:
                 }
 #endif
 
-                // Add name
-                AVDictionary *metadata = stream->metadata;
-                auto title = av_dict_get(metadata, "title", nullptr, 0);
-                if (title) {
-                    mSubtitles.push_back(std::string(title->value));
+                // Add meta
+                Properties md;
+                for (auto [key, value] : IterDict(stream->metadata)) {
+                    md[key] = value;
                 }
-                else {
-                    mSubtitles.push_back(std::string());
-                }
+                mSubtitles.emplace_back(std::move(md));
             }
 #ifdef HAVE_ASS
             // Add embedded font
@@ -619,7 +617,7 @@ private:
     size_t           mRGBABufferSize = 0;
 
     // Subtitle Data here
-    Vec<std::string> mSubtitles; 
+    Vec<Properties> mSubtitles; 
     Vec<SubtitleStream*> mSubtitleStreams; //< Streams of subtitle
 
     // Mutex here, protect some shared vae like ASS_Renderer *

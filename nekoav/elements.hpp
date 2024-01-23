@@ -66,6 +66,12 @@ public:
      */
     std::string name() const;
     /**
+     * @brief Get the human readable string of the element
+     * 
+     * @return std::string 
+     */
+    std::string toDocoument() const;
+    /**
      * @brief Get the inputs pad 
      * 
      * @return std::span<Pad> 

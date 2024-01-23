@@ -66,6 +66,13 @@ extern NEKO_API Arc<Container> CreateContainer();
  */
 extern NEKO_API std::string DumpTopology(View<Container> container);
 /**
+ * @brief Show all elements in the container
+ * 
+ * @param container 
+ * @return NEKO_API 
+ */
+extern NEKO_API std::string DumpContainer(View<Container> container);
+/**
  * @brief Check element in this container has cycle
  * 
  * @param container 

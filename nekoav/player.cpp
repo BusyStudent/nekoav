@@ -26,8 +26,15 @@ public:
     Arc<Demuxer>     mDemuxer;
     Arc<MediaQueue>  mAudioQueue;
     Arc<MediaQueue>  mVideoQueue;
+    Arc<VideoSink>   mVideoSink;
+    Arc<AudioSink>   mAudioSink;
     Arc<SubtitleFilter> mSubtitleFilter;
     MediaController *mController = nullptr;
+
+    // Metadata from streams
+    Vec<Properties> mSubtitleStreams;
+    Vec<Properties> mAudioStreams;
+    Vec<Properties> mVideoStreams;
 };
 
 Player::Player() {
@@ -37,29 +44,94 @@ Player::~Player() {
     stop();
 }
 
+//
+//             VideoQueue -> Decoder -> VideoConverter -> SubtitleFilter(opt) -> [VFilters] -> VideoSink
+// Demuxer ->
+//             AudioQueue -> Decoder -> AudioConverter -> [AFilters] -> AudioSink
+//
+
 void *Player::addFilter(const Filter &filter) {
     // Print in hex
-    if (!GetElementFactory()->createElement(filter.name())) {
+    auto element = GetElementFactory()->createElement(filter.name());
+    if (!element) {
         // Unexists
         return nullptr;
     }
-    return &mFilters.emplace_back(filter);
+    // Previous filter
+    auto cookie = &mFilters.emplace_back(filter);
+    // Dynmaic add to if
+    if (!d || !d->mVideoSink) {
+        return cookie;
+    }
+    auto currentState = d->mPipeline->state();
+    d->mPipeline->setState(State::Paused);
+
+    auto pad = d->mVideoSink->findInput("sink");
+    auto prevElement = pad->peerElement();
+    auto prev = pad->peer();
+
+    prev->unlink();
+    LinkElements(prevElement, element, d->mVideoSink);
+
+
+    // Configure it
+    d->mPipeline->addElement(element);
+    if (filter.mConfigure) {
+        filter.mConfigure(*element);
+    }
+    element->setState(currentState);
+    cookie->mElement = element.get();
+
+    // Restore
+    d->mPipeline->setState(currentState);
+    return cookie;
 }
-void Player::removeFilter(void *where) {
+void Player::removeFilter(void *_where) {
+    Filter *where = static_cast<Filter *>(_where);
     if (where == nullptr) {
         return;
     }
-    for (auto it = mFilters.begin(); it != mFilters.end(); it++) {
+    std::list<Filter>::iterator it;
+    for (it = mFilters.begin(); it != mFilters.end(); it++) {
         if (&*it == where) {
-            mFilters.erase(it);
-            return;
+            break;
         }
     }
+    if (it == mFilters.end()) {
+        return;
+    }
+    // Dynmaic remove if
+    if (!d || !d->mVideoSink || !where->mElement) {
+        mFilters.erase(it);
+        return;
+    }
+    auto currentState = d->mPipeline->state();
+    d->mPipeline->setState(State::Paused);
+
+    // Configure it
+    auto prevPad = where->mElement->findInput("sink");
+    auto nextPad = where->mElement->findOutput("src");
+    auto prevElement = prevPad->peerElement();
+    auto nextElement = nextPad->peerElement();
+    nextPad->unlink();
+    prevPad->unlink();
+
+    LinkElements(prevElement, nextElement);
+
+    where->mElement->setState(State::Null);
+    d->mPipeline->removeElement(where->mElement);
+
+    // Restore
+    d->mPipeline->setState(currentState);
+    mFilters.erase(it);
 }
 
 void Player::setUrl(std::string_view url) {
     stop();
     mUrl = url;
+}
+void Player::setSubtitleUrl(std::string_view url) {
+    mSubtitleUrl = url;
 }
 void Player::setOptions(const Properties *options) {
     if (options) {
@@ -86,6 +158,11 @@ void Player::stop() {
     delete mThread;
     d.reset();
     mThread = nullptr;
+
+    // Reset all Filters elements info
+    for (auto &filter : mFilters) {
+        filter.mElement = nullptr;
+    }
 }
 void Player::setErrorCallback(std::function<void(Error, std::string_view)>&& callback) {
     mErrorCallback = std::move(callback);
@@ -97,7 +174,8 @@ void Player::setStateChangedCallback(std::function<void(State)>&& callback) {
     mStateChangedCallback = std::move(callback);
 }
 void Player::setPosition(double position) {
-    if (d && d->mPipeline) {
+    if (d && d->mPipeline && (mState == State::Running || mState == State::Paused)) {
+        // Only on Running / Pause, tell the pipeline set the position
         auto event = SeekEvent::make(position);
         d->mPipeline->sendEvent(event);
     }
@@ -249,6 +327,10 @@ void Player::_run() {
         return _error(err, "Fail to set state to running");
     }
     _setState(State::Running);
+
+#ifndef NDEBUG
+    fprintf(stderr, "%s\n", DumpContainer(d->mPipeline).c_str());
+#endif
 }
 void Player::_buildAudioPart() {
     auto factory = GetElementFactory();
@@ -256,14 +338,14 @@ void Player::_buildAudioPart() {
 
     auto decoder = factory->createElement<Decoder>();
     auto converter = factory->createElement<AudioConverter>();
-    auto audiosink = factory->createElement<AudioSink>();
+    d->mAudioSink = factory->createElement<AudioSink>();
 
     //< From Queue to sink
-    auto err = d->mPipeline->addElements(d->mAudioQueue, decoder, converter, audiosink);
+    auto err = d->mPipeline->addElements(d->mAudioQueue, decoder, converter, d->mAudioSink);
     if (err != Error::Ok) {
         return _error(err, "Fail to add audio elements");
     }
-    err = LinkElements(d->mAudioQueue, decoder, converter, audiosink);
+    err = LinkElements(d->mAudioQueue, decoder, converter, d->mAudioSink);
     if (err != Error::Ok) {
         return _error(err, "Fail to link audio elements");
     }
@@ -276,10 +358,10 @@ void Player::_buildVideoPart() {
 
     auto decoder = factory->createElement<Decoder>();
     auto converter = factory->createElement<VideoConverter>();
-    auto renderer = factory->createElement<VideoSink>();
+    d->mVideoSink = factory->createElement<VideoSink>();
 
     // From Queue to sink
-    auto err = d->mPipeline->addElements(d->mVideoQueue, decoder, converter, renderer);
+    auto err = d->mPipeline->addElements(d->mVideoQueue, decoder, converter, d->mVideoSink);
     if (err != Error::Ok) {
         return _error(err, "Fail to add video elements");
     }
@@ -336,7 +418,7 @@ void Player::_buildVideoPart() {
     }
 
     // Begin add filters into chain
-    for (const auto &filter : mFilters) {
+    for (auto &filter : mFilters) {
         auto currentElement = factory->createElement(filter.mName);
         if (!currentElement) {
             return _error(Error::InvalidArguments, libc::asprintf("Fail to create filter '%s'", filter.mName));
@@ -344,19 +426,22 @@ void Player::_buildVideoPart() {
         if (filter.mConfigure) {
             filter.mConfigure(*currentElement);
         }
+        // Store the element (for dyn add / remove)
+        filter.mElement = currentElement.get();
+        
         d->mPipeline->addElement(currentElement);
         LinkElements(prevElement, currentElement);
         prevElement = currentElement;
     }
 
     // Link the last element to renderer
-    err = LinkElements(prevElement, renderer);
+    err = LinkElements(prevElement, d->mVideoSink);
     if (err != Error::Ok) {
         return _error(err, "Fail to link video elements");
     }
 
-    renderer->setRenderer(mRenderer);
-    renderer->setName("NekoVideoSink");
+    d->mVideoSink->setRenderer(mRenderer);
+    d->mVideoSink->setName("NekoVideoSink");
     d->mVideoQueue->setName("NekoVideoQueue");
 }
 bool Player::_configureSubtitle() {

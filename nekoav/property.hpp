@@ -143,6 +143,7 @@ public:
     static constexpr const char *Title = "title";
     static constexpr const char *Artist = "artist";
     static constexpr const char *Album = "album";
+    static constexpr const char *Language = "language";
 
     //< HTTP
     static constexpr const char *HttpUserAgent = "HttpUserAgent";

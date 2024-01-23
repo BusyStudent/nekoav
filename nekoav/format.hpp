@@ -178,6 +178,23 @@ constexpr SampleFormat GetAltSampleFormat(SampleFormat fmt) noexcept {
     }
     return GetPlanarSampleFormat(fmt);
 }
+constexpr const char *GetSampleFormatName(SampleFormat fmt) noexcept {
+    switch (fmt) {
+        case SampleFormat::U8: return "U8";
+        case SampleFormat::S16: return "S16";
+        case SampleFormat::S32: return "S32";
+        case SampleFormat::FLT: return "FLT";
+        case SampleFormat::DBL: return "DBL";
+
+        case SampleFormat::U8P: return "U8P";
+        case SampleFormat::S16P: return "S16P";
+        case SampleFormat::S32P: return "S32P";
+        case SampleFormat::FLTP: return "FLTP";
+        case SampleFormat::DBLP: return "DBLP";
+        default:
+        case SampleFormat::None: return "None";
+    }
+}
 
 // PixelFormat here
 
@@ -196,7 +213,12 @@ constexpr bool IsHardwarePixelFormat(PixelFormat fmt) noexcept {
         PixelFormat::VAAPI,
         PixelFormat::VDPAU,
     };
-    return std::find(std::begin(hwfmts), std::end(hwfmts), fmt) != std::end(hwfmts);
+    for (const auto f : hwfmts) {
+        if (f == fmt) {
+            return true;
+        }
+    }
+    return false;
 }
 
 NEKO_NS_END

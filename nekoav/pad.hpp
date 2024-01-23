@@ -70,6 +70,12 @@ class NEKO_API Pad {
      */
     void setName(std::string_view name);
     /**
+     * @brief Get human readable string of this pad
+     * 
+     * @return std::string 
+     */
+    std::string toDocoument() const;
+    /**
      * @brief Get the name of the pad
      * 
      * @return std::string_view 

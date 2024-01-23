@@ -165,6 +165,24 @@ public:
 private:
     int mProgress;
 };
+/**
+ * @brief Event for Pad (Linked, Unlinked, Added, Removed)
+ * 
+ */
+class PadEvent : public Event {
+public:
+    PadEvent(Type type, Pad *pad, Element *sender) : Event(type, sender), mPad(pad) { }
+
+    Pad *pad() const noexcept {
+        return mPad;
+    }
+
+    static Arc<PadEvent> make(Type type, Pad *pad, Element *sender) {
+        return MakeShared<PadEvent>(type, pad, sender);
+    }
+private:
+    Pad *mPad = nullptr;
+};
 
 /**
  * @brief Register an event type
