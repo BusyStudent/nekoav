@@ -69,6 +69,11 @@ MediaPlayer::MediaPlayer(QObject *parent) : QObject(parent) {
                 d->mState = newState;
                 Q_EMIT playbackStateChanged(d->mState);
             }
+            // Loaded
+            if (state == NEKO_NAMESPACE::State::Ready) {
+                Q_EMIT tracksChanged();
+            }
+
         }, Qt::QueuedConnection);
     });
 }
@@ -122,6 +127,12 @@ void MediaPlayer::setHttpUserAgent(const QString &userAgent) {
 void MediaPlayer::setHttpReferer(const QString &referer) {
     d->mPlayer.setOption(Properties::HttpReferer, referer.toUtf8().constData());
 }
+void MediaPlayer::setLoops(int loops) {
+    d->mPlayer.setLoops(loops);
+}
+void MediaPlayer::setActiveSubtitleTrack(int n) {
+    d->mPlayer.setSubtitleStream(n);
+}
 // void *MediaPlayer::addFilter(const QString &string, const QVariantMap &parameters) {
 //     return d->mPlayer.addFilter(Filter(string.toUtf8().constData()));
 // }
@@ -161,6 +172,37 @@ QObject *MediaPlayer::videoOutput() const {
     return d->mVideoOutput;
 }
 
+qreal MediaPlayer::duration() const { 
+    return d->mPlayer.duration();
+}
+qreal MediaPlayer::position() const {
+    return d->mPlayer.position();
+}
+bool MediaPlayer::isSeekable() const {
+    return d->mPlayer.isSeekable();
+}
+
+static QStringList _translateTitleList(char **arrs) {
+    QStringList list;
+    for(int i = 0; arrs[i] != nullptr; i++){
+        list.append(arrs[i]);
+        libc::free(arrs[i]);
+    }
+    libc::free(arrs);
+    return list;
+}
+
+QStringList MediaPlayer::audioTracks() const {
+    return _translateTitleList(d->mPlayer._audioStreamTitles());
+}
+QStringList MediaPlayer::videoTracks() const {
+    return _translateTitleList(d->mPlayer._videoStreamTitles());
+}
+QStringList MediaPlayer::subtitleTracks() const {
+    return _translateTitleList(d->mPlayer._subtitleStreamTitles());
+}
+
+
 VideoWidget::VideoWidget(QWidget *parent) : QWidget(parent) {
     d = CreateVideoWidgetPrivate(this);
 }
@@ -197,16 +239,6 @@ void VideoWidget::paintEvent(QPaintEvent *event) {
 }
 void *VideoWidget::videoRenderer() {
     return static_cast<VideoRenderer*>(d);
-}
-
-qreal MediaPlayer::duration() const { 
-    return d->mPlayer.duration();
-}
-qreal MediaPlayer::position() const {
-    return d->mPlayer.position();
-}
-bool MediaPlayer::isSeekable() const {
-    return d->mPlayer.isSeekable();
 }
 
 }  // namespace QNekoAV

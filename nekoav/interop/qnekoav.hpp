@@ -79,9 +79,9 @@ public:
     explicit MediaPlayer(QObject *parent = nullptr);
     ~MediaPlayer();
 
-    // QList<MediaMetaData> audioTracks() const;
-    // QList<MediaMetaData> videoTracks() const;
-    // QList<MediaMetaData> subtitleTracks() const;
+    QStringList audioTracks() const;
+    QStringList videoTracks() const;
+    QStringList subtitleTracks() const;
 
     int activeAudioTrack() const;
     int activeVideoTrack() const;

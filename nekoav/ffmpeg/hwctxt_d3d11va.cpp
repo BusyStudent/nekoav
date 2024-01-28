@@ -8,6 +8,7 @@
 
 #ifndef NDEBUG
     #include <wrl/client.h>
+    #include "../libc.hpp"
     #include "../log.hpp"
 #endif
 
@@ -46,9 +47,7 @@ D3D11VAContext::D3D11VAContext(AVBufferRef *d3d11context) {
     DXGI_ADAPTER_DESC desc;
     adapter->GetDesc(&desc);
 
-    char buffer[1024] {0};
-    ::WideCharToMultiByte(CP_UTF8, 0, desc.Description, -1, buffer, sizeof(buffer), nullptr, nullptr);
-    NEKO_LOG("D3D11VA: Create Device, Adapter description {}", buffer);
+    NEKO_LOG("D3D11VA: Create Device, Adapter description {}", libc::to_utf8(desc.Description).c_str());
 #endif
 }
 D3D11VAContext::~D3D11VAContext() {

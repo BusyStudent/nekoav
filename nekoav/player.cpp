@@ -35,6 +35,13 @@ public:
     Vec<Properties> mSubtitleStreams;
     Vec<Properties> mAudioStreams;
     Vec<Properties> mVideoStreams;
+
+    // Title from streams
+    Vec<std::string_view> mSubtitleTitles;
+    Vec<std::string_view> mAudioTitles;
+    Vec<std::string_view> mVideoTitles;
+
+    int             mtLoopsCount = 0; //< Num Of current Loops
 };
 
 Player::Player() {
@@ -150,6 +157,15 @@ void Player::setOption(std::string_view key, std::string_view value) {
 
 void Player::setVideoRenderer(VideoRenderer* renderer) {
     mRenderer = renderer;
+}
+void Player::setLoops(int loops) {
+    mLoops = loops;
+}
+void Player::setSubtitleStream(int idx) {
+    if (!d || idx < 0 || idx >= d->mSubtitleStreams.size()) {
+        return;
+    }
+    d->mSubtitleFilter->setSubtitle(idx);
 }
 
 
@@ -290,7 +306,7 @@ void Player::_run() {
         return _error(err, "Fail to set pipeline state to ready");
     }
     // Connect Audio if
-    if (true) {
+    if (hasAudio()) {
         _buildAudioPart();
         for (auto pad : d->mDemuxer->outputs()) {
             if (pad->name().starts_with("audio")) {
@@ -303,7 +319,7 @@ void Player::_run() {
         return _error(err, "Fail to link audio elements");
     }
     // Connect Video if
-    if (mRenderer) {
+    if (mRenderer && hasVideo()) {
         _buildVideoPart();
         for (auto pad : d->mDemuxer->outputs()) {
             if (pad->name().starts_with("video")) {
@@ -315,7 +331,9 @@ void Player::_run() {
     if (err != Error::Ok) {
         return _error(err, "Fail to link video elements");
     }
-    
+    // Collect metadata
+    _collectMetadata();
+
     err = d->mPipeline->setState(State::Ready);
     if (err != Error::Ok) {
         return _error(err, "Fail to set state to ready");
@@ -391,7 +409,6 @@ void Player::_buildVideoPart() {
         // We use utf8 
         std::filesystem::path path(reinterpret_cast<const char8_t *>(mUrl.c_str()));
         std::u8string subtitleUrl;
-        path.replace_extension(".srt");
         if (path.replace_extension(".srt"); std::filesystem::exists(path)) {
             hasSubtitle = true;
             subtitleUrl = path.u8string();
@@ -463,12 +480,42 @@ bool Player::_configureSubtitle() {
     // Done
     return true;
 }
+void Player::_collectMetadata() {
+    if (d->mSubtitleFilter) {
+        d->mSubtitleStreams = d->mSubtitleFilter->subtitles();
+    }
+    // int videoIndex = 0;
+    // int audioIndex = 0;
+    for (const auto& stream : d->mDemuxer->outputs()) {
+        if (stream->name().starts_with("video")) {
+            Property prop = stream->property(Properties::Metadata);
+            if (prop.isMap()) {
+                auto &mp = prop.toMap();
+                d->mVideoStreams.emplace_back(mp.begin(), mp.end());
+            }
+            else {
+                d->mVideoStreams.push_back({});
+            }
+        }
+        else if (stream->name().starts_with("audio")) {
+            Property prop = stream->property(Properties::Metadata);
+            if (prop.isMap()) {
+                auto &mp = prop.toMap();
+                d->mAudioStreams.emplace_back(mp.begin(), mp.end());
+            }
+            else {
+                d->mAudioStreams.push_back({});
+            }
+        }
+    }
+}
 void Player::_translateEvent(View<Event> event) {
     switch (event->type()) {
         case Event::ClockUpdated: {
             if (mPositionCallback) {
                 mPositionCallback(event.viewAs<ClockEvent>()->position());
             }
+            constexpr auto v = __builtin_FILE();
             break;
         }
         case Event::ErrorOccurred: {
@@ -477,10 +524,60 @@ void Player::_translateEvent(View<Event> event) {
             break;
         }
         case Event::MediaEndOfFile: {
+            if (mLoops < 0) {
+                // INF Loops
+                setPosition(0);
+                break;
+            }
+            d->mtLoopsCount += 1;
+            if (d->mtLoopsCount <= mLoops) {
+                setPosition(0);
+                break;
+            }
             _setState(State::Null);
             break;
         }
     }
+}
+Vec<Properties> Player::audioStreams() const {
+    if (d) {
+        return d->mAudioStreams;
+    }
+    return {};
+}
+Vec<Properties> Player::videoStreams() const {
+    if (d) {
+        return d->mVideoStreams;
+    }
+    return {};
+}
+Vec<Properties> Player::subtitleStreams() const {
+    if (d) {
+        return d->mSubtitleStreams;
+    }
+    return {};
+}
+
+static char **_convertToTitleArray(Vec<Properties> &&vec) {
+    char **ret = (char**) libc::malloc(sizeof(char *) * (vec.size() + 1));
+    size_t i = 0;
+    for (; i < vec.size(); i++) {
+        auto title = vec[i][Properties::Title].toStringOr("");
+        ret[i] = (char*) libc::malloc(sizeof(char) * (title.size() + 1));
+        ::memcpy(ret[i], title.c_str(), title.size());
+        ret[i][title.size()] = '\0';
+    }
+    ret[i] = nullptr;
+    return ret;
+}
+char **Player::_audioStreamTitles() const {
+    return _convertToTitleArray(audioStreams());
+}
+char **Player::_videoStreamTitles() const {
+    return _convertToTitleArray(videoStreams());
+}
+char **Player::_subtitleStreamTitles() const {
+    return _convertToTitleArray(subtitleStreams());
 }
 
 NEKO_NS_END

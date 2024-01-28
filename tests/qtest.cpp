@@ -14,6 +14,7 @@
 #include <QMenu>
 #include <QAction>
 #include <QSlider>
+#include <QComboBox>
 #include <QLabel>
 #include <iostream>
 
@@ -64,6 +65,7 @@ int main(int argc, char **argv) {
     auto pauseBtn = new QPushButton("Pause");
     auto progressBar = new QSlider(Qt::Horizontal);
     auto videoWidget = new QNekoAV::VideoWidget;
+    auto subtitleComboBox = new QComboBox;
 
 
     layout->addLayout(sublay);
@@ -71,12 +73,15 @@ int main(int argc, char **argv) {
     sublay->addWidget(openUrlBtn);
     sublay->addWidget(pauseBtn);
     sublay->addWidget(progressBar);
+    sublay->addWidget(subtitleComboBox);
     layout->addWidget(videoWidget);
 
     layout->setContentsMargins(0, 0, 0, 0);
     sublay->setContentsMargins(0, 0, 0, 0);
 
     pauseBtn->setEnabled(false);
+    progressBar->setEnabled(false);
+    subtitleComboBox->setEnabled(false);
 
     QNekoMediaPlayer player;
     player.setVideoOutput(videoWidget);
@@ -140,8 +145,19 @@ int main(int argc, char **argv) {
         }
     });
 #endif
+    auto config = bar->addMenu("Configure");
+    auto loops = config->addAction("Loops");
+    loops->setCheckable(true);
+    QObject::connect(loops, &QAction::triggered, [&](bool checked) {
+        if (checked) {
+            player.setLoops(-1);
+        }
+        else {
+            player.setLoops(0);
+        }
+    });
 
-    QObject::connect( &player, &QNekoMediaPlayer::positionChanged, [&](double v) {
+    QObject::connect(&player, &QNekoMediaPlayer::positionChanged, [&](double v) {
         if (!progressBar->isSliderDown()) {
             progressBar->setValue(v);
         }
@@ -151,12 +167,24 @@ int main(int argc, char **argv) {
         NEKO_DEBUG(newState);
         if (newState == QNekoMediaPlayer::PlayingState) {
             progressBar->setRange(0, player.duration());
-            pauseBtn->setEnabled(player.isSeekable());
-            QMetaObject::invokeMethod(pauseBtn, "setEnabled", Q_ARG(bool, true));
+            pauseBtn->setEnabled(true);
+            progressBar->setEnabled(player.isSeekable());
+            subtitleComboBox->setEnabled(true);
         }
         else if (newState == QNekoMediaPlayer::StoppedState) {
             pauseBtn->setEnabled(false);
+            progressBar->setEnabled(false);
+            subtitleComboBox->setEnabled(false);
         }
+    });
+    QObject::connect(&player, &QNekoMediaPlayer::tracksChanged, [&]() {
+        subtitleComboBox->clear();
+        subtitleComboBox->addItems(player.subtitleTracks());
+    });
+    QObject::connect(subtitleComboBox,&QComboBox::currentIndexChanged, [&](int n) {
+        if (n != -1) {
+            player.setActiveSubtitleTrack(n);
+        } 
     });
 
     QObject::connect(btn, &QPushButton::clicked, [&](bool) {

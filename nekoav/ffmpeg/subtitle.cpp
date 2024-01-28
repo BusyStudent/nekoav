@@ -53,8 +53,10 @@ static constexpr std::array<std::string_view, 10> FontMimeTypes {
 // FIXME: add plain text subtitle
 
 // Subtitle Process function
-class SubtitleStream {
+class SubtitleStream final {
 public:
+    SubtitleStream() = default;
+    SubtitleStream(const SubtitleStream &) = delete;
     ~SubtitleStream() {
         for (auto &data : mAVSubtitles) {
             avsubtitle_free(&data);
@@ -83,7 +85,7 @@ public:
     } mType = None;
 };
 
-class SubtitleFilterImpl : public Impl<SubtitleFilter> {
+class SubtitleFilterImpl final : public Impl<SubtitleFilter> {
 public:
     SubtitleFilterImpl() {
         mSink = addInput("sink");
@@ -351,8 +353,12 @@ public:
     }
 
     void _addTextSubtitle(AVSubtitle &subtitle, SubtitleStream &stream) {
+        // TODO : Need Impl
         stream.mType = SubtitleStream::Text;
         stream.mAVSubtitles.emplace_back(subtitle);
+#ifndef NDEBUG
+        libc::breakpoint_if_debugging();
+#endif
     }
     void _addBitmapSubtitle(AVSubtitle &subtitle, SubtitleStream &stream) {
         stream.mType = SubtitleStream::Bitmap;

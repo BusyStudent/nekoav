@@ -1,6 +1,5 @@
 #define _NEKO_SOURCE
 #include "backtrace.hpp"
-#include "utils.hpp"
 #include "defs.hpp"
 #include "libc.hpp"
 #include <csignal>
@@ -147,9 +146,9 @@ const char *typenameof(const std::type_info &info) {
 
 FILE *u8fopen(const char *buffer, const char *mode) {
 #ifdef _WIN32
-    auto wpath = _Neko_Utf8ToUtf16(buffer);
-    auto wmode = _Neko_Utf8ToUtf16(mode);
-    return ::_wfopen(wpath.c_str(), wmode.c_str());
+    auto wpath = to_utf16(buffer);
+    auto wmode = to_utf16(mode);
+    return ::_wfopen(LPCWSTR(wpath.c_str()), LPCWSTR(wmode.c_str()));
 #else
     return ::fopen(buffer, mode);
 #endif

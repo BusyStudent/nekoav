@@ -41,6 +41,12 @@ int main() {
     NEKO_DEBUG(worker.invokeQueued(returnVector, 1, 6, 9, 114514, 996, 10086));
 
     NEKO_LOG("A");
+    NEKO_DEBUG(sizeof(std::string));
+    NEKO_DEBUG(sizeof(std::vector<int>));
+
+#ifdef _DEBUG
+    NEKO_DEBUG("_DEBUG");
+#endif
 
     try {
         worker.invokeQueued([]() {
@@ -101,4 +107,15 @@ int main() {
 
     NEKO_DEBUG(sizeof(std::string));
     NEKO_DEBUG(sizeof(std::vector<int>));
+
+    try {
+        NekoAV::ScopeExit onexit([]() {
+            NEKO_DEBUG("onexit");
+            NekoAV::Backtrace();
+        });
+        throw int(1);
+    }
+    catch (int) {
+        NEKO_DEBUG("catch int");
+    }
 }

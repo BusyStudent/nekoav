@@ -4,6 +4,7 @@
 #include "enum.hpp"
 #include <functional>
 #include <string>
+#include <span>
 #include <list>
 
 NEKO_NS_BEGIN
@@ -206,9 +207,22 @@ public:
     Vec<Properties> videoStreams() const;
     Vec<Properties> subtitleStreams() const;
 
+    // Streams for that env break the STL-ABI like Qt in debug
+    // Return a array of char *, end by nullptr, free the array item and the array with libc::free
+    char **_audioStreamTitles() const;
+    char **_videoStreamTitles() const;
+    char **_subtitleStreamTitles() const;
+
     void setAudioStream(int index);
     void setVideoStream(int index);
     void setSubtitleStream(int index);
+
+    /**
+     * @brief Set the Loops object 
+     * 
+     * @param loops The loops count (-1 on INF)
+     */
+    void setLoops(int loops);
 
     void play();
     void pause();
@@ -226,10 +240,12 @@ private:
     void _buildAudioPart();
     void _buildVideoPart();
     bool _configureSubtitle();
+    void _collectMetadata();
 
     Box<PlayerPrivate> d;
     Box<Properties> mOptions; //< The options for open
     Atomic<State>  mState { State::Null };
+    Atomic<int>    mLoops {0}; //< The number of loop 
     Thread        *mThread = nullptr; //< Work Thread
     VideoRenderer *mRenderer = nullptr;
     std::string    mUrl; //< The dest to 

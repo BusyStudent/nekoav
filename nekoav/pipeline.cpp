@@ -92,7 +92,8 @@ public:
             overrideState(GetTargetState(stateChange));
 
             // Handle clock here
-            if (stateChange == StateChange::Run) {
+            if (stateChange == StateChange::Run && !mTriggeredEndOfFile) {
+                // Not End and say run
                 mExternalClock.start();
             }
             if (stateChange == StateChange::Pause) {
@@ -313,6 +314,7 @@ private:
             if (!mTriggeredEndOfFile) {
                 NEKO_DEBUG(isEndOfFile);
                 mTriggeredEndOfFile = true;
+                mExternalClock.pause();
                 _sendBusEvent(ClockEvent::make(Event::ClockUpdated, mPosition, this));
                 _sendBusEvent(Event::make(Event::MediaEndOfFile, this));
             }

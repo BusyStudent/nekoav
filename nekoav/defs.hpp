@@ -151,6 +151,30 @@ protected:
 };
 
 /**
+ * @brief A RAII Helper for cleanup
+ * 
+ * @tparam T 
+ */
+template <typename T>
+class ScopeExit {
+public:
+    ScopeExit(T &&callback) : mCallback(std::move(callback)) { }
+    ScopeExit(const ScopeExit &) = delete;
+    ~ScopeExit() {
+        if (!mReleased) {
+            mCallback();
+        }
+    }
+
+    void release() noexcept {
+        mReleased = true;
+    }
+private:
+    T mCallback;
+    bool mReleased = false;
+};
+
+/**
  * @brief Helper for NEKO_CONSTRUCTOR
  * 
  * @tparam T 
