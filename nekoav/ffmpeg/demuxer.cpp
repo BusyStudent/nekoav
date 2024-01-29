@@ -136,6 +136,7 @@ public:
             // Require a seek
             mSeekPosition = event.viewAs<SeekEvent>()->position();
             mSeekRequested = true;
+            mEof = false;
         }
         return Error::Ok;
     }

@@ -395,6 +395,7 @@ public:
     }
 
     void _processBitmapSubtitle(View<MediaFrame> input, SubtitleStream &stream) {
+        // FIXME: Broken cache in switch subtitle stream
         // Search target pts
         int64_t pts = input->timestamp() * 1000;
         if (mCurrentAVSubtitle) {

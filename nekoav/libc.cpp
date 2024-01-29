@@ -39,11 +39,11 @@ void  painc(const char *msg, std::source_location loc) {
     ::_lock_file(stderr);
 #endif
 
-    fprintf(stderr, "\033[31m");
-    fputs(msg, stderr);
-    fprintf(stderr, "FILE: %s:%d FUNCTION: %s\n", loc.file_name(), int(loc.line()), loc.function_name());
+    ::fprintf(stderr, "\033[31m");
+    ::fputs(msg, stderr);
+    ::fprintf(stderr, "FILE: %s:%d FUNCTION: %s\n", loc.file_name(), int(loc.line()), loc.function_name());
     Backtrace();
-    fprintf(stderr, "\033[0m");
+    ::fprintf(stderr, "\033[0m");
 
 #ifdef _WIN32
     ::_unlock_file(stderr);

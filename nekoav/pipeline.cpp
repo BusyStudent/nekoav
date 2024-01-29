@@ -129,8 +129,11 @@ public:
         for (const auto &elem : mElements) {
             // FIXME : If seek failed???
             if (event->type() == Event::SeekRequested) {
-                mExternalClock.setPosition(event.viewAs<SeekEvent>()->position());
+                auto seekPosition = event.viewAs<SeekEvent>()->position();
+                mExternalClock.setPosition(seekPosition);
+                mExternalClock.start(); //< Start if paused
                 mTriggeredEndOfFile = false;
+                mPosition = seekPosition;
             }
             NEKO_TRACE_TIME(duration) {
                 elem->sendEvent(event);
