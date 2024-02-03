@@ -49,6 +49,9 @@ target("nekoav")
     if is_plat("windows") then
         add_links("user32", "gdi32")
         add_defines("NOMINMAX")
+        
+        -- D2D Renderer
+        add_files("elements/videorender/d2d_render.cpp")
     end
 
     if is_mode("release") then 

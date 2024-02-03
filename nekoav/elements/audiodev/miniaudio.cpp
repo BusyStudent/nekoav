@@ -29,7 +29,7 @@ public:
     ~MiniAudioDevice() {
         close();
     }
-    bool open(SampleFormat format, int rate, int channels) {
+    bool open(SampleFormat format, int rate, int channels) override {
         close();
 
         ma_format fmt;

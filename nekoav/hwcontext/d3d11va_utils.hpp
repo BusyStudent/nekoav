@@ -53,7 +53,7 @@ public:
             .InputHeight = inputHeight,
             .OutputWidth = outputWidth,
             .OutputHeight = outputHeight,
-            .Usage = D3D11_VIDEO_USAGE_OPTIMAL_QUALITY,
+            .Usage = mVideoUsage,
         };
         ComPtr<ID3D11VideoProcessorEnumerator> videoProcessorEnumerator;
         auto hr = mVideoDevice->CreateVideoProcessorEnumerator(&processorDesc, &videoProcessorEnumerator);
@@ -232,6 +232,10 @@ public:
         NEKO_ASSERT(!isInitialized());
         mOutputTextureUsage = usage;
     }
+    void setVideoUsage(D3D11_VIDEO_USAGE usage) noexcept {
+        NEKO_ASSERT(!isInitialized());
+        mVideoUsage = usage;
+    }
 
     ID3D11Texture2D *inputTexture() const noexcept {
         return mInputTexture.Get();
@@ -258,6 +262,7 @@ private:
     UINT mOutputTextureMiscFlags = 0;
     D3D11_USAGE mInputTextureUsage = D3D11_USAGE_DEFAULT;
     D3D11_USAGE mOutputTextureUsage = D3D11_USAGE_DEFAULT;
+    D3D11_VIDEO_USAGE mVideoUsage = D3D11_VIDEO_USAGE_OPTIMAL_QUALITY;
 
     ComPtr<ID3D11Device>        mDevice;
     ComPtr<ID3D11DeviceContext> mContext;

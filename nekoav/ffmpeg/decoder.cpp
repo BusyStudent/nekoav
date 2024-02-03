@@ -8,7 +8,12 @@
 #include "ffmpeg.hpp"
 
 #ifdef _WIN32
+    #define HAVE_D3D11VA
     #include "../hwcontext/d3d11va.hpp"
+    extern "C" {
+        #include <libavutil/hwcontext.h>
+        #include <libavutil/hwcontext_d3d11va.h>
+    }
 #endif
 
 NEKO_NS_BEGIN
@@ -77,7 +82,7 @@ public:
             }
             if (drop) {
                 // Drop 
-                NEKO_LOG("Packet({}) in pts {}, want pts {}, drop !", packet->stream()->codecpar->codec_type, pts, mSeekTime);
+                // NEKO_LOG("Packet({}) in pts {}, want pts {}, drop !", packet->stream()->codecpar->codec_type, pts, mSeekTime);
                 return Error::Ok;
             }
 
@@ -168,21 +173,28 @@ public:
             mCtxt->get_format = [](struct AVCodecContext *s, const enum AVPixelFormat * fmt) {
                 auto self = static_cast<FFDecoderImpl*>(s->opaque);
                 auto p = fmt;
+                auto outputFormat = *p;
                 while (*p != AV_PIX_FMT_NONE) {
-                    if (*p == self->mHardwareFmt) {
-                        return self->mHardwareFmt;
+                    outputFormat = *p;
+                    if (outputFormat == self->mHardwareFmt) {
+                        break;
                     }
                     if (*(p + 1) == AV_PIX_FMT_NONE) {
                         // Fallback
-                        return *p;
+                        break;
                     }
                     p ++;
                 }
-                ::abort();
-                return AV_PIX_FMT_NONE;
+                // Init for hw frame if needed
+#ifdef HAVE_D3D11VA
+                if (outputFormat == AV_PIX_FMT_D3D11) {
+                    self->_initHardwareFrameD3D11();
+                }
+#endif
+                return outputFormat;
             };
 
-#ifdef _WIN32
+#ifdef HAVE_D3D11VA
             if (hardwareType == AV_HWDEVICE_TYPE_D3D11VA) {
                 auto d3d11Context = D3D11VAContext::create(this);
                 if (!d3d11Context) {
@@ -217,6 +229,28 @@ public:
         avcodec_free_context(&mCtxt);
         return Error::Unknown;
     }
+#ifdef HAVE_D3D11VA
+    Error _initHardwareFrameD3D11() {
+        NEKO_DEBUG("Try Init D3D11 HW Frame, add D3D11_RESOURCE_MISC_SHARED MiscFlags");
+
+        int ret = avcodec_get_hw_frames_parameters(mCtxt, mCtxt->hw_device_ctx, AV_PIX_FMT_D3D11, &mCtxt->hw_frames_ctx);
+        if (ret < 0) {
+            av_buffer_unref(&mCtxt->hw_frames_ctx);
+            return ToError(ret);
+        }
+        auto frameCtxt = reinterpret_cast<AVHWFramesContext *>(mCtxt->hw_frames_ctx->data);
+        auto hwctxt = reinterpret_cast<AVD3D11VAFramesContext *>(frameCtxt->hwctx);
+        // hwctxt->BindFlags = D3D11_BIND_DECODER | D3D11_BIND_SHADER_RESOURCE;
+        hwctxt->MiscFlags = D3D11_RESOURCE_MISC_SHARED;
+        ret = av_hwframe_ctx_init(mCtxt->hw_frames_ctx);
+        if (ret < 0) {
+            av_buffer_unref(&mCtxt->hw_frames_ctx);
+            return ToError(ret);
+        }
+        NEKO_DEBUG("Done Init D3D11 HW Frame");
+        return Error::Ok;
+    }
+#endif
     Error setHardwarePolicy(HardwarePolicy policy) override {
         mHardwarePolicy = policy;
         return Error::Ok;

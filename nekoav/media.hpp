@@ -54,6 +54,7 @@ public:
         Channels, 
         SampleRate,
         SampleCount,  //< Number of samples, per channel
+        KeyFrame,     //< Is KeyFrame ?
         Timestamp,    //< Only for set
         Duration,     //< Only for set
     };
@@ -67,6 +68,9 @@ public:
     inline  auto sampleCount() const -> int { return query(Value::SampleCount); }
     inline  auto sampleFormat() const -> SampleFormat { return SampleFormat(format()); }
     inline  auto pixelFormat() const -> PixelFormat { return PixelFormat(format()); }
+
+    inline  auto size() const -> std::pair<int, int> { return {width(), height()}; }
+    inline  auto isKeyFrame() const -> bool { return query(Value::KeyFrame); }
 
     template <typename T>
     inline  auto data(int plane) -> T { return reinterpret_cast<T>(data(plane)); }
