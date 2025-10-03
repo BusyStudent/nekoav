@@ -2,6 +2,7 @@
 
 #include <nekoav/defines.hpp>
 #include <nekoav/format.hpp>
+#include <nekoav/caps.hpp>
 #include <variant>
 #include <chrono>
 #include <memory>
@@ -23,15 +24,6 @@ using Duration = NanoSeconds;
 class Sample;
 class Frame;
 class Packet;
-
-/**
- * @brief The rational, taken from ffmpeg, i don't want to expose ffmpeg's header in public header
- * 
- */
-struct Rational {
-    int num; ///< Numerator
-    int den; ///< Denominator
-};
 
 /**
  * @brief The bultin rtti for sample, make cast faster on frequency use type
@@ -68,6 +60,8 @@ public:
     // Cast
     auto isFrame() const -> bool { return mRtti == SampleRtti::Frame; }
     auto isPacket() const -> bool { return mRtti == SampleRtti::Packet; }
+    auto toFrame() -> Frame *;
+    auto toPacket() -> Packet *;
 private:
     Timestamp  mPts = {};
     Timestamp  mDts = {};
@@ -150,5 +144,14 @@ private:
     AVPacket *mPacket = nullptr; // Placeholder for AVPacket*
     Rational mTimeBase = {0, 1};
 };
+
+// Impl
+inline auto Sample::toFrame() -> Frame * {
+    return isFrame() ? static_cast<Frame *>(this) : nullptr;
+}
+
+inline auto Sample::toPacket() -> Packet * {
+    return isPacket() ? static_cast<Packet *>(this) : nullptr;
+}
 
 } // namespace nekoav

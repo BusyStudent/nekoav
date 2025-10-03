@@ -5,6 +5,16 @@
 #include <system_error>
 #include <chrono>
 
+#if defined(__cpp_lib_format)
+    #include <format>
+#else
+    #define NEKOAV_NO_LOG
+#endif // __cpp_lib_format
+
+#if defined(NDEBUG)
+    #define NEKOAV_NO_LOG
+#endif // NDEBUG
+
 extern "C" {
     #include <libavutil/avutil.h>
     #include <libavutil/frame.h>
@@ -146,8 +156,46 @@ namespace sample_fmt {
     }
 } // namespace sample_fmt
 
+namespace logger {
+
+#if defined(NEKOAV_NO_LOG)
+    inline auto info(auto &&...) -> void {}
+    inline auto error(auto &&...) -> void {}
+    inline auto warn(auto &&...) -> void {}
+    inline auto debug(auto &&...) -> void {}
+    inline auto verbose(auto &&...) -> void {}
+#else
+    template <typename... Args>
+    inline auto doLog(int level, std::format_string<Args...> fmt, Args &&...args) -> void {
+        ::av_log(nullptr, level, "%s\n", std::format(fmt, std::forward<Args>(args)...).c_str());
+    }
+
+    template <typename... Args>
+    inline auto info(std::format_string<Args...> fmt, Args &&...args) -> void {
+        doLog(AV_LOG_INFO, fmt, std::forward<Args>(args)...);
+    }
+
+    template <typename... Args>
+    inline auto error(std::format_string<Args...> fmt, Args &&...args) -> void {
+        doLog(AV_LOG_ERROR, fmt, std::forward<Args>(args)...);
+    }
+
+    template <typename... Args>
+    inline auto warn(std::format_string<Args...> fmt, Args &&...args) -> void {
+        doLog(AV_LOG_WARNING, fmt, std::forward<Args>(args)...);
+    }
+    
+    template <typename... Args>
+    inline auto debug(std::format_string<Args...> fmt, Args &&...args) -> void {
+        doLog(AV_LOG_DEBUG, fmt, std::forward<Args>(args)...);
+    }
+#endif // NEKOAV_NO_LOG
+
+} // namespace logger
+
+
 namespace error {
 
-} // error
+} // namespace error
 
 } // namespace nekoav

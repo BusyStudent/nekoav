@@ -2,6 +2,7 @@
 
 #include <nekoav/defines.hpp>
 #include <nekoav/sample.hpp>
+#include <nekoav/caps.hpp>
 #include <memory>
 #include <string>
 #include <vector>
@@ -64,7 +65,7 @@ enum class PadType {
  */
 class Pad {
 public:
-    Pad(Element &element, PadType type) : mElement(element), mType(type) {}
+    Pad(Element &element, PadType type, std::string_view name) : mElement(element), mType(type), mName(name) {}
     Pad(const Pad &) = delete;
     ~Pad() { unlink(); }
 
@@ -106,7 +107,44 @@ public:
     }
 
     /**
+     * @brief Get the peer pad
+     * 
+     * @return Pad* 
+     */
+    auto peer() const -> Pad * {
+        return mPeer;
+    }
+
+    /**
+     * @brief Get the peer element
+     * 
+     * @return Element* 
+     */
+    auto peerElement() const -> Element * {
+        return mPeer ? &mPeer->mElement : nullptr;
+    }
+
+    /**
+     * @brief Get the caps
+     * 
+     * @return Caps& 
+     */
+    auto caps() const -> const Caps & {
+        return mCaps;
+    }
+
+    /**
+     * @brief Get the mutable caps, only for the element
+     * 
+     * @return Caps& 
+     */
+    auto mutableCaps() -> Caps & {
+        return mCaps;
+    }
+
+    /**
      * @brief Push the sample to the peer pad
+     * @note This method is not `CANCELLATION SAFE`, the push element should use unstoppable to protected it
      * 
      * @param sample The shared_ptr of the Sample
      * @return IoTask<void> (Err on ublink or other element has error happened)
@@ -163,6 +201,7 @@ private:
     PadType     mType;
     std::string mName;
     Pad        *mPeer = nullptr; // The peer pad this pad is linked to.
+    Caps        mCaps;
 
     // Callbacks
     Callback    mCallback = nullptr;
@@ -188,6 +227,12 @@ public:
     virtual ~Element();
 
     /**
+     * @brief Dump the information of the element on the console (for debug)
+     * 
+     */
+    auto dumpInfo(FILE *where = stderr) -> void { dumpInfoInternal(where, 0); };
+
+    /**
      * @brief Asynchronously transitions the element to a new state.
      * 
      * The framework will automatically calculate the required intermediate state transitions.
@@ -202,6 +247,13 @@ public:
      *         On failure, the element's state is set to `Error`, and the task returns an error.
      */
     auto setState(State targetState) -> IoTask<void>;
+
+    /**
+     * @brief Set the new name of the element
+     * 
+     * @param name if empty, we will set an unique name of it
+     */
+    auto setName(std::string_view name) -> void;
 
     /**
      * @brief Get the input pad list
@@ -237,7 +289,16 @@ public:
      * @return State 
      */
     auto state() const -> State { return mState; }
+
+    /**
+     * @brief Get the name of the element.
+     * 
+     * @return std::string_view 
+     */
+    auto name() const -> std::string_view { return mName; }
 protected:
+    virtual auto dumpInfoInternal(FILE *where, int level) -> void;
+
     /**
      * @brief Doing the initialize
      * 
@@ -276,6 +337,7 @@ private:
 
     // Name
     std::string mName;
+friend class Bin;
 };
 
 /**
@@ -288,13 +350,67 @@ public:
 
     Bin(std::string_view name = {});
     ~Bin();
+
+    /**
+     * @brief Add an element to the bin
+     * 
+     * @param element The shared_ptr of the element (if nullptr, no-op)
+     */
+    auto addElement(Element::Ptr element) -> void;
+
+    /**
+     * @brief Remove an element from the bin
+     * 
+     * @param element The shared_ptr of the element (if nullptr, no-op)
+     * @return true We successfully removed the element
+     * @return false Not removed (maybe the element is not in the bin)
+     */
+    auto removeElement(Element::Ptr element) -> bool;
+
+    /**
+     * @brief Check the bin is empty
+     * 
+     * @return true 
+     * @return false 
+     */
+    auto empty() const -> bool { return mChildren.empty(); }
 private:
+    // Dump
+    auto dumpInfoInternal(FILE *where, int level) -> void override;
+
+    // State management
+    auto onInitialize() -> IoTask<void> override;
+    auto onPrepare() -> IoTask<void> override;
+    auto onRun() -> IoTask<void> override;
+    auto onPause() -> IoTask<void> override;
+    auto onStop() -> IoTask<void> override;
+    auto onTeardown() -> IoTask<void> override;
+
+    auto setChildrenState(State newState) -> IoTask<void>;
+
     // Child elements
     std::vector<Element::Ptr> mChildren;
 };
 
 // Utils function
-auto linkElement() -> bool;
+/**
+ * @brief Link two elements together via their pads.
+ * 
+ * @param src The source element
+ * @param srcPad The name of the source pad
+ * @param dst The destination element
+ * @param dstPad The name of the destination pad
+ * @return true Success
+ * @return false Not linked (maybe the pad not found, or already linked)
+ */
+extern auto linkElement(Element &src, std::string_view srcPad, Element &dst, std::string_view dstPad) -> bool;
 
+/**
+ * @brief Get the string representation of a State enum value.
+ * 
+ * @param state 
+ * @return std::string_view 
+ */
+extern auto toString(State state) -> std::string_view;
 
 } // namespace nekoav

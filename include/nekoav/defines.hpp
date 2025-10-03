@@ -19,4 +19,8 @@ using ilias::IoTask;
 using ilias::Task;
 using ilias::Err;
 
+// Utiks
+template <typename ...Ts>
+struct Overloads : Ts... { using Ts::operator()...; };
+
 } // namespace nekoav

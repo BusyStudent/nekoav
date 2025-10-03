@@ -13,7 +13,8 @@ auto ErrorCategory::message(int code) const -> std::string {
         std::array<std::string_view, N> arr{};
 
         arr[static_cast<size_t>(Error::Ok)]                      = "No error";
-        arr[static_cast<size_t>(Error::NoLink)]                  = "Pad is not linked";
+        arr[static_cast<size_t>(Error::NotLinked)]               = "Pad is not linked";
+        arr[static_cast<size_t>(Error::NoPushCallback)]          = "Pad push callback is not set";
         arr[static_cast<size_t>(Error::InvalidTopology)]         = "Invalid pipeline topology";
 
         arr[static_cast<size_t>(Error::NoImpl)]                  = "Function not implemented";

@@ -17,8 +17,8 @@ enum class Error : int {
     Ok = 0,                  //< No error
 
     // Topology / Pad
-    NoLink,                  //< Pad is not linked
-    NoPushCallback,          //< Pad's push callback is not set
+    NotLinked,               //< Pad is not linked
+    NoPushCallback,          //< Pad push callback is not set
     InvalidTopology,         //< Invalid pipeline topology
 
     // User / API misuse

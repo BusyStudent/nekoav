@@ -1,5 +1,8 @@
 #include <nekoav/element.hpp>
 #include <nekoav/error.hpp>
+#include <ilias/task.hpp>
+#include <ranges>
+#include "internal.hpp"
 
 namespace nekoav {
 
@@ -24,16 +27,18 @@ namespace {
         else if (cur == State::Ready && target == State::Null) {
             return StateChange::Teardown;
         }
-        throw std::runtime_error("Invalid State");
+        logger::error("Invalid state transition from {} to {}", toString(cur), toString(target));
+        ::abort(); // Invalid state transition
     }
 } // clac
 
 // Pad
 auto Pad::push(Sample::Ptr sample) -> IoTask<void> {
     if (!isLinked()) {
-        co_return Err(Error::NoLink);
+        co_return Err(Error::NotLinked);
     }
     if (!mPeer->mCallback) {
+        logger::debug("No push callback set on pad '{}'", mPeer->name());
         co_return Err(Error::NoPushCallback);
     }
     co_return co_await mPeer->mCallback(*mPeer, std::move(sample));
@@ -113,6 +118,13 @@ auto Element::setState(State targetState) -> IoTask<void> {
     co_return {};
 }
 
+auto Element::setName(std::string_view name) -> void {
+    mName = name;
+    if (mName.empty()) {
+        mName = "#Element " + std::to_string(std::bit_cast<uintptr_t>(this));
+    }
+}
+
 auto Element::onInitialize() -> IoTask<void> { 
     co_return {}; 
 }
@@ -138,11 +150,160 @@ auto Element::onTeardown() -> IoTask<void> {
 }
 
 auto Element::createInputPad(std::string_view name) -> Pad & {
-    return mInputs.emplace_back(*this, PadType::Input);
+    return mInputs.emplace_back(*this, PadType::Input, name);
 }
 
 auto Element::createOutputPad(std::string_view name) -> Pad & {
-    return mOutputs.emplace_back(*this, PadType::Output);
+    return mOutputs.emplace_back(*this, PadType::Output, name);
+}
+
+auto Element::dumpInfoInternal(FILE *where, int level) -> void {
+    auto dumpValue = [&](auto &self, const Value &value) {
+        const auto visitor = Overloads {
+            [&](auto &_) {
+                ::fprintf(where, "unsupport now\n");
+            },
+            [&](const std::string &str) {
+                ::fprintf(where, "'%s'", str.data());
+            },
+            [&](int64_t num) {
+                ::fprintf(where, "%lld", num);
+            },
+            [&](bool b) {
+                ::fprintf(where, "%s", b ? "true" : "false");
+            },
+        };
+        value.visit(visitor);
+        ::fprintf(where, "\n");
+    };
+    auto dumpCaps = [&](const Caps &caps, int lv) {
+        for (auto &[name, value] : caps) {
+            ::fprintf(where, "%*s Caps: '%s' : ", lv, "", name.data());
+            dumpValue(dumpValue, value);
+        }
+    };
+    auto dumpPad = [&](Pad &pad, int lv) {
+        ::fprintf(where, "%*s Pad: '%s'\n", lv, "", pad.name().data());
+        ::fprintf(where, "%*s isLinked: %s\n", lv + 2, "", pad.isLinked() ? "true" : "false");
+        dumpCaps(pad.caps(), lv + 2);
+    };
+
+
+    ::fprintf(where, "%*sElement: '%s', State: %s\n", level, "", mName.c_str(), toString(mState).data());
+    if (!mInputs.empty()) {
+        ::fprintf(where, "%*s  Input Pads:\n", level, "");
+        for (auto &pad : mInputs) {
+            dumpPad(pad, level + 2);
+        }
+    }
+    if (!mOutputs.empty()) {
+        ::fprintf(where, "%*s  Output Pads:\n", level, "");
+        for (auto &pad : mOutputs) {
+            dumpPad(pad, level + 2);
+        }
+    }
+}
+
+// Bin
+Bin::Bin(std::string_view name) : Element(name) {
+
+}
+
+Bin::~Bin() {
+
+}
+
+// Emm? maybe we should make setState to virtual ?
+auto Bin::addElement(Element::Ptr element) -> void {
+    if (!element) {
+        return;
+    }
+    mChildren.emplace_back(std::move(element));
+}
+
+auto Bin::removeElement(Element::Ptr element) -> bool {
+    if (!element) {
+        return false;
+    }
+    auto it = std::ranges::find(mChildren, element);
+    if (it != mChildren.end()) {
+        mChildren.erase(it);
+        return true;
+    }
+    return false;
+}
+
+auto Bin::dumpInfoInternal(FILE * where, int level) -> void {
+    Element::dumpInfoInternal(where, level);
+    ::fprintf(where, "%*s  Children:\n", level, "");
+    for (auto &child : mChildren) {
+        child->dumpInfoInternal(where, level + 4);
+    }
+}
+
+auto Bin::onInitialize() -> IoTask<void> {
+    logger::info("[Bin] '{}' initializing children", name());
+    return setChildrenState(State::Ready);
+}
+
+auto Bin::onPrepare() -> IoTask<void> {
+    logger::info("[Bin] '{}' preparing children", name());
+    return setChildrenState(State::Paused);
+}
+
+auto Bin::onRun() -> IoTask<void> {
+    logger::info("[Bin] '{}' running children", name());
+    return setChildrenState(State::Running);
+}
+
+auto Bin::onPause() -> IoTask<void> {
+    logger::info("[Bin] '{}' pausing children", name());
+    return setChildrenState(State::Paused);
+}
+
+auto Bin::onStop() -> IoTask<void> {
+    logger::info("[Bin] '{}' stopping children", name());
+    return setChildrenState(State::Ready);
+}
+
+auto Bin::onTeardown() -> IoTask<void> {
+    logger::info("[Bin] '{}' tearing down children", name());
+    return setChildrenState(State::Null);
+}
+
+auto Bin::setChildrenState(State newState) -> IoTask<void> {
+    auto group = ilias::TaskGroup<IoResult<void> >{};
+    for (auto &child : mChildren) {
+        group.spawn(child->setState(newState));
+    }
+    // Wait for all children to finish
+    for (auto res : co_await group.waitAll()) {
+        if (!res) {
+            co_return Err(res.error());
+        }
+    }
+    co_return {};
+}
+
+// Utils
+auto linkElement(Element &src, std::string_view srcPadName, Element &dst, std::string_view dstPadName) -> bool {
+    auto srcPad = std::ranges::find_if(src.outputs(), [&](auto &pad) { return pad.name() == srcPadName; });
+    auto dstPad = std::ranges::find_if(dst.inputs(), [&](auto &pad) { return pad.name() == dstPadName; });
+    if (srcPad != src.outputs().end() && dstPad != dst.inputs().end()) {
+        return srcPad->link(*dstPad);
+    }
+    return false;
+}
+
+auto toString(State state) -> std::string_view {
+    switch (state) {
+        case State::Null:    return "Null";
+        case State::Ready:   return "Ready";
+        case State::Paused:  return "Paused";
+        case State::Running: return "Running";
+        case State::Error:   return "Error";
+        default:             return "Unknown"; // Impossible!
+    }
 }
 
 } // namespace nekoav
