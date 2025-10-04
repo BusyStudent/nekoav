@@ -1,4 +1,4 @@
-#include <nekoav/queue.hpp>
+#include <nekoav/elements/queue.hpp>
 #include <ilias/task.hpp>
 #include <ilias/sync.hpp>
 #include <deque>
@@ -75,7 +75,7 @@ auto Queue::doPull() -> Task<void> {
             d->queueHasSample.clear();
             auto [_, pause] = co_await ilias::whenAny(d->queueHasSample.wait(), d->pauseRequested.wait());
             if (pause) { // The queue is paused or something, return immediately
-                logger::info("[Queue] paused got, pull worker quiting");
+                logger::info("[Queue] '{}' paused got, pull worker quiting", name());
                 co_return;
             }
         }
@@ -85,8 +85,8 @@ auto Queue::doPull() -> Task<void> {
 
         // Push it to the pad
         if (auto res = co_await ilias::unstoppable(d->out->push(std::move(sample))); !res) {
-            // Failed to push, what shout i do?
-            logger::error("[Queue] failed to push sample to the pad => {}", res.error().message());
+            logger::error("[Queue] '{}' failed to push sample to the pad => {}", name(), res.error().message());
+            setErrorState(res.error());
             co_return;
         }
     }

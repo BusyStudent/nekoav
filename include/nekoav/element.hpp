@@ -326,6 +326,13 @@ protected:
      * @return Pad & 
      */
     auto createOutputPad(std::string_view name) -> Pad &;
+
+    /**
+     * @brief Set the element into error state, if bus is available, we will send an error event to the bus
+     * 
+     * @param errc The error code
+     */
+    auto setErrorState(std::error_code errc) -> void;
 private:
     // Pads
     PadList mInputs;
@@ -357,6 +364,14 @@ public:
      * @param element The shared_ptr of the element (if nullptr, no-op)
      */
     auto addElement(Element::Ptr element) -> void;
+
+    /**
+     * @brief Add an element to the bin and sync the new Element to the bin state
+     * 
+     * @param element The shared_ptr of the element (if nullptr, no-op)
+     * @return IoTask<void> 
+     */
+    auto addElementSync(Element::Ptr element) -> IoTask<void>;
 
     /**
      * @brief Remove an element from the bin

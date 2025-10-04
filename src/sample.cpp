@@ -90,4 +90,20 @@ Packet::~Packet() {
     av_packet_free(&mPacket);
 }
 
+auto Packet::make(AVPacket *avpacket, Rational timeBase) -> Ptr {
+    assert(avpacket);
+    auto ptr = std::make_shared<Packet>();
+
+    // Fill the packet part
+    ptr->mPacket = avpacket;
+    ptr->mTimeBase = timeBase;
+
+    // Fill the sample part
+    auto ffTimeBase = AVRational {timeBase.num, timeBase.den};
+    ptr->mPts = time::fromFFmpeg(avpacket->pts, ffTimeBase);
+    ptr->mDts = time::fromFFmpeg(avpacket->dts, ffTimeBase);
+    ptr->mDuration = time::fromFFmpeg(avpacket->duration, ffTimeBase);
+    return ptr;
+}
+
 } // namespace nekoav

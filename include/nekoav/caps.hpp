@@ -31,6 +31,7 @@ class Value {
 public:
     using List    = std::vector<Value>;
     using Map     = std::map<std::string, Value, std::less<> >;
+    using Bytes   = std::vector<std::byte>;
     using Storage = std::variant<
         std::monostate,
         std::string,
@@ -40,6 +41,7 @@ public:
         SampleFormat,
         Rational,
         std::chrono::nanoseconds,
+        Bytes,
         List,
         Map
     >;
@@ -61,6 +63,7 @@ public:
     auto isSampleFormat() const noexcept { return std::holds_alternative<SampleFormat>(mStorage); }
     auto isRational() const noexcept { return std::holds_alternative<Rational>(mStorage); }
     auto isDuration() const noexcept { return std::holds_alternative<std::chrono::nanoseconds>(mStorage); }
+    auto isBytes() const noexcept { return std::holds_alternative<Bytes>(mStorage); }
     auto isList() const noexcept { return std::holds_alternative<List>(mStorage); }
     auto isMap() const noexcept { return std::holds_alternative<Map>(mStorage); }
 
@@ -72,6 +75,7 @@ public:
     auto toSampleFormat() const -> SampleFormat { return std::get<SampleFormat>(mStorage); }
     auto toRational() const -> Rational { return std::get<Rational>(mStorage); }
     auto toDuration() const -> std::chrono::nanoseconds { return std::get<std::chrono::nanoseconds>(mStorage); }
+    auto toBytes() const -> const Bytes & { return std::get<Bytes>(mStorage); }
     auto toList() const -> const List & { return std::get<List>(mStorage); }
     auto toMap() const -> const Map & { return std::get<Map>(mStorage); }
 
@@ -120,6 +124,7 @@ public:
     static constexpr auto VideoRaw = "video/raw"sv;
     static constexpr auto AudioPacket = "audio/packet"sv;
     static constexpr auto AudioRaw = "audio/raw"sv;
+    static constexpr auto SubtitlePacket = "subtitle/packet";
     static constexpr auto Any = "any"sv;
 
     // Somple builtin name
@@ -130,6 +135,13 @@ public:
     static constexpr auto Channels = "channels"sv;
     static constexpr auto SampleRate = "sampleRate"sv;
     static constexpr auto Duration = "duration"sv;
+    static constexpr auto Codec = "codec"sv;
+    static constexpr auto CodecExtraData = "codecExtraData"sv;
+    static constexpr auto Bitrate = "bitrate"sv;
+    static constexpr auto FrameRate = "frameRate"sv;
+
+    // Internal name
+    static constexpr auto CodecParams = "codecParams"sv;
 
     Caps(const Caps &) = default;
     Caps(Caps &&) = default;

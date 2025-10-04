@@ -6,7 +6,7 @@
 
 namespace nekoav {
 
-// State calc
+// Some internals
 namespace {
     auto stateChangeOf(State cur, State target) -> StateChange {
         if (cur == State::Null && target == State::Ready) {
@@ -30,7 +30,68 @@ namespace {
         logger::error("Invalid state transition from {} to {}", toString(cur), toString(target));
         ::abort(); // Invalid state transition
     }
-} // clac
+
+    auto dumpValue(FILE *where, const Value &value) -> void {
+        const auto visitor = Overloads {
+            [&](auto &_) {
+                ::fprintf(where, "not impl yet");
+            },
+            [&](const std::string &str) {
+                ::fprintf(where, "'%s'", str.c_str());
+            },
+            [&](int64_t num) {
+                ::fprintf(where, "%lld", num);
+            },
+            [&](double num) {
+                ::fprintf(where, "%lf", num);
+            },
+            [&](bool b) {
+                ::fprintf(where, "%s", b ? "true" : "false");
+            },
+            [&](std::monostate) {
+                ::fprintf(where, "null");
+            },
+            [&](PixelFormat fmt) {
+                ::fprintf(where, "%s", toString(fmt).data());
+            },
+            [&](SampleFormat fmt) {
+                ::fprintf(where, "%s", toString(fmt).data());
+            },
+            [&](std::chrono::nanoseconds ns) {
+                if (ns.count() % 1'000'000 == 0) {
+                    ::fprintf(where, (std::to_string(ns.count() / 1'000'000) + "ms").c_str());
+                }
+                else {
+                    ::fprintf(where, (std::to_string(ns.count()) + "ns").c_str());
+                }
+            },
+            [&](Rational r) {
+                ::fprintf(where, "%d / %d", r.num, r.den);
+            },
+            [&](const Value::Bytes &bytes) {
+                ::fprintf(where, "bytes[%zu]", bytes.size());
+            },
+            [&](const Value::List &list) {
+                ::fprintf(where, "[");
+                for (auto &value : list) {
+                    dumpValue(where, value);
+                    ::fprintf(where, ", ");
+                }
+                ::fprintf(where, "]");
+            },
+            [&](const Value::Map &map) {
+                ::fprintf(where, "{");
+                for (auto &[key, value] : map) {
+                    ::fprintf(where, "'%s': ", key.c_str());
+                    dumpValue(where, value);
+                    ::fprintf(where, ", ");
+                }
+                ::fprintf(where, "}");
+            },
+        };
+        value.visit(visitor);
+    };
+} // namespace
 
 // Pad
 auto Pad::push(Sample::Ptr sample) -> IoTask<void> {
@@ -157,29 +218,17 @@ auto Element::createOutputPad(std::string_view name) -> Pad & {
     return mOutputs.emplace_back(*this, PadType::Output, name);
 }
 
+auto Element::setErrorState(std::error_code errc) -> void {
+    // TODO: Handle error
+    mState = State::Error;
+}
+
 auto Element::dumpInfoInternal(FILE *where, int level) -> void {
-    auto dumpValue = [&](auto &self, const Value &value) {
-        const auto visitor = Overloads {
-            [&](auto &_) {
-                ::fprintf(where, "unsupport now\n");
-            },
-            [&](const std::string &str) {
-                ::fprintf(where, "'%s'", str.data());
-            },
-            [&](int64_t num) {
-                ::fprintf(where, "%lld", num);
-            },
-            [&](bool b) {
-                ::fprintf(where, "%s", b ? "true" : "false");
-            },
-        };
-        value.visit(visitor);
-        ::fprintf(where, "\n");
-    };
     auto dumpCaps = [&](const Caps &caps, int lv) {
         for (auto &[name, value] : caps) {
-            ::fprintf(where, "%*s Caps: '%s' : ", lv, "", name.data());
-            dumpValue(dumpValue, value);
+            ::fprintf(where, "%*s Caps: '%s' : ", lv, "", name.c_str());
+            dumpValue(where, value);
+            ::fprintf(where, "\n");
         }
     };
     auto dumpPad = [&](Pad &pad, int lv) {

@@ -2,6 +2,7 @@
 
 #include <nekoav/defines.hpp>
 #include <nekoav/format.hpp>
+#include <nekoav/error.hpp>
 #include <system_error>
 #include <chrono>
 
@@ -195,7 +196,19 @@ namespace logger {
 
 
 namespace error {
+    inline auto fromFFmpeg(int err) -> std::error_code {
+        switch (err) {
+            case 0: return Error::Ok;
+            case AVERROR_DECODER_NOT_FOUND: return Error::NoCodec;
+            case AVERROR_STREAM_NOT_FOUND:  return Error::NoStream;
+            default:                        return Error::External; // from ffmpeg
+        }
+    }
 
+    inline auto toString(int err) -> std::string {
+        char buf[AV_ERROR_MAX_STRING_SIZE] = {0};
+        return av_make_error_string(buf, sizeof(buf), err);
+    }
 } // namespace error
 
 } // namespace nekoav
