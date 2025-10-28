@@ -23,6 +23,7 @@ target("nekoav")
     set_kind("shared")
     
     add_includedirs("src")
+    add_defines("_NEKOAV_SOURCE")
     add_files("src/**.cpp")
 target_end()
 

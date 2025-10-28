@@ -7,7 +7,6 @@
 #include <string>
 #include <vector>
 #include <array>
-#include <list>
 #include <bit>
 
 namespace nekoav {
@@ -63,7 +62,7 @@ enum class PadType {
  * Pads are used to establish the data flow pipeline. An output pad of one element
  * can be linked to an input pad of another.
  */
-class Pad {
+class NEKOAV_API Pad {
 public:
     Pad(Element &element, PadType type, std::string_view name) : mElement(element), mType(type), mName(name) {}
     Pad(const Pad &) = delete;
@@ -212,7 +211,7 @@ private:
  * @brief Base class for all media processing elements.
  * 
  */
-class Element : public std::enable_shared_from_this<Element> {
+class NEKOAV_API Element : public std::enable_shared_from_this<Element> {
 public:
     using Ptr = std::shared_ptr<Element>;
     using PadList = std::list<Pad>;
@@ -296,6 +295,9 @@ public:
      * @return std::string_view 
      */
     auto name() const -> std::string_view { return mName; }
+
+    // No copy
+    auto operator =(const Element &) = delete;
 protected:
     virtual auto dumpInfoInternal(FILE *where, int level) -> void;
 
@@ -351,7 +353,7 @@ friend class Bin;
  * @brief The Bin element can contain multiple child elements and manage them as a single unit.
  * 
  */
-class Bin : public Element {
+class NEKOAV_API Bin : public Element {
 public:
     using Ptr = std::shared_ptr<Bin>;
 
@@ -418,7 +420,7 @@ private:
  * @return true Success
  * @return false Not linked (maybe the pad not found, or already linked)
  */
-extern auto linkElement(Element &src, std::string_view srcPad, Element &dst, std::string_view dstPad) -> bool;
+extern NEKOAV_API auto linkElement(Element &src, std::string_view srcPad, Element &dst, std::string_view dstPad) -> bool;
 
 /**
  * @brief Get the string representation of a State enum value.
@@ -426,6 +428,6 @@ extern auto linkElement(Element &src, std::string_view srcPad, Element &dst, std
  * @param state 
  * @return std::string_view 
  */
-extern auto toString(State state) -> std::string_view;
+extern NEKOAV_API auto toString(State state) -> std::string_view;
 
 } // namespace nekoav

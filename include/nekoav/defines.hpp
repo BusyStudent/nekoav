@@ -8,7 +8,20 @@
 // Memory management
 #include <memory>
 
-#define NEKOAV_API // TODO: Add export macro
+#if defined(_MSC_VER)
+    #define NEKOAV_EXPORT __declspec(dllexport)
+    #define NEKOAV_IMPORT __declspec(dllimport)
+#else
+    #define NEKOAV_EXPORT __attribute__((visibility("default")))
+    #define NEKOAV_IMPORT __attribute__((visibility("default")))
+#endif // _MSC_VER
+
+#if defined(_NEKOAV_SOURCE)
+    #define NEKOAV_API NEKOAV_EXPORT
+#else
+    #define NEKOAV_API NEKOAV_IMPORT
+#endif // _NEKOAV_SOURCE
+
 #define KEKOAV_THROW(exp) throw exp
 
 namespace nekoav {

@@ -10,7 +10,7 @@ namespace nekoav {
  * @brief The queue, it will receive the data from in pads and push it to the out pad
  * 
  */
-class Queue final : public Element {
+class NEKOAV_API Queue final : public Element {
 public:
     Queue(std::string_view name = {});
     ~Queue();

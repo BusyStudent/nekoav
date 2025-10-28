@@ -39,7 +39,7 @@ enum class SampleRtti : uint8_t {
  * @brief The data passed between elements.
  * 
  */
-class Sample : public std::enable_shared_from_this<Sample> {
+class NEKOAV_API Sample : public std::enable_shared_from_this<Sample> {
 public:
     using Ptr = std::shared_ptr<Sample>;
 
@@ -76,7 +76,7 @@ friend class Packet;
  * @brief A Frame of raw data, usually uncompressed. wrapping AVFrame.
  * 
  */
-class Frame : public Sample {
+class NEKOAV_API Frame : public Sample {
 public:
     using Ptr = std::shared_ptr<Frame>;
 
@@ -124,7 +124,7 @@ private:
  * @brief A Packet of encoded data, usually compressed. wrapping AVPacket.
  * 
  */
-class Packet : public Sample {
+class NEKOAV_API Packet : public Sample {
 public:
     using Ptr = std::shared_ptr<Packet>;
 

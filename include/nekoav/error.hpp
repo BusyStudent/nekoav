@@ -52,7 +52,7 @@ enum class Error : int {
  * @param err 
  * @return std::error_code 
  */
-auto make_error_code(Error err) noexcept -> std::error_code;
+extern NEKOAV_API auto make_error_code(Error err) noexcept -> std::error_code;
 
 } // namespace nekoav
 

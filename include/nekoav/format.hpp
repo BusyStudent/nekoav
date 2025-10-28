@@ -66,7 +66,7 @@ enum class SampleFormat : int {
     _Max, // The number of sample formats, don't use this in code.
 };
 
-auto toString(PixelFormat fmt) -> std::string_view;
-auto toString(SampleFormat fmt) -> std::string_view;
+extern NEKOAV_API auto toString(PixelFormat fmt) -> std::string_view;
+extern NEKOAV_API auto toString(SampleFormat fmt) -> std::string_view;
 
 } // namespace nekoav
