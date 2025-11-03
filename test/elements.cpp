@@ -33,17 +33,20 @@ ILIAS_TEST(Core, Queue) {
 ILIAS_TEST(Core, UrlSource) {
     auto bin = std::make_shared<Bin>("MyBin");
     auto source = std::make_shared<UrlSource>("MySource");
+    auto queue = std::make_shared<Queue>("MyQueue");
     auto print = std::make_shared<PrintElement>();
     source->setUrl("https://gstreamer.freedesktop.org/data/media/sintel_trailer-480p.webm");
 
     bin->addElement(source);
+    bin->addElement(queue);
     bin->addElement(print);
 
     // Make the source loaded
     EXPECT_TRUE(co_await bin->setState(State::Paused));
     
     // Do connect here
-    EXPECT_TRUE(linkElement(*source, source->videoOutputs().at(0)->name(), *print, "in"));
+    EXPECT_TRUE(linkElement(*source, source->videoOutputs().at(0)->name(), *queue, "in"));
+    EXPECT_TRUE(linkElement(*queue, "out", *print, "in"));
 
     // Run 
     EXPECT_TRUE(co_await bin->setState(State::Running));

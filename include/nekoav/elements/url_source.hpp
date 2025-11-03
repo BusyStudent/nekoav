@@ -44,6 +44,7 @@ public:
      */
     auto subtitleOutputs() -> std::vector<Pad *>;
 private:
+    // State
     auto onInitialize() -> IoTask<void> override;
     auto onTeardown() -> IoTask<void> override;
 
@@ -52,7 +53,11 @@ private:
 
     auto onPrepare() -> IoTask<void> override;
 
-    // FFmpeh
+    // Query / Event from Pad
+    auto onPadQuery(Pad &pad, const Query &query) -> IoResult<Reply>;
+    auto onPadEvent(Pad &pad, const Event &event) -> IoTask<void>;
+
+    // FFmpeg
     auto readWorker() -> Task<void>;
     auto interruptCallback() -> int;
 

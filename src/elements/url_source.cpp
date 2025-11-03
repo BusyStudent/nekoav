@@ -128,6 +128,8 @@ auto UrlSource::onPrepare() -> IoTask<void> {
 
         // Binding
         d->padsMapping[idx] = pad;
+        pad->setEventCallback<&UrlSource::onPadEvent>(this);
+        pad->setQueryCallback<&UrlSource::onPadQuery>(this);
     }
 
     // Start the worker
@@ -147,6 +149,23 @@ auto UrlSource::onPause() -> IoTask<void> {
     assert(d);
     d->runningEvent.clear();
     co_return {};
+}
+
+auto UrlSource::onPadEvent(Pad &pad, const Event &event) -> IoTask<void> {
+    co_return {};
+}
+
+auto UrlSource::onPadQuery(Pad &pad, const Query &query) -> IoResult<Reply> {
+    if (query.isDuration()) { // QueryDuration
+        if (!d) {
+            return Err(Error::InvalidState);
+        }
+        return Reply::Duration { Duration(d->ctxt->duration / AV_TIME_BASE) };
+    }
+    if (query.isCaps()) { // QueryCaps
+        return Reply::Caps { pad.caps() };
+    }
+    return Reply::Unavailable {};
 }
 
 auto UrlSource::readWorker() -> Task<void> {

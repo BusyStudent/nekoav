@@ -16,10 +16,6 @@ extern "C" {
 
 namespace nekoav {
 
-using NanoSeconds = std::chrono::nanoseconds;
-using Timestamp = NanoSeconds;
-using Duration = NanoSeconds;
-
 // Forward declare
 class Sample;
 class Frame;

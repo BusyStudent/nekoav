@@ -2,11 +2,14 @@
 
 #include <nekoav/defines.hpp>
 #include <nekoav/sample.hpp>
+#include <nekoav/event.hpp>
+#include <nekoav/query.hpp>
 #include <nekoav/caps.hpp>
 #include <memory>
 #include <string>
 #include <vector>
 #include <array>
+#include <list>
 #include <bit>
 
 namespace nekoav {
@@ -151,6 +154,25 @@ public:
     auto push(Sample::Ptr sample) -> IoTask<void>;
 
     /**
+     * @brief Push the event to the peer pad, 
+     *  it will automatically go upstream or downstream by the type (input for upstream, output for downstream)
+     * @note This method is not `CANCELLATION SAFE`, the push element should use unstoppable to protected it
+     * 
+     * @param event The event
+     * @return IoTask<void> 
+     */
+    auto pushEvent(Event event) -> IoTask<void>;
+
+    /**
+     * @brief Send an sync query to the peer pad and wait for the reply, 
+     *  it will automatically go upstream or downstream if element can't reply (input for upstream, output for downstream)
+     * 
+     * @param query 
+     * @return IoResult<Reply> 
+     */
+    auto sendQuery(Query query) -> IoResult<Reply>;
+
+    /**
      * @brief Set the callbak when the pad is pushed
      * 
      * @tparam Method 
@@ -165,13 +187,41 @@ public:
         assert(&mElement == obj && "The obj must be the element this pad belongs to");
         auto callable = [args...](Pad &self, Sample::Ptr sample) -> IoTask<void> {
             auto &obj = static_cast<Object &>(self.mElement);
-            return (obj.*Method)(std::move(sample), args...);
+            return (obj.*Method)(self, std::move(sample), args...);
         };
-        static_assert(sizeof(callable) <= sizeof(mUser), "The callable is too large");
-        static_assert(std::is_trivially_copyable_v<decltype(callable)>, "The callable must be trivially copyable");
-        static_assert(std::is_trivially_destructible_v<decltype(callable)>, "The callable must be trivially destructible");
-        ::memcpy(mUser.data(), &callable, sizeof(callable));
-        mCallback = &Pad::proxy<decltype(callable)>;
+        typeEraseTo(callable, mPushUser);
+        mPushCallback = &Pad::pushProxy<decltype(callable)>;
+    }
+
+    /**
+     * @brief Set the callback when the event happened
+     * 
+     * @tparam Method 
+     * @tparam Object 
+     * @tparam Args 
+     */
+    template <auto Method, typename Object, typename ...Args>
+        requires (std::is_base_of_v<Element, Object>)
+    auto setEventCallback(Object *obj, Args ...args) -> void {
+        assert(&mElement == obj && "The obj must be the element this pad belongs to");
+        auto callable = [args...](Pad &self, Event &event) -> IoTask<void> {
+            auto &obj = static_cast<Object &>(self.mElement);
+            return (obj.*Method)(self, event, args...);
+        };
+        typeEraseTo(callable, mEventUser);
+        mEventCallback = &Pad::eventProxy<decltype(callable)>;
+    }
+
+    template <auto Method, typename Object, typename ...Args>
+        requires (std::is_base_of_v<Element, Object>)
+    auto setQueryCallback(Object *obj, Args ...args) -> void {
+        assert(&mElement == obj && "The obj must be the element this pad belongs to");
+        auto callable = [args...](Pad &self, Query &query) -> IoResult<Reply> {
+            auto &obj = static_cast<Object &>(self.mElement);
+            return (obj.*Method)(self, query, args...);
+        };
+        typeEraseTo(callable, mQueryUser);
+        mQueryCallback = &Pad::queryProxy<decltype(callable)>;
     }
 
     /**
@@ -179,20 +229,60 @@ public:
      * 
      */
     auto setPushCallback(std::nullptr_t) -> void {
-        mCallback = nullptr;
-        mUser.fill(std::byte{0});
+        mPushCallback = nullptr;
+        mPushUser.fill(std::byte{0});
+    }
+
+    auto setEventCallback(std::nullptr_t) -> void {
+        mEventCallback = nullptr;
+        mEventUser.fill(std::byte{0});
+    }
+
+    auto setQueryCallback(std::nullptr_t) -> void {
+        mQueryCallback = nullptr;
+        mQueryUser.fill(std::byte{0});
     }
 private:
-    // The callback when the pad is pushed
-    using Callback = auto (*)(Pad &self, Sample::Ptr sample) -> IoTask<void>;
+    // The callback when the pad is pushed or event happened
+    using QueryCallback = auto (*)(Pad &self, Query &query) -> IoResult<Reply>;
+    using EventCallback = auto (*)(Pad &self, Event &event) -> IoTask<void>;
+    using PushCallback = auto (*)(Pad &self, Sample::Ptr sample) -> IoTask<void>;
     using UserData = std::array<std::byte, sizeof(void*) * 3>; // Small size optimization for the callback
 
+    // Type erase utils
     template <typename Callable>
-    static auto proxy(Pad &self, Sample::Ptr sample) -> IoTask<void> {
+    static auto typeEraseTo(const Callable &callable, UserData &array) -> void {
+        static_assert(sizeof(callable) <= sizeof(UserData), "The callable is too large");
+        static_assert(std::is_trivially_copyable_v<Callable>, "The callable must be trivially copyable");
+        static_assert(std::is_trivially_destructible_v<Callable>, "The callable must be trivially destructible");
+        ::memcpy(array.data(), &callable, sizeof(Callable));
+    }
+
+    template <typename Callable>
+    static auto typeUnerase(const UserData &data) -> Callable {
         auto array = std::array<std::byte, sizeof(Callable)>{};
-        ::memcpy(array.data(), self.mUser.data(), sizeof(Callable));
-        auto callable = std::bit_cast<Callable>(array);
+        ::memcpy(array.data(), data.data(), sizeof(Callable));
+        return std::bit_cast<Callable>(array);
+    }
+
+    // Proxy for push callback
+    template <typename Callable>
+    static auto pushProxy(Pad &self, Sample::Ptr sample) -> IoTask<void> {
+        auto callable = typeUnerase<Callable>(self.mPushUser);
         return callable(self, std::move(sample));
+    }
+
+    // Proxy for event callback
+    template <typename Callable>
+    static auto eventProxy(Pad &self, Event &event) -> IoTask<void> {
+        auto callable = typeUnerase<Callable>(self.mEventUser);
+        return callable(self, event);
+    }
+
+    template <typename Callable>
+    static auto queryProxy(Pad &self, Query &query) -> IoResult<Reply> {
+        auto callable = typeUnerase<Callable>(self.mQueryUser);
+        return callable(self, query);
     }
 
     // Datas
@@ -203,8 +293,14 @@ private:
     Caps        mCaps;
 
     // Callbacks
-    Callback    mCallback = nullptr;
-    UserData    mUser = {};
+    PushCallback mPushCallback = nullptr;
+    UserData     mPushUser = {};
+
+    EventCallback mEventCallback = nullptr;
+    UserData      mEventUser = {};
+
+    QueryCallback mQueryCallback = nullptr;
+    UserData      mQueryUser = {};
 };
 
 /**

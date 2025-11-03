@@ -60,7 +60,7 @@ auto Queue::onPause() -> IoTask<void> {
     co_return {};
 }
 
-auto Queue::onPush(Sample::Ptr sample) -> IoTask<void> {
+auto Queue::onPush(Pad &, Sample::Ptr sample) -> IoTask<void> {
     while (d->queue.size() >= d->queueCapacity) { // Wait for space
         co_await d->queueHasSpace;
     }

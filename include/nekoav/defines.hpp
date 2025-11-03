@@ -8,6 +8,9 @@
 // Memory management
 #include <memory>
 
+// Time
+#include <chrono>
+
 #if defined(_MSC_VER)
     #define NEKOAV_EXPORT __declspec(dllexport)
     #define NEKOAV_IMPORT __declspec(dllimport)
@@ -31,6 +34,19 @@ using ilias::IoResult;
 using ilias::IoTask;
 using ilias::Task;
 using ilias::Err;
+
+// Time
+using Timestamp = std::chrono::nanoseconds;
+using Duration = std::chrono::nanoseconds;
+
+// Forward declarations
+class Element;
+class Value;
+class Event;
+class Query;
+class Reply;
+class Caps;
+class Pad;
 
 // Utiks
 template <typename ...Ts>

@@ -98,11 +98,76 @@ auto Pad::push(Sample::Ptr sample) -> IoTask<void> {
     if (!isLinked()) {
         co_return Err(Error::NotLinked);
     }
-    if (!mPeer->mCallback) {
+    if (!mPeer->mPushCallback) {
         logger::debug("No push callback set on pad '{}'", mPeer->name());
         co_return Err(Error::NoPushCallback);
     }
-    co_return co_await mPeer->mCallback(*mPeer, std::move(sample));
+    co_return co_await mPeer->mPushCallback(*mPeer, std::move(sample));
+}
+
+auto Pad::pushEvent(Event event) -> IoTask<void> {
+    auto walkToUp = mType == PadType::Input; // If self is input pad, we walk upstream
+    auto cur = peer();
+    if (cur) {
+        auto &element = cur->mElement;
+        logger::info("[Pad] push event to element '{}', pad '{}'", element.name(), cur->name());
+        if (cur->mEventCallback) {
+            if (auto res = co_await cur->mEventCallback(*cur, event); !res) {
+                logger::error("Failed to push event to pad '{}': {}", cur->name(), res.error().message());
+                co_return Err(res.error());
+            }
+            if (event.consumed()) {
+                co_return {};
+            }
+        }
+        // Continue walk
+        if (walkToUp) {
+            for (auto &pad : element.inputs()) {
+                if (auto res = co_await pad.pushEvent(event); !res) {
+                    co_return Err(res.error());
+                }
+            }
+        }
+        else {
+            for (auto &pad : element.outputs()) {
+                if (auto res = co_await pad.pushEvent(event); !res) {
+                    co_return Err(res.error());
+                }
+            }
+        }
+    }
+    co_return {};
+}
+
+auto Pad::sendQuery(Query query) -> IoResult<Reply> {
+    auto walkToUp = mType == PadType::Input; // If self is input pad, we walk upstream
+    auto cur = peer();
+    if (cur) {
+        auto &element = cur->mElement;
+        logger::info("[Pad] send query to element '{}', pad '{}'", element.name(), cur->name());
+        if (cur->mQueryCallback) {
+            auto res = cur->mQueryCallback(*cur, query);
+            if (res != Reply::Unavailable {}) { // Error or value got
+                return res;
+            }
+        }
+        // Continue
+        if (walkToUp) {
+            for (auto &pad : element.inputs()) {
+                if (auto res = pad.sendQuery(query); res != Reply::Unavailable {}) {
+                    return res;
+                }
+            }
+        }
+        else {
+            for (auto &pad : element.outputs()) {
+                if (auto res = pad.sendQuery(query); res != Reply::Unavailable {}) {
+                    return res;
+                }
+            }
+        }
+    }
+    return Reply::Unavailable {};
 }
 
 // Element
