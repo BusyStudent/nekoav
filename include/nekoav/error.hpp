@@ -32,8 +32,8 @@ enum class Error : int {
     NoCodec,                 //< No codec found
     UnsupportedMediaFormat,  //< Unsupported media format
     UnsupportedPixelFormat,  //< Unsupported pixel format
-    UnsupportedSampleFormat, //< Unsupported sample format
-    UnsupportedResource,     //< Unsupported resource type 
+    UnsupportedAudioFormat,  //< Unsupported audio format
+    UnsupportedSampleType,   //< Unsupported sample type 
 
     // Resource / system
     OutOfMemory,             //< Out of memory

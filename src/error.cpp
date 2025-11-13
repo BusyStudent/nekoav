@@ -8,9 +8,10 @@ auto ErrorCategory::name() const noexcept -> const char * {
 }
 
 auto ErrorCategory::message(int code) const -> std::string {
-    static auto const array = []() consteval {
+    static auto constexpr array = []() consteval {
         constexpr size_t N = static_cast<size_t>(Error::Unknown) + 1;
         std::array<std::string_view, N> arr{};
+        arr.fill("Error code message missing");
 
         arr[static_cast<size_t>(Error::Ok)]                      = "No error";
         arr[static_cast<size_t>(Error::NotLinked)]               = "Pad is not linked";
@@ -26,8 +27,8 @@ auto ErrorCategory::message(int code) const -> std::string {
         arr[static_cast<size_t>(Error::NoCodec)]                 = "No codec found";
         arr[static_cast<size_t>(Error::UnsupportedMediaFormat)]  = "Unsupported media format";
         arr[static_cast<size_t>(Error::UnsupportedPixelFormat)]  = "Unsupported pixel format";
-        arr[static_cast<size_t>(Error::UnsupportedSampleFormat)] = "Unsupported sample format";
-        arr[static_cast<size_t>(Error::UnsupportedResource)]     = "Unsupported resource type";
+        arr[static_cast<size_t>(Error::UnsupportedAudioFormat)]  = "Unsupported audio format";
+        arr[static_cast<size_t>(Error::UnsupportedSampleType)]   = "Unsupported sample type";
 
         arr[static_cast<size_t>(Error::OutOfMemory)]             = "Out of memory";
         arr[static_cast<size_t>(Error::FileNotFound)]            = "File not found";
@@ -38,7 +39,7 @@ auto ErrorCategory::message(int code) const -> std::string {
         arr[static_cast<size_t>(Error::Unknown)]                 = "Unknown error";
         return arr;
     }();
-    if (code < 0 || code > array.size()) {
+    if (code < 0 || code >= array.size()) {
         return "Invalid error code";
     }
     return std::string(array[code]);

@@ -70,7 +70,7 @@ struct SecondElement : Element {
         co_return {};
     }
 
-    auto onQuery(Pad &, Query &query) -> IoResult<Reply> {
+    auto onQuery(Pad &, Query &query) -> std::optional<Reply> {
         EXPECT_EQ(query, Query::Duration {});
         std::cout << "Query arrive: " << &query << std::endl;
         return Reply::Duration {10ms};

@@ -1,7 +1,9 @@
 #include <nekoav/element.hpp>
 #include <nekoav/error.hpp>
 #include <ilias/task.hpp>
+#include <unordered_map>
 #include <ranges>
+#include <queue>
 #include "internal.hpp"
 
 namespace nekoav {
@@ -94,6 +96,7 @@ namespace {
 } // namespace
 
 // Pad
+#pragma region Pad
 auto Pad::push(Sample::Ptr sample) -> IoTask<void> {
     if (!isLinked()) {
         co_return Err(Error::NotLinked);
@@ -139,7 +142,7 @@ auto Pad::pushEvent(Event event) -> IoTask<void> {
     co_return {};
 }
 
-auto Pad::sendQuery(Query query) -> IoResult<Reply> {
+auto Pad::sendQuery(Query query) -> std::optional<Reply> {
     auto walkToUp = mType == PadType::Input; // If self is input pad, we walk upstream
     auto cur = peer();
     if (cur) {
@@ -147,30 +150,31 @@ auto Pad::sendQuery(Query query) -> IoResult<Reply> {
         logger::info("[Pad] send query to element '{}', pad '{}'", element.name(), cur->name());
         if (cur->mQueryCallback) {
             auto res = cur->mQueryCallback(*cur, query);
-            if (res != Reply::Unavailable {}) { // Error or value got
+            if (res) {
                 return res;
             }
         }
         // Continue
         if (walkToUp) {
             for (auto &pad : element.inputs()) {
-                if (auto res = pad.sendQuery(query); res != Reply::Unavailable {}) {
+                if (auto res = pad.sendQuery(query); res) {
                     return res;
                 }
             }
         }
         else {
             for (auto &pad : element.outputs()) {
-                if (auto res = pad.sendQuery(query); res != Reply::Unavailable {}) {
+                if (auto res = pad.sendQuery(query); res) {
                     return res;
                 }
             }
         }
     }
-    return Reply::Unavailable {};
+    return std::nullopt;
 }
 
 // Element
+#pragma region Element
 Element::Element(std::string_view name) : mName(name) {
     if (mName.empty()) {
         mName = "#Element " + std::to_string(std::bit_cast<uintptr_t>(this));
@@ -319,6 +323,7 @@ auto Element::dumpInfoInternal(FILE *where, int level) -> void {
 }
 
 // Bin
+#pragma region Bin
 Bin::Bin(std::string_view name) : Element(name) {
 
 }
@@ -333,6 +338,21 @@ auto Bin::addElement(Element::Ptr element) -> void {
         return;
     }
     mChildren.emplace_back(std::move(element));
+    mSorted = false;
+}
+
+auto Bin::addElementSync(Element::Ptr element) -> IoTask<void> {
+    if (!element) {
+        co_return Err(Error::InvalidArguments);
+    }
+    mChildren.emplace_back(element);
+    // Async state here
+    if (auto res = co_await element->setState(state()); !res) {
+        mChildren.pop_back();
+        co_return Err(res.error());
+    }
+    mSorted = false;
+    co_return {};
 }
 
 auto Bin::removeElement(Element::Ptr element) -> bool {
@@ -342,6 +362,7 @@ auto Bin::removeElement(Element::Ptr element) -> bool {
     auto it = std::ranges::find(mChildren, element);
     if (it != mChildren.end()) {
         mChildren.erase(it);
+        mSorted = false;
         return true;
     }
     return false;
@@ -386,20 +407,93 @@ auto Bin::onTeardown() -> IoTask<void> {
 }
 
 auto Bin::setChildrenState(State newState) -> IoTask<void> {
-    auto group = ilias::TaskGroup<IoResult<void> >{};
-    for (auto &child : mChildren) {
-        group.spawn(child->setState(newState));
+    // Check if we need to sort
+    if (!mSorted) {
+        if (!topologicalSort()) {
+            co_return Err(Error::InvalidTopology);
+        }
+        mSorted = true;
+        logger::info("[Bin] '{}' topological sort done", name());
     }
-    // Wait for all children to finish
-    for (auto res : co_await group.waitAll()) {
-        if (!res) {
-            co_return Err(res.error());
+    // Check we are init(forward) or shutdown(backword)
+    static_assert(int(State::Running) > int(State::Null));
+    bool init = int(newState) > int(state());
+    if (init) { // Forward
+        for (auto &child : mChildren) {
+            if (auto res = co_await child->setState(newState); !res) {
+                co_return Err(res.error());
+            }
+        }
+    }
+    else { // Backward
+        for (auto &child : mChildren | std::views::reverse) {
+            if (auto res = co_await child->setState(newState); !res) {
+                co_return Err(res.error());
+            }
         }
     }
     co_return {};
 }
 
+auto Bin::topologicalSort() -> bool {
+    if (mChildren.empty()) {
+        return true; // No children, no-op
+    }
+
+    // Init inDegrees...
+    auto inDegrees = std::unordered_map<Element *, size_t>{};
+    for (auto &child : mChildren) {
+        inDegrees[child.get()] = 0;
+    }
+
+    for (auto &child : mChildren) {
+        for (auto &output : child->outputs()) {
+            if (output.isLinked()) {
+                inDegrees[output.peerElement()] += 1;
+            }
+        }
+    }
+
+    // Topological sort
+    auto sorted = std::vector<Element::Ptr>{};
+    auto queue = std::queue<Element *>{};
+    for (auto &[element, degree] : inDegrees) {
+        if (degree == 0) {
+            queue.push(element);
+        }
+    }
+
+    while (!queue.empty()) {
+        auto curElement = queue.front();
+        queue.pop();
+
+        sorted.push_back(curElement->shared_from_this());
+        for (auto &output : curElement->outputs()) {
+            if (!output.isLinked()) {
+                continue;
+            }
+            auto peerElement = output.peerElement();
+            auto &peerInDegree = inDegrees[peerElement];
+            peerInDegree -= 1;
+            if (peerInDegree == 0) {
+                queue.push(peerElement);
+            }
+        }
+    }
+
+    // Check
+    if (sorted.size() != mChildren.size()) {
+        logger::error("[Bin] '{}' topological sort failed, cycle detected", name());
+        return false; // Circle detected
+    }
+    else {
+        mChildren = std::move(sorted);
+        return true;
+    }
+}
+
 // Utils
+#pragma region Utils
 auto linkElement(Element &src, std::string_view srcPadName, Element &dst, std::string_view dstPadName) -> bool {
     auto srcPad = std::ranges::find_if(src.outputs(), [&](auto &pad) { return pad.name() == srcPadName; });
     auto dstPad = std::ranges::find_if(dst.inputs(), [&](auto &pad) { return pad.name() == dstPadName; });

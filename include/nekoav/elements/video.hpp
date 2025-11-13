@@ -7,17 +7,16 @@
 namespace nekoav {
 
 /**
- * @brief Decode the packet into a frame.
+ * @brief The abstract video renderer.
  * 
  */
-class VideoDecoder : public Element {
+class VideoRenderer {
 public:
-    VideoDecoder(std::string_view name = {});
-    ~VideoDecoder();
-private:
-    struct Impl;
-
-    std::unique_ptr<Impl> d;
+    virtual ~VideoRenderer() = default;
+    virtual auto render(const Frame &frame) -> IoTask<void> = 0;
+    virtual auto init() -> IoTask<void> = 0;
+    virtual auto shutdown() -> IoTask<void> = 0;
+    virtual auto pixelFormats() const -> std::vector<PixelFormat> = 0;
 };
 
 /**
@@ -33,7 +32,16 @@ class VideoConverter : public Element {
  * 
  */
 class VideoSink : public Element {
+public:
+    VideoSink(std::string_view name = {});
+    ~VideoSink();
     
+    /**
+     * @brief Set the Renderer
+     * 
+     * @param renderer 
+     */
+    auto setRenderer(std::unique_ptr<VideoRenderer> renderer) -> void;
 };
 
 } // namespace nekoav

@@ -5,7 +5,7 @@
 #include <nekoav/event.hpp>
 #include <nekoav/query.hpp>
 #include <nekoav/caps.hpp>
-#include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 #include <array>
@@ -168,9 +168,9 @@ public:
      *  it will automatically go upstream or downstream if element can't reply (input for upstream, output for downstream)
      * 
      * @param query 
-     * @return IoResult<Reply> 
+     * @return std::optional<Reply>
      */
-    auto sendQuery(Query query) -> IoResult<Reply>;
+    auto sendQuery(Query query) -> std::optional<Reply>;
 
     /**
      * @brief Set the callbak when the pad is pushed
@@ -216,7 +216,7 @@ public:
         requires (std::is_base_of_v<Element, Object>)
     auto setQueryCallback(Object *obj, Args ...args) -> void {
         assert(&mElement == obj && "The obj must be the element this pad belongs to");
-        auto callable = [args...](Pad &self, Query &query) -> IoResult<Reply> {
+        auto callable = [args...](Pad &self, Query &query) -> std::optional<Reply> {
             auto &obj = static_cast<Object &>(self.mElement);
             return (obj.*Method)(self, query, args...);
         };
@@ -244,7 +244,7 @@ public:
     }
 private:
     // The callback when the pad is pushed or event happened
-    using QueryCallback = auto (*)(Pad &self, Query &query) -> IoResult<Reply>;
+    using QueryCallback = auto (*)(Pad &self, Query &query) -> std::optional<Reply>;
     using EventCallback = auto (*)(Pad &self, Event &event) -> IoTask<void>;
     using PushCallback = auto (*)(Pad &self, Sample::Ptr sample) -> IoTask<void>;
     using UserData = std::array<std::byte, sizeof(void*) * 3>; // Small size optimization for the callback
@@ -280,7 +280,7 @@ private:
     }
 
     template <typename Callable>
-    static auto queryProxy(Pad &self, Query &query) -> IoResult<Reply> {
+    static auto queryProxy(Pad &self, Query &query) -> std::optional<Reply> {
         auto callable = typeUnerase<Callable>(self.mQueryUser);
         return callable(self, query);
     }
@@ -487,6 +487,9 @@ public:
      * @return false 
      */
     auto empty() const -> bool { return mChildren.empty(); }
+protected:
+    // Sort, return false on Cycle detected
+    auto topologicalSort() -> bool;
 private:
     // Dump
     auto dumpInfoInternal(FILE *where, int level) -> void override;
@@ -503,6 +506,7 @@ private:
 
     // Child elements
     std::vector<Element::Ptr> mChildren;
+    bool                      mSorted = false;
 };
 
 // Utils function

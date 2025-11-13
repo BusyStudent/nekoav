@@ -9,11 +9,11 @@ namespace nekoav {
 struct Queue::Impl {
     // Data
     std::deque<Sample::Ptr> queue;
-    size_t queueCapacity = 10;
+    size_t queueCapacity = 100;
 
     // Sync
+    ilias::Event queueHasSpace {ilias::Event::AutoClear};
     ilias::Event queueHasSample;
-    ilias::Event queueHasSpace;
     ilias::Event pauseRequested;
 
     ilias::WaitHandle<void> pullWorker;
@@ -21,10 +21,6 @@ struct Queue::Impl {
     // Pads
     Pad *in = nullptr;
     Pad *out = nullptr;
-
-    Impl() { // Configure event
-        queueHasSpace.setAutoClear(true);
-    }
 };
 
 Queue::Queue(std::string_view name) : Element(name), d(std::make_unique<Impl>()) {

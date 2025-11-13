@@ -16,6 +16,12 @@ public:
     auto operator <=>(const QueryDuration &) const noexcept = default;
 };
 
+class QueryPosition {
+public:
+    // Compare
+    auto operator <=>(const QueryPosition &) const noexcept = default;
+};
+
 class QueryCaps {
 public:
     // Compare
@@ -25,8 +31,9 @@ public:
 class Query {
 public:
     using Duration = QueryDuration;
+    using Position = QueryPosition;
     using Caps     = QueryCaps;
-    using Storage  = std::variant<Duration, Caps>;
+    using Storage  = std::variant<Duration, Position, Caps>;
 
     Query(const Query &) = default;
     Query(Query &&) = default;
@@ -38,6 +45,7 @@ public:
 
     // Cast
     auto isDuration() const noexcept { return std::holds_alternative<Duration>(mStorage); }
+    auto isPosition() const noexcept { return std::holds_alternative<Position>(mStorage); }
     auto isCaps() const noexcept { return std::holds_alternative<Caps>(mStorage); }
 
     // Visit
@@ -61,6 +69,14 @@ public:
     auto operator <=>(const ReplyDuration &) const noexcept = default;
 };
 
+class ReplyPosition {
+public:
+    Timestamp position;
+
+    // Compare
+    auto operator <=>(const ReplyPosition &) const noexcept = default;
+};
+
 class ReplyCaps {
 public:
     Caps caps;
@@ -70,25 +86,15 @@ public:
 };
 
 /**
- * @brief This element can't give the reply, the framework should send the query to the downstream / upstream
- * 
- */
-class ReplyUnavailable {
-public:
-    // Compare
-    auto operator <=>(const ReplyUnavailable &) const noexcept = default;
-};
-
-/**
  * @brief The reply of the query
  * 
  */
 class Reply {
 public:
     using Duration = ReplyDuration;
-    using Unavailable = ReplyUnavailable;
-    using Caps    = ReplyCaps;
-    using Storage = std::variant<Duration, Unavailable, Caps>;
+    using Position = ReplyPosition;
+    using Caps     = ReplyCaps;
+    using Storage  = std::variant<Duration, Position, Caps>;
 
     Reply(const Reply &) = default;
     Reply(Reply &&) = default;
@@ -100,10 +106,12 @@ public:
 
     // Cast
     auto isDuration() const noexcept { return std::holds_alternative<Duration>(mStorage); }
-    auto isUnavailable() const noexcept { return std::holds_alternative<Unavailable>(mStorage); }
+    auto isPosition() const noexcept { return std::holds_alternative<Position>(mStorage); }
+    auto isCaps()    const noexcept { return std::holds_alternative<Caps>(mStorage); }
 
     auto toDuration() const noexcept { return std::get<Duration>(mStorage); }
-    auto toUnavailable() const noexcept { return std::get<Unavailable>(mStorage); }
+    auto toPosition() const noexcept { return std::get<Position>(mStorage); }
+    auto toCaps() const noexcept { return std::get<Caps>(mStorage); }
 
     // Visit
     template <typename Fn>

@@ -155,17 +155,17 @@ auto UrlSource::onPadEvent(Pad &pad, const Event &event) -> IoTask<void> {
     co_return {};
 }
 
-auto UrlSource::onPadQuery(Pad &pad, const Query &query) -> IoResult<Reply> {
+auto UrlSource::onPadQuery(Pad &pad, const Query &query) -> std::optional<Reply> {
     if (query.isDuration()) { // QueryDuration
         if (!d) {
-            return Err(Error::InvalidState);
+            return std::nullopt;
         }
         return Reply::Duration { Duration(d->ctxt->duration / AV_TIME_BASE) };
     }
     if (query.isCaps()) { // QueryCaps
         return Reply::Caps { pad.caps() };
     }
-    return Reply::Unavailable {};
+    return std::nullopt;
 }
 
 auto UrlSource::readWorker() -> Task<void> {

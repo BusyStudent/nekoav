@@ -90,7 +90,12 @@ public:
     auto pixelFormat() const -> PixelFormat;
     auto height() const -> int;
     auto width() const -> int;
-    
+
+    auto timeBase() const -> Rational { return mTimeBase; }
+
+    // Get the AVFrame
+    auto get() const -> AVFrame * { return mFrame; }
+
     /**
      * @brief Make the frame writable, doing COW
      */
@@ -108,6 +113,7 @@ public:
      * @brief Create an frame from an exisited avfeame, it will take the ownship of it
      * 
      * @param avframe The avframe, can't be nullptr
+     * @param timeBase The time base of the frame
      * @return Ptr 
      */
     static auto make(AVFrame *avframe, Rational timeBase) -> Ptr;
@@ -127,18 +133,24 @@ public:
     Packet();
     ~Packet();
 
+    // Getters for AVFrame fields
     auto data() -> std::span<std::byte>;
+    auto timeBase() const -> Rational { return mTimeBase; }
+
+    // Get the AVPacket
+    auto get() const -> AVPacket * { return mPacket; }
 
     /**
      * @brief Create an Packet from an exisited avpacket, it will take the ownship of it
      * 
      * @param avpacket The avpacket, can't be nullptr
+     * @param timeBase The time base of the packet
      * @return Ptr 
      */
     static auto make(AVPacket *avpacket, Rational timeBase) -> Ptr;
 private:
     AVPacket *mPacket = nullptr; // Placeholder for AVPacket*
-    Rational mTimeBase = {0, 1};
+    Rational  mTimeBase = {0, 1};
 };
 
 // Impl
