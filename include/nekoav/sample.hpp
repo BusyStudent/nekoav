@@ -2,7 +2,7 @@
 
 #include <nekoav/defines.hpp>
 #include <nekoav/format.hpp>
-#include <nekoav/caps.hpp>
+#include <optional>
 #include <variant>
 #include <chrono>
 #include <memory>
@@ -16,98 +16,62 @@ extern "C" {
 
 namespace nekoav {
 
-// Forward declare
-class Sample;
-class Frame;
-class Packet;
-
-/**
- * @brief The bultin rtti for sample, make cast faster on frequency use type
- * 
- */
-enum class SampleRtti : uint8_t {
-    Base = 0, // The Base class
-    Frame = 1,
-    Packet = 2,
-};
-
-/**
- * @brief The data passed between elements.
- * 
- */
-class NEKOAV_API Sample : public std::enable_shared_from_this<Sample> {
-public:
-    using Ptr = std::shared_ptr<Sample>;
-
-    Sample() = default;
-    Sample(const Sample &) = delete;
-    virtual ~Sample() = default;
-
-    // Get the presentation timestamp
-    auto pts() const -> Timestamp { return mPts; }
-
-    // Get the decoding timestamp
-    auto dts() const -> Timestamp { return mDts; }
-
-    // Set the Sample is discontinuity
-    auto setDiscontinuity(bool discontinuity) -> void { mDiscontinuity = discontinuity; }
-    auto isDiscontinuity() const -> bool { return mDiscontinuity; }
-
-    // Cast
-    auto isFrame() const -> bool { return mRtti == SampleRtti::Frame; }
-    auto isPacket() const -> bool { return mRtti == SampleRtti::Packet; }
-    auto toFrame() -> Frame *;
-    auto toPacket() -> Packet *;
-private:
-    Timestamp  mPts = {};
-    Timestamp  mDts = {};
-    Duration   mDuration = {};
-    SampleRtti mRtti = {};
-    bool       mDiscontinuity = false; // The Element should flush the codec context before use this sample
-friend class Frame; // For impl the cast
-friend class Packet;
-};
-
 /**
  * @brief A Frame of raw data, usually uncompressed. wrapping AVFrame.
  * 
  */
-class NEKOAV_API Frame : public Sample {
+class NEKOAV_API Frame {
 public:
-    using Ptr = std::shared_ptr<Frame>;
+    Frame() = default;
+    Frame(Frame &&) = default;
+    ~Frame() = default;
 
-    Frame();
-    ~Frame();
-
-    // Sette, only can use when writable
-    auto setPts(Timestamp pts) -> void;
-    auto setDts(Timestamp dts) -> void;
+    // Setter
+    auto setPts(std::optional<Timestamp> pts) -> void;
+    auto setDts(std::optional<Timestamp> dts) -> void;
 
     // Getters for AVFrame fields
+    auto pts() const -> std::optional<Timestamp>;
+    auto dts() const -> std::optional<Timestamp>;
+
     auto data(int plane) -> void *;
     auto linesize(int plane) -> int;
 
     auto pixelFormat() const -> PixelFormat;
+    auto sampleFormat() const -> SampleFormat;
     auto height() const -> int;
     auto width() const -> int;
 
+    // Get the presentation timeBase
     auto timeBase() const -> Rational { return mTimeBase; }
 
     // Get the AVFrame
-    auto get() const -> AVFrame * { return mFrame; }
+    auto get() const -> AVFrame * { return mFrame.get(); }
 
     /**
-     * @brief Make the frame writable, doing COW
+     * @brief Make the frame data writable, doing COW
+     * 
+     * @return IoResult<void> Err if failed
      */
-    auto makeWritable() -> void;
+    auto makeWritable() -> IoResult<void>;
 
     /**
-     * @brief CHeck the frame is writeable, can use the Setter
+     * @brief Check the frame data is writeable, can use the Setter
      * 
      * @return true 
      * @return false 
      */
     auto isWritable() const -> bool;
+
+    /**
+     * @brief Clone the frame, it will create a new frame and ref the data (COW)
+     * 
+     * @return Frame 
+     */
+    auto clone() const -> Frame;
+
+    // Operators
+    auto operator =(Frame &&) -> Frame & = default;
 
     /**
      * @brief Create an frame from an exisited avfeame, it will take the ownship of it
@@ -116,50 +80,180 @@ public:
      * @param timeBase The time base of the frame
      * @return Ptr 
      */
-    static auto make(AVFrame *avframe, Rational timeBase) -> Ptr;
+    static auto from(AVFrame *avframe, Rational timeBase) -> Frame;
 private:
-    AVFrame *mFrame = nullptr; // Placeholder for AVFrame*
-    Rational mTimeBase = {0, 1};
+    static auto free(AVFrame *ptr) -> void;
+
+    struct Deleter {
+        auto operator()(AVFrame *ptr) { free(ptr); }
+    };
+
+    std::unique_ptr<AVFrame, Deleter> mFrame; // Placeholder for AVFrame*
+    Rational                          mTimeBase = {0, 1};
 };
 
 /**
  * @brief A Packet of encoded data, usually compressed. wrapping AVPacket.
  * 
  */
-class NEKOAV_API Packet : public Sample {
+class NEKOAV_API Packet {
 public:
-    using Ptr = std::shared_ptr<Packet>;
+    Packet() = default;
+    Packet(Packet &&) = default;
+    ~Packet() = default;
 
-    Packet();
-    ~Packet();
+    // Setter
+    auto setPts(std::optional<Timestamp> pts) -> void;
+    auto setDts(std::optional<Timestamp> dts) -> void;
 
     // Getters for AVFrame fields
-    auto data() -> std::span<std::byte>;
+    auto pts() const -> std::optional<Timestamp>;
+    auto dts() const -> std::optional<Timestamp>;
+    auto data() const -> std::span<std::byte>;
+    auto isKeyFrame() const -> bool;
+
+    // Get the presentation timeBase
     auto timeBase() const -> Rational { return mTimeBase; }
 
     // Get the AVPacket
-    auto get() const -> AVPacket * { return mPacket; }
+    auto get() const -> AVPacket * { return mPacket.get(); }
 
     /**
-     * @brief Create an Packet from an exisited avpacket, it will take the ownship of it
+     * @brief Clone the packet, it will create a new packet and ref the data (COW)
+     * 
+     * @return Packet 
+     */
+    auto clone() const -> Packet;
+
+    // Operators
+    auto operator =(Packet &&) -> Packet & = default;
+
+    /**
+     * @brief Create an Packet from an exisited avpacket, it will take the ownership of it
      * 
      * @param avpacket The avpacket, can't be nullptr
      * @param timeBase The time base of the packet
      * @return Ptr 
      */
-    static auto make(AVPacket *avpacket, Rational timeBase) -> Ptr;
+    static auto from(AVPacket *avpacket, Rational timeBase) -> Packet;
 private:
-    AVPacket *mPacket = nullptr; // Placeholder for AVPacket*
-    Rational  mTimeBase = {0, 1};
+    static auto free(AVPacket *ptr) -> void;
+
+    struct Deleter {
+        auto operator()(AVPacket *ptr) { free(ptr); }
+    };
+
+    std::unique_ptr<AVPacket, Deleter> mPacket; // Placeholder for AVPacket*
+    Rational                           mTimeBase = {0, 1};
+};
+
+/**
+ * @brief The data passed between elements.
+ * 
+ */
+class NEKOAV_API Sample {
+public:
+    using Storage = std::variant<std::monostate, Frame, Packet>;
+
+    Sample() = default;
+    Sample(std::nullptr_t) noexcept : mStorage(std::monostate()) {}
+    Sample(const Sample &) noexcept = delete;
+    Sample(Sample &&) noexcept = default;
+    ~Sample() = default;
+
+    // Construct inner
+    template <typename T> requires(std::is_constructible_v<Storage, T>)
+    Sample(T &&t) noexcept : mStorage(std::forward<T>(t)) {}
+
+    // Get the presentation timestamp (based on timeBase)
+    auto pts() const -> std::optional<Timestamp>;
+
+    // Get the decoding timestamp (based on timeBase)
+    auto dts() const -> std::optional<Timestamp>;
+
+    // Set the presentation timestamp (based on timeBase)
+    auto setPts(std::optional<Timestamp> pts) -> void;
+
+    // Set the decoding timestamp (based on timeBase)
+    auto setDts(std::optional<Timestamp> dts) -> void;
+
+    // Clone
+    auto clone() const -> Sample;
+
+    // Cast
+    auto isFrame() const -> bool { return std::holds_alternative<Frame>(mStorage); }
+    auto isPacket() const -> bool { return std::holds_alternative<Packet>(mStorage); }
+    auto isNull() const -> bool { return std::holds_alternative<std::monostate>(mStorage); }
+    
+    auto toFrame() -> Frame *;
+    auto toPacket() -> Packet *;
+
+    // Visit
+    template <typename Fn>
+    auto visit(Fn &&fn) const -> decltype(auto) {
+        return std::visit(std::forward<Fn>(fn), mStorage);
+    }
+
+    // Operators
+    auto operator =(Sample &&) -> Sample & = default;
+
+    explicit operator bool() const noexcept { return !isNull(); }
+private:
+    Storage mStorage;
 };
 
 // Impl
+inline auto Sample::pts() const -> std::optional<Timestamp> {
+    const auto visitor = Overloads {
+        [](std::monostate) { return std::optional<Timestamp>{}; },
+        [](const Frame &frame) { return frame.pts(); },
+        [](const Packet &packet) { return packet.pts(); },
+    };
+    return std::visit(visitor, mStorage);
+}
+
+inline auto Sample::dts() const -> std::optional<Timestamp> {
+    const auto visitor = Overloads {
+        [](std::monostate) { return std::optional<Timestamp>{}; },
+        [](const Frame &frame) { return frame.dts(); },
+        [](const Packet &packet) { return packet.dts(); },
+    };
+    return std::visit(visitor, mStorage);
+}
+
+inline auto Sample::setPts(std::optional<Timestamp> pts) -> void {
+    const auto visitor = Overloads {
+        [](std::monostate) {},
+        [&](Frame &frame) { frame.setPts(pts); },
+        [&](Packet &packet) { packet.setPts(pts); },
+    };
+    std::visit(visitor, mStorage);
+}
+
+inline auto Sample::setDts(std::optional<Timestamp> dts) -> void {
+    const auto visitor = Overloads {
+        [](std::monostate) {},
+        [&](Frame &frame) { frame.setDts(dts); },
+        [&](Packet &packet) { packet.setDts(dts); },
+    };
+    std::visit(visitor, mStorage);
+}
+
+inline auto Sample::clone() const -> Sample {
+    const auto visitor = Overloads {
+        [](std::monostate) { return Sample{}; },
+        [](const Frame &frame) { return Sample(frame.clone()); },
+        [](const Packet &packet) { return Sample(packet.clone()); },
+    };
+    return std::visit(visitor, mStorage);
+}
+
 inline auto Sample::toFrame() -> Frame * {
-    return isFrame() ? static_cast<Frame *>(this) : nullptr;
+    return std::get_if<Frame>(&mStorage);
 }
 
 inline auto Sample::toPacket() -> Packet * {
-    return isPacket() ? static_cast<Packet *>(this) : nullptr;
+    return std::get_if<Packet>(&mStorage);
 }
 
 } // namespace nekoav

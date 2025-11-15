@@ -8,7 +8,7 @@ namespace nekoav {
 
 struct Queue::Impl {
     // Data
-    std::deque<Sample::Ptr> queue;
+    std::deque<Sample> queue;
     size_t queueCapacity = 100;
 
     // Sync
@@ -56,11 +56,11 @@ auto Queue::onPause() -> IoTask<void> {
     co_return {};
 }
 
-auto Queue::onPush(Pad &, Sample::Ptr sample) -> IoTask<void> {
+auto Queue::onPush(Pad &, Sample sample) -> IoTask<void> {
     while (d->queue.size() >= d->queueCapacity) { // Wait for space
         co_await d->queueHasSpace;
     }
-    d->queue.push_back(std::move(sample));
+    d->queue.emplace_back(std::move(sample));
     d->queueHasSample.set();
     co_return {};
 }

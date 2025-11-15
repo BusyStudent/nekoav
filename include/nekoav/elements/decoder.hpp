@@ -19,7 +19,7 @@ private:
     auto onTeardown() -> IoTask<void> override;
 
     // Query / Event from Pad
-    auto onPadPush(Pad &pad, Sample::Ptr sample) -> IoTask<void>;
+    auto onPadPush(Pad &pad, Sample sample) -> IoTask<void>;
     auto onPadQuery(Pad &pad, const Query &query) -> std::optional<Reply>;
     auto onPadEvent(Pad &pad, const Event &event) -> IoTask<void>;
 

@@ -13,17 +13,6 @@ namespace nekoav {
 using namespace std::literals;
 
 /**
- * @brief The rational, taken from ffmpeg, i don't want to expose ffmpeg's header in public header
- * 
- */
-struct Rational {
-    int num; //< Numerator
-    int den; //< Denominator
-
-    auto operator <=>(const Rational &) const noexcept = default;
-};
-
-/**
  * @brief The value for multimedia
  * 
  */

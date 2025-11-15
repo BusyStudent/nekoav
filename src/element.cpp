@@ -97,7 +97,7 @@ namespace {
 
 // Pad
 #pragma region Pad
-auto Pad::push(Sample::Ptr sample) -> IoTask<void> {
+auto Pad::push(Sample sample) -> IoTask<void> {
     if (!isLinked()) {
         co_return Err(Error::NotLinked);
     }

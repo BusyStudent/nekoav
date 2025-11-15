@@ -45,18 +45,18 @@ auto Decoder::onTeardown() -> IoTask<void> {
     co_return {};
 }
 
-auto Decoder::onPadPush(Pad &pad, Sample::Ptr sample) -> IoTask<void> {
+auto Decoder::onPadPush(Pad &pad, Sample sample) -> IoTask<void> {
     if (!sample) { // Forward EOS
-        co_return co_await mOutput.push(sample);
+        co_return co_await mOutput.push(std::move(sample));
     }
     if (!d) { // The decoder is not ready
         co_return Err(Error::InvalidState);
     }
-    if (!sample->isPacket()) {
+    if (!sample.isPacket()) {
         co_return Err(Error::UnsupportedSampleType);
     }
     // Begin process
-    auto packet = sample->toPacket();
+    auto packet = sample.toPacket();
     auto res = co_await ilias::blocking([&]() {
         int res = avcodec_send_packet(d->ctxt, packet->get());
         if (res != 0) {
@@ -74,8 +74,8 @@ auto Decoder::onPadPush(Pad &pad, Sample::Ptr sample) -> IoTask<void> {
     }
 
     // Create new frame
-    auto frame = Frame::make(av_frame_clone(d->frame), packet->timeBase());
-    co_return co_await mOutput.push(frame);
+    auto frame = Frame::from(av_frame_clone(d->frame), packet->timeBase());
+    co_return co_await mOutput.push(std::move(frame));
 }
 
 

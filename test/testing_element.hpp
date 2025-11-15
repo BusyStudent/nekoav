@@ -6,12 +6,6 @@
 using namespace nekoav;
 using namespace std::literals;
 
-// Test the data flow between two elements
-struct TestData : public Sample {
-    TestData(int v) : value(v) {}
-    int value;
-};
-
 struct FirstElement : Element {
     FirstElement() {
         mOut.mutableCaps().insert("shit/test_data", Value {114514});
@@ -34,8 +28,7 @@ struct FirstElement : Element {
 
         // Try send data
         for (int i = 0; i < 10; ++i) {
-            auto sample = std::make_shared<TestData>(i);
-            EXPECT_TRUE(co_await mOut.push(std::move(sample)));
+            EXPECT_TRUE(co_await mOut.push(nullptr));
         }
 
         // Try send event
@@ -56,11 +49,8 @@ struct SecondElement : Element {
         in.setQueryCallback<&SecondElement::onQuery>(this);
     }
 
-    auto onPush(Pad &, Sample::Ptr sample) -> IoTask<void> {
-        auto ptr = std::dynamic_pointer_cast<TestData>(sample);
-        EXPECT_TRUE(ptr);
-        EXPECT_TRUE(ptr->value >= 0 && ptr->value < 10);
-        std::cout << "Data arrive " << ptr->value << std::endl;
+    auto onPush(Pad &, Sample sample) -> IoTask<void> {
+        EXPECT_TRUE(sample.isNull()); // Is nullptr
         co_return {};
     }
 
@@ -84,12 +74,12 @@ struct PrintElement : Element {
         in.setPushCallback<&PrintElement::onPush>(this);
     }
 
-    auto onPush(Pad &, Sample::Ptr sample) -> IoTask<void> {
+    auto onPush(Pad &, Sample sample) -> IoTask<void> {
         if (!sample) {
             std::cout << "EOF arrive" << std::endl;
             co_return {};
         }
-        std::cout << "Data arrive pts: " << sample->pts() << " dts: " << sample->dts() << std::endl;
+        std::cout << "Data arrive pts: " << sample.pts().value_or(0ms) << " dts: " << sample.dts().value_or(0ms) << std::endl;
         co_return {};
     }
 };

@@ -151,7 +151,7 @@ public:
      * @param sample The shared_ptr of the Sample
      * @return IoTask<void> (Err on ublink or other element has error happened)
      */
-    auto push(Sample::Ptr sample) -> IoTask<void>;
+    auto push(Sample sample) -> IoTask<void>;
 
     /**
      * @brief Push the event to the peer pad, 
@@ -185,7 +185,7 @@ public:
         requires (std::is_base_of_v<Element, Object>)
     auto setPushCallback(Object *obj, Args ...args) -> void {
         assert(&mElement == obj && "The obj must be the element this pad belongs to");
-        auto callable = [args...](Pad &self, Sample::Ptr sample) -> IoTask<void> {
+        auto callable = [args...](Pad &self, Sample sample) -> IoTask<void> {
             auto &obj = static_cast<Object &>(self.mElement);
             return (obj.*Method)(self, std::move(sample), args...);
         };
@@ -246,7 +246,7 @@ private:
     // The callback when the pad is pushed or event happened
     using QueryCallback = auto (*)(Pad &self, Query &query) -> std::optional<Reply>;
     using EventCallback = auto (*)(Pad &self, Event &event) -> IoTask<void>;
-    using PushCallback = auto (*)(Pad &self, Sample::Ptr sample) -> IoTask<void>;
+    using PushCallback = auto (*)(Pad &self, Sample sample) -> IoTask<void>;
     using UserData = std::array<std::byte, sizeof(void*) * 3>; // Small size optimization for the callback
 
     // Type erase utils
@@ -267,7 +267,7 @@ private:
 
     // Proxy for push callback
     template <typename Callable>
-    static auto pushProxy(Pad &self, Sample::Ptr sample) -> IoTask<void> {
+    static auto pushProxy(Pad &self, Sample sample) -> IoTask<void> {
         auto callable = typeUnerase<Callable>(self.mPushUser);
         return callable(self, std::move(sample));
     }
