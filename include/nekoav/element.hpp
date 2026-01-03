@@ -481,6 +481,13 @@ public:
     auto removeElement(Element::Ptr element) -> bool;
 
     /**
+     * @brief Sync the state of all child elements to the current state of the bin.
+     * 
+     * @return IoTask<void> 
+     */
+    auto syncElements() -> IoTask<void>;
+
+    /**
      * @brief Check the bin is empty
      * 
      * @return true 

@@ -368,6 +368,10 @@ auto Bin::removeElement(Element::Ptr element) -> bool {
     return false;
 }
 
+auto Bin::syncElements() -> IoTask<void> {
+    return setChildrenState(state());
+}
+
 auto Bin::dumpInfoInternal(FILE * where, int level) -> void {
     Element::dumpInfoInternal(where, level);
     ::fprintf(where, "%*s  Children:\n", level, "");

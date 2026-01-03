@@ -1,5 +1,6 @@
 #include <nekoav/elements/queue.hpp>
 #include <nekoav/elements/url_source.hpp>
+#include <nekoav/elements/decoder.hpp>
 #include <ilias/platform.hpp>
 #include <ilias/testing.hpp>
 #include "testing_element.hpp"
@@ -34,11 +35,14 @@ ILIAS_TEST(Core, UrlSource) {
     auto bin = std::make_shared<Bin>("MyBin");
     auto source = std::make_shared<UrlSource>("MySource");
     auto queue = std::make_shared<Queue>("MyQueue");
+    auto decoder = std::make_shared<Decoder>("Decoder");
     auto print = std::make_shared<PrintElement>();
+
     source->setUrl("https://gstreamer.freedesktop.org/data/media/sintel_trailer-480p.webm");
 
     bin->addElement(source);
     bin->addElement(queue);
+    bin->addElement(decoder);
     bin->addElement(print);
 
     // Make the source loaded
@@ -46,7 +50,8 @@ ILIAS_TEST(Core, UrlSource) {
     
     // Do connect here
     EXPECT_TRUE(linkElement(*source, source->videoOutputs().at(0)->name(), *queue, "in"));
-    EXPECT_TRUE(linkElement(*queue, "out", *print, "in"));
+    EXPECT_TRUE(linkElement(*queue, "out", *decoder, "in"));
+    EXPECT_TRUE(linkElement(*decoder, "out", *print, "in"));
 
     // Run 
     EXPECT_TRUE(co_await bin->setState(State::Running));

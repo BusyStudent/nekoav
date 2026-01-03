@@ -45,6 +45,12 @@ auto UrlSource::onTeardown() -> IoTask<void> {
         co_await std::exchange(d->readWorker, {});
     }
 
+    // Clear the output & notify it
+    outputs().clear();
+    if (mOutputChanged) {
+        co_await mOutputChanged(*this);
+    }
+
     // The avformat_close_input may blocking?
     co_await ilias::blocking([&]() {
         avformat_close_input(&d->ctxt);
@@ -130,6 +136,11 @@ auto UrlSource::onPrepare() -> IoTask<void> {
         d->padsMapping[idx] = pad;
         pad->setEventCallback<&UrlSource::onPadEvent>(this);
         pad->setQueryCallback<&UrlSource::onPadQuery>(this);
+    }
+
+    // Notify that the output is changed
+    if (mOutputChanged) {
+        co_await mOutputChanged(*this);
     }
 
     // Start the worker
@@ -275,6 +286,10 @@ auto UrlSource::subtitleOutputs() -> std::vector<Pad *> {
         vec.push_back(&pad);
     }
     return vec;
+}
+
+auto UrlSource::setOutputChangedCallback(OutputChanged callback) -> void {
+    mOutputChanged.swap(callback);
 }
 
 } // namespace nekoav
