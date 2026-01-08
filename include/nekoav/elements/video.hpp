@@ -23,25 +23,27 @@ public:
  * @brief Convert the frame's format to make it suitable for the next element.
  * 
  */
-class VideoConverter : public Element {
-    
+class NEKOAV_API VideoConverter final : public Element {
+public:
+    // VideoConverter(std::string_view name = {});
+    // ~VideoConverter();
 };
 
 /**
  * @brief Present the frame to the user. 
  * 
  */
-class VideoSink : public Element {
+class NEKOAV_API VideoSink final : public Element {
 public:
-    VideoSink(std::string_view name = {});
-    ~VideoSink();
+    // VideoSink(std::string_view name = {});
+    // ~VideoSink();
     
     /**
      * @brief Set the Renderer
      * 
      * @param renderer 
      */
-    auto setRenderer(std::unique_ptr<VideoRenderer> renderer) -> void;
+    // auto setRenderer(std::unique_ptr<VideoRenderer> renderer) -> void;
 };
 
 } // namespace nekoav

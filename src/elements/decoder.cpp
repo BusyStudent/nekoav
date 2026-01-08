@@ -1,5 +1,10 @@
 #include <nekoav/elements/decoder.hpp>
+#include <algorithm>
 #include "internal.hpp"
+
+#if defined(_WIN32)
+    #include <d3d11.h>
+#endif // _WIN32
 
 extern "C" {
     #include <libavutil/hwcontext.h>
@@ -28,6 +33,32 @@ static auto toString(AVHWDeviceType type) -> const char * {
         case AV_HWDEVICE_TYPE_VULKAN: return "vulkan";
         case AV_HWDEVICE_TYPE_D3D12VA: return "d3d12va";
         default: return "unknown";
+    }
+}
+
+static auto priorityOf(AVHWDeviceType type) -> int {
+    switch (type) {
+        // Windows
+        case AV_HWDEVICE_TYPE_D3D11VA:      return 10;
+        case AV_HWDEVICE_TYPE_D3D12VA:      return 20;
+        case AV_HWDEVICE_TYPE_DXVA2:        return 30;
+        
+        // Linux
+        case AV_HWDEVICE_TYPE_CUDA:         return 10; 
+        case AV_HWDEVICE_TYPE_VAAPI:        return 20;
+        case AV_HWDEVICE_TYPE_VDPAU:        return 40; // Legacy
+        
+        // MacOS
+        case AV_HWDEVICE_TYPE_VIDEOTOOLBOX: return 10;
+        
+        // Other
+        case AV_HWDEVICE_TYPE_QSV:          return 15; // Intel QuickSync
+        case AV_HWDEVICE_TYPE_MEDIACODEC:   return 10; // Android
+
+        // Common
+        case AV_HWDEVICE_TYPE_VULKAN:       return 30; 
+        
+        default:                            return 100;
     }
 }
 
@@ -64,8 +95,12 @@ Decoder::~Decoder() {
     assert(!d); // Should be close onTeardown
 }
 
+auto Decoder::setPolicy(Policy policy) -> void {
+    mPolicy = policy;
+}
+
 auto Decoder::onPrepare() -> IoTask<void> {
-    // Init codec here
+    // Init codec here (fast path)
     auto reply = mInput.sendQuery(Query::Caps{});
     if (reply) {
         co_return co_await init(reply->toCaps().caps);   
@@ -165,13 +200,12 @@ auto Decoder::init(const Caps &caps) -> IoTask<void> {
         inner->ctxt->pix_fmt = pixfmt::toFFmpeg(video[Caps::PixelFormat].toPixelFormat());
     }
     else if (auto &audio = caps.find(Caps::AudioPacket); audio.isMap()) {
-        if (auto res = createContext(video); !res) {
+        if (auto res = createContext(audio); !res) {
             co_return Err(res.error());
         }
         // Set the extra data
-        setExtraData(video);
+        setExtraData(audio);
 
-        // TODO:
         inner->ctxt->sample_rate = audio[Caps::SampleRate].toInteger();
         inner->ctxt->sample_fmt = sample_fmt::toFFmpeg(audio[Caps::SampleFormat].toSampleFormat());
         inner->ctxt->ch_layout.nb_channels = audio[Caps::Channels].toInteger();
@@ -190,7 +224,9 @@ auto Decoder::init(const Caps &caps) -> IoTask<void> {
 
 auto Decoder::open(Impl *inner) -> IoResult<void> {
     // Check if we can use hardware
-    if (inner->ctxt->codec_type == AVMEDIA_TYPE_VIDEO) {
+    bool canHardware = inner->ctxt->codec_type == AVMEDIA_TYPE_VIDEO;
+    bool useHardware = canHardware && mPolicy != Policy::SoftwareOnly;
+    if (useHardware) {
         std::vector<const AVCodecHWConfig *> hwconfigs {};
         for (int i = 0; ; i++) {
             auto conf = avcodec_get_hw_config(inner->ctxt->codec, i);
@@ -201,6 +237,14 @@ auto Decoder::open(Impl *inner) -> IoResult<void> {
                 continue;
             }
             hwconfigs.emplace_back(conf);
+        }
+
+        // Sort by priority
+        std::sort(hwconfigs.begin(), hwconfigs.end(), [](const AVCodecHWConfig *a, const AVCodecHWConfig *b) {
+            return priorityOf(a->device_type) < priorityOf(b->device_type);
+        });
+        for (auto &config : hwconfigs) {
+            logger::info("[Decoder] Found hardware config '{}'", toString(config->device_type));
         }
 
         // Try to open it one by one
@@ -239,13 +283,14 @@ auto Decoder::open(Impl *inner) -> IoResult<void> {
 
             // Try init codec
             inner->hwfmt = config->pix_fmt;
-            if (avcodec_open2(inner->ctxt, inner->ctxt->codec, nullptr) < 0) {
+            logger::info("[Decoder] Try open codec for hardware device '{}' with format '{}'", toString(config->device_type), av_get_pix_fmt_name(inner->hwfmt));
+            if (auto res = avcodec_open2(inner->ctxt, inner->ctxt->codec, nullptr); res < 0) {
                 av_buffer_unref(&inner->ctxt->hw_device_ctx);
                 inner->ctxt->hw_device_ctx = nullptr;
                 inner->hwfmt = AV_PIX_FMT_NONE;
                 continue;
             }
-            logger::info("[Decoder] Open codec for hardware device '{}' with format '{}'", toString(config->device_type), av_get_pix_fmt_name(inner->hwfmt));
+            logger::info("[Decoder] Open hardware codec done");
             return {};
         }
 
@@ -253,11 +298,19 @@ auto Decoder::open(Impl *inner) -> IoResult<void> {
         inner->ctxt->opaque = nullptr;
         inner->ctxt->get_format = previous;
     }
+    if (mPolicy == Policy::HardwareOnly) {
+        // Hardware unavailable
+        return Err(Error::NoCodec);
+    }
     
     // Open the codec
     if (auto res = avcodec_open2(inner->ctxt, inner->ctxt->codec, nullptr); res < 0) {
         return Err(error::fromFFmpeg(res));
     }
+    logger::info(
+        "[Decoder] Open software codec done with fmt {}", 
+        inner->ctxt->codec->type == AVMEDIA_TYPE_VIDEO ? av_get_pix_fmt_name(inner->ctxt->pix_fmt) : av_get_sample_fmt_name(inner->ctxt->sample_fmt)
+    );
     return {};
 }
 

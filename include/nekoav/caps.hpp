@@ -129,9 +129,6 @@ public:
     static constexpr auto Bitrate = "bitrate"sv;
     static constexpr auto FrameRate = "frameRate"sv;
 
-    // Internal name
-    static constexpr auto CodecParams = "codecParams"sv;
-
     Caps(const Caps &) = default;
     Caps(Caps &&) = default;
     Caps() = default;

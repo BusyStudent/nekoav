@@ -17,6 +17,7 @@ public:
 private:
     auto onRun() -> IoTask<void> override;
     auto onPause() -> IoTask<void> override;
+    auto onStop() -> IoTask<void> override;
     auto onPush(Pad &, Sample sample) -> IoTask<void>;
     auto doPull() -> Task<void>;
 

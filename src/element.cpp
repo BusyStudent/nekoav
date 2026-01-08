@@ -95,8 +95,7 @@ namespace {
     };
 } // namespace
 
-// Pad
-#pragma region Pad
+// MARK: Pad
 auto Pad::push(Sample sample) -> IoTask<void> {
     if (!isLinked()) {
         co_return Err(Error::NotLinked);
@@ -173,8 +172,7 @@ auto Pad::sendQuery(Query query) -> std::optional<Reply> {
     return std::nullopt;
 }
 
-// Element
-#pragma region Element
+// MARK: Element
 Element::Element(std::string_view name) : mName(name) {
     if (mName.empty()) {
         mName = "#Element " + std::to_string(std::bit_cast<uintptr_t>(this));
@@ -289,6 +287,7 @@ auto Element::createOutputPad(std::string_view name) -> Pad & {
 
 auto Element::setErrorState(std::error_code errc) -> void {
     // TODO: Handle error
+    logger::error("[Element] set error state: {}", errc.message());
     mState = State::Error;
 }
 
@@ -322,8 +321,7 @@ auto Element::dumpInfoInternal(FILE *where, int level) -> void {
     }
 }
 
-// Bin
-#pragma region Bin
+// MARK: Bin
 Bin::Bin(std::string_view name) : Element(name) {
 
 }
@@ -337,6 +335,7 @@ auto Bin::addElement(Element::Ptr element) -> void {
     if (!element) {
         return;
     }
+    element->mParent = this;
     mChildren.emplace_back(std::move(element));
     mSorted = false;
 }
@@ -345,9 +344,11 @@ auto Bin::addElementSync(Element::Ptr element) -> IoTask<void> {
     if (!element) {
         co_return Err(Error::InvalidArguments);
     }
+    element->mParent = this;
     mChildren.emplace_back(element);
     // Async state here
     if (auto res = co_await element->setState(state()); !res) {
+        element->mParent = nullptr;
         mChildren.pop_back();
         co_return Err(res.error());
     }
@@ -360,12 +361,13 @@ auto Bin::removeElement(Element::Ptr element) -> bool {
         return false;
     }
     auto it = std::ranges::find(mChildren, element);
-    if (it != mChildren.end()) {
-        mChildren.erase(it);
-        mSorted = false;
-        return true;
+    if (it == mChildren.end()) {
+        return false;
     }
-    return false;
+    (*it)->mParent = nullptr;
+    mChildren.erase(it);
+    mSorted = false;
+    return true;
 }
 
 auto Bin::syncElements() -> IoTask<void> {
@@ -496,8 +498,7 @@ auto Bin::topologicalSort() -> bool {
     }
 }
 
-// Utils
-#pragma region Utils
+// MARK: Utils
 auto linkElement(Element &src, std::string_view srcPadName, Element &dst, std::string_view dstPadName) -> bool {
     auto srcPad = std::ranges::find_if(src.outputs(), [&](auto &pad) { return pad.name() == srcPadName; });
     auto dstPad = std::ranges::find_if(dst.inputs(), [&](auto &pad) { return pad.name() == dstPadName; });
@@ -505,6 +506,10 @@ auto linkElement(Element &src, std::string_view srcPadName, Element &dst, std::s
         return srcPad->link(*dstPad);
     }
     return false;
+}
+
+auto linkElement(Element &src, Element &dst) -> bool {
+    return linkElement(src, "out", dst, "in");
 }
 
 auto toString(State state) -> std::string_view {

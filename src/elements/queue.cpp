@@ -65,6 +65,12 @@ auto Queue::onPush(Pad &, Sample sample) -> IoTask<void> {
     co_return {};
 }
 
+auto Queue::onStop() -> IoTask<void> {
+    d->queue.clear();
+    d->queueHasSpace.set();
+    co_return {};
+}
+
 auto Queue::doPull() -> Task<void> {
     while (!d->pauseRequested.isSet()) {
         while (d->queue.empty()) { // Wait for sample

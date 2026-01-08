@@ -12,8 +12,21 @@ namespace nekoav {
  */
 class NEKOAV_API Decoder final : public Element {
 public:
+    enum Policy {
+        Auto         = 0, // Use hardware if available
+        SoftwareOnly = 1, // Use software only
+        HardwareOnly = 2  // Use hardware only
+    };
+
     Decoder(std::string_view name = {});
     ~Decoder();
+
+    /**
+     * @brief Set the Policy of the dodecoder. (only take effect before prepare)
+     * 
+     * @param policy 
+     */
+    auto setPolicy(Policy policy) -> void;
 private:
     struct Impl;
 
@@ -32,6 +45,7 @@ private:
     std::unique_ptr<Impl> d;
     Pad                  &mInput;
     Pad                  &mOutput;
+    Policy                mPolicy = Policy::Auto;
 };
 
 } // namespace nekoav

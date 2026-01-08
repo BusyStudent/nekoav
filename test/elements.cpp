@@ -34,24 +34,39 @@ ILIAS_TEST(Core, Queue) {
 ILIAS_TEST(Core, UrlSource) {
     auto bin = std::make_shared<Bin>("MyBin");
     auto source = std::make_shared<UrlSource>("MySource");
-    auto queue = std::make_shared<Queue>("MyQueue");
-    auto decoder = std::make_shared<Decoder>("Decoder");
-    auto print = std::make_shared<PrintElement>();
+    auto videoQueue = std::make_shared<Queue>("VideoQueue");
+    auto videoDecoder = std::make_shared<Decoder>("VideoDecoder");
+    auto videoPrint = std::make_shared<PrintElement>("VideoPrint");
+
+    auto audioDecoder = std::make_shared<Decoder>("AudioDecoder");
+    auto audioQueue = std::make_shared<Queue>("AudioQueue");
+    auto audioPrint = std::make_shared<PrintElement>("AudioPrint");
 
     source->setUrl("https://gstreamer.freedesktop.org/data/media/sintel_trailer-480p.webm");
 
     bin->addElement(source);
-    bin->addElement(queue);
-    bin->addElement(decoder);
-    bin->addElement(print);
+    bin->addElement(videoQueue);
+    bin->addElement(videoDecoder);
+    bin->addElement(videoPrint);
+    
+    bin->addElement(audioQueue);
+    bin->addElement(audioDecoder);
+    bin->addElement(audioPrint);
 
     // Make the source loaded
     EXPECT_TRUE(co_await bin->setState(State::Paused));
     
     // Do connect here
-    EXPECT_TRUE(linkElement(*source, source->videoOutputs().at(0)->name(), *queue, "in"));
-    EXPECT_TRUE(linkElement(*queue, "out", *decoder, "in"));
-    EXPECT_TRUE(linkElement(*decoder, "out", *print, "in"));
+    if (!source->videoOutputs().empty()) {
+        EXPECT_TRUE(linkElement(*source, source->videoOutputs().at(0)->name(), *videoQueue, "in"));
+        EXPECT_TRUE(linkElement(*videoQueue, *videoDecoder));
+        EXPECT_TRUE(linkElement(*videoDecoder,  *videoPrint));
+    }
+    if (!source->audioOutputs().empty()) {
+        EXPECT_TRUE(linkElement(*source, source->audioOutputs().at(0)->name(), *audioQueue, "in"));
+        EXPECT_TRUE(linkElement(*audioQueue, *audioDecoder));
+        EXPECT_TRUE(linkElement(*audioDecoder, *audioPrint));
+    }
 
     // Run 
     EXPECT_TRUE(co_await bin->setState(State::Running));

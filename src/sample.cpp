@@ -135,7 +135,7 @@ auto Packet::dts() const -> std::optional<Timestamp> {
 }
 
 auto Packet::data() const -> std::span<std::byte> {
-    return {reinterpret_cast<std::byte *>(mPacket->data), mPacket->size};
+    return {reinterpret_cast<std::byte *>(mPacket->data), static_cast<size_t>(mPacket->size)};
 }
 
 auto Packet::isKeyFrame() const -> bool {

@@ -20,7 +20,7 @@ namespace nekoav {
  * @brief A Frame of raw data, usually uncompressed. wrapping AVFrame.
  * 
  */
-class NEKOAV_API Frame {
+class NEKOAV_API Frame final {
 public:
     Frame() = default;
     Frame(Frame &&) = default;
@@ -96,7 +96,7 @@ private:
  * @brief A Packet of encoded data, usually compressed. wrapping AVPacket.
  * 
  */
-class NEKOAV_API Packet {
+class NEKOAV_API Packet final {
 public:
     Packet() = default;
     Packet(Packet &&) = default;
@@ -151,7 +151,7 @@ private:
  * @brief The data passed between elements.
  * 
  */
-class NEKOAV_API Sample {
+class NEKOAV_API Sample final {
 public:
     using Storage = std::variant<std::monostate, Frame, Packet>;
 

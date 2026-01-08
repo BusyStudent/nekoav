@@ -68,7 +68,7 @@ struct SecondElement : Element {
 };
 
 struct PrintElement : Element {
-    PrintElement() {
+    PrintElement(std::string_view name = {}) : Element(name) {
         auto &in = createInputPad("in");
         in.mutableCaps() = Caps::makeAny();
         in.setPushCallback<&PrintElement::onPush>(this);
@@ -76,10 +76,10 @@ struct PrintElement : Element {
 
     auto onPush(Pad &, Sample sample) -> IoTask<void> {
         if (!sample) {
-            std::cout << "EOF arrive" << std::endl;
+            std::cout << name() << " EOF arrive" << std::endl;
             co_return {};
         }
-        std::cout << "Data arrive pts: " << sample.pts().value_or(0ms) << " dts: " << sample.dts().value_or(0ms) << std::endl;
+        std::cout << name() << " Data arrive pts: " << sample.pts().value_or(0ms) << " dts: " << sample.dts().value_or(0ms) << std::endl;
         co_return {};
     }
 };

@@ -16,6 +16,7 @@ namespace nekoav {
 
 // Forward declare
 class Element;
+class Bin;
 
 /**
  * @brief Represents the state of an Element.
@@ -438,7 +439,7 @@ private:
 
     // State / Parent
     State    mState = State::Null;
-    Element *mParent = nullptr;
+    Bin     *mParent = nullptr;
 
     // Name
     std::string mName;
@@ -514,6 +515,19 @@ private:
     // Child elements
     std::vector<Element::Ptr> mChildren;
     bool                      mSorted = false;
+    bool                      mIsPipeline = false; // avoid to use RTTI, use bool is faster
+};
+
+/**
+ * @brief The top level bin, manage the global resource
+ * 
+ */
+class Pipeline final : public Bin {
+public:
+    Pipeline(std::string_view name = {});
+    ~Pipeline();
+private:
+
 };
 
 // Utils function
@@ -528,6 +542,17 @@ private:
  * @return false Not linked (maybe the pad not found, or already linked)
  */
 extern NEKOAV_API auto linkElement(Element &src, std::string_view srcPad, Element &dst, std::string_view dstPad) -> bool;
+
+/**
+ * @brief Link two elements together via their pads.
+ * @note This function will euqual to linkElement(src, "out", dst, "in")
+ * 
+ * @param src The source element
+ * @param dst The destination element
+ * @return true 
+ * @return false 
+ */
+extern NEKOAV_API auto linkElement(Element &src, Element &dst) -> bool;
 
 /**
  * @brief Get the string representation of a State enum value.
