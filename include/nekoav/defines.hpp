@@ -63,8 +63,11 @@ class Reply;
 class Caps;
 class Pad;
 
-// Utiks
+// Utils
 template <typename ...Ts>
 struct Overloads : Ts... { using Ts::operator()...; };
+
+template <typename T>
+inline constexpr auto toUnderlying(T value) noexcept{ return static_cast<std::underlying_type_t<T> >(value); }
 
 } // namespace nekoav

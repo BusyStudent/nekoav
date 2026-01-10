@@ -25,8 +25,19 @@ public:
  */
 class NEKOAV_API VideoConverter final : public Element {
 public:
-    // VideoConverter(std::string_view name = {});
-    // ~VideoConverter();
+    VideoConverter(std::string_view name = {});
+    ~VideoConverter();
+private:
+    // auto onPrepare() -> IoTask<void> override;
+    // auto onStop() -> IoTask<void> override;
+    auto onStop() -> IoTask<void> override;
+    auto onPush(Pad &, Sample sample) -> IoTask<void>;
+    auto init(Frame *frame) -> IoResult<void>;
+
+    struct Impl;
+    std::unique_ptr<Impl> d;
+    Pad                  &mInput;
+    Pad                  &mOutput;
 };
 
 /**

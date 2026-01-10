@@ -1,6 +1,7 @@
 #include <nekoav/elements/queue.hpp>
 #include <nekoav/elements/url_source.hpp>
 #include <nekoav/elements/decoder.hpp>
+#include <nekoav/elements/video.hpp>
 #include <ilias/platform.hpp>
 #include <ilias/testing.hpp>
 #include "testing_element.hpp"
@@ -31,12 +32,49 @@ ILIAS_TEST(Core, Queue) {
     co_return;
 }
 
+struct TestVideoSink : Element {
+    TestVideoSink(std::string_view name = {}) : Element(name) {
+        auto &in = createInputPad("in");
+
+        // In this case, we only accept RGBA video
+        auto video = Value::fromMap({
+            { std::string{Caps::PixelFormat}, PixelFormat::RGBA }
+        });
+        in.mutableCaps().insert(Caps::VideoRaw, std::move(video));;
+        in.setPushCallback<&TestVideoSink::onPush>(this);
+        in.setQueryCallback<&TestVideoSink::onPadQuery>(this);
+    }
+
+    auto onPush(Pad &, Sample sample) -> IoTask<void> {
+        if (!sample) {
+            std::cout << name() << " EOF arrive" << std::endl;
+            co_return {};
+        }
+        if (!sample.isFrame()) {
+            std::cerr << name() << " Not a frame" << std::endl;
+            co_return {};
+        }
+        auto frame = sample.toFrame();
+        std::cout << name() << " Frame arrive: " << "pts: " << frame->pts().value_or({}) << " " << frame->width() << "x" << frame->height() << " fmt " << toString(frame->pixelFormat()) << std::endl;
+        co_return {};
+    }
+
+    auto onPadQuery(Pad &pad, const Query &query) -> std::optional<Reply> {
+        if (query.isCaps()) { // QueryCaps
+            return Reply::Caps { pad.caps() };
+        }
+        return std::nullopt;
+    }
+};
+
 ILIAS_TEST(Core, UrlSource) {
     auto bin = std::make_shared<Bin>("MyBin");
     auto source = std::make_shared<UrlSource>("MySource");
     auto videoQueue = std::make_shared<Queue>("VideoQueue");
     auto videoDecoder = std::make_shared<Decoder>("VideoDecoder");
-    auto videoPrint = std::make_shared<PrintElement>("VideoPrint");
+    auto videoConverter = std::make_shared<VideoConverter>("VideoConverter");
+    // auto videoPrint = std::make_shared<PrintElement>("VideoPrint");
+    auto videoPrint = std::make_shared<TestVideoSink>("VideoPrint");
 
     auto audioDecoder = std::make_shared<Decoder>("AudioDecoder");
     auto audioQueue = std::make_shared<Queue>("AudioQueue");
@@ -45,13 +83,8 @@ ILIAS_TEST(Core, UrlSource) {
     source->setUrl("https://gstreamer.freedesktop.org/data/media/sintel_trailer-480p.webm");
 
     bin->addElement(source);
-    bin->addElement(videoQueue);
-    bin->addElement(videoDecoder);
-    bin->addElement(videoPrint);
-    
-    bin->addElement(audioQueue);
-    bin->addElement(audioDecoder);
-    bin->addElement(audioPrint);
+    bin->addElements(videoQueue, videoDecoder, videoConverter, videoPrint);
+    bin->addElements(audioQueue, audioDecoder, audioPrint);
 
     // Make the source loaded
     EXPECT_TRUE(co_await bin->setState(State::Paused));
@@ -60,7 +93,8 @@ ILIAS_TEST(Core, UrlSource) {
     if (!source->videoOutputs().empty()) {
         EXPECT_TRUE(linkElement(*source, source->videoOutputs().at(0)->name(), *videoQueue, "in"));
         EXPECT_TRUE(linkElement(*videoQueue, *videoDecoder));
-        EXPECT_TRUE(linkElement(*videoDecoder,  *videoPrint));
+        EXPECT_TRUE(linkElement(*videoDecoder,  *videoConverter));
+        EXPECT_TRUE(linkElement(*videoConverter, *videoPrint));
     }
     if (!source->audioOutputs().empty()) {
         EXPECT_TRUE(linkElement(*source, source->audioOutputs().at(0)->name(), *audioQueue, "in"));
@@ -71,7 +105,7 @@ ILIAS_TEST(Core, UrlSource) {
     // Run 
     EXPECT_TRUE(co_await bin->setState(State::Running));
     bin->dumpInfo();
-    co_await ilias::sleep(2s);
+    co_await ilias::sleep(5s);
     
     EXPECT_TRUE(co_await bin->setState(State::Null));
     co_return;

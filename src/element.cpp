@@ -182,48 +182,39 @@ Element::Element(std::string_view name) : mName(name) {
 Element::~Element() {
     // We could only destroy the Element when it is in null
     if (mState != State::Null) {
-        ::fprintf(stderr, "Invalid state on element, element could only be destroyed when it state is null");
+        ::fprintf(stderr, "Invalid state on element '%s', element could only be destroyed when it state is null", mName.c_str());
         ::abort();
     }
 }
 
 auto Element::setState(State targetState) -> IoTask<void> {
-    if (targetState == State::Error) {
-        co_return Err(Error::InvalidState);
-    }
-
     if (targetState == mState) { // Same state, no-op
         co_return {};
     }
     
-    // Check is error state
-    if (mState == State::Error) {
-        if (targetState != State::Null) { // The only state allow to set to is Null
-            co_return Err(Error::InvalidState);
-        }
-        if (auto res = co_await onTeardown(); !res) {
-            co_return Err(res.error());
-        }
-        mState = State::Null;
-        co_return {};
-    }
-
     // Do transations
     // Check is forward (Null -> Running)
     // Backward is (Running -> NUll)
-    auto isForward = [&]() {
-        return int(targetState) > int(mState);
-    };
+    auto isForward = toUnderlying(targetState) > toUnderlying(mState);
     auto nextState = [&](State state) {
-        if (isForward()) {
-            return State(int(state) + 1);
+        auto value = toUnderlying(state);
+        if (isForward) {
+            value += 1;
         }
         else {
-            return State(int(state) - 1);
+            value -= 1;
         }
+        return State {value};
     };
 
-    // DO transation
+    // Check is error state
+    if (mError) {
+        if (isForward) { // Only allow backward to teardown
+            co_return Err(Error::InvalidState);
+        }
+    }
+
+    // Do transation
     for (auto cur = mState; cur != targetState; cur = nextState(cur)) {
         auto change = stateChangeOf(cur, nextState(cur));
         auto task = IoTask<void> {};
@@ -236,13 +227,24 @@ auto Element::setState(State targetState) -> IoTask<void> {
             case StateChange::Stop:       task = onStop(); break;
             case StateChange::Teardown:   task = onTeardown(); break;
         }
-        if (auto res = co_await std::move(task); !res) { // FAILED!!!
-            mState = State::Error;
+        if (auto res = co_await std::move(task); !res && isForward) { // FORWARD, FAILED!!!
+            mError = res.error();
             co_return Err(res.error());
         }
+        else if (!res) { // BACKWARD, FAILED!!!
+            mError = res.error();
+            logger::warn("[Element] '{}' Failed to backward to state '{}': {}, ignore it", mName, nextState(cur), res.error().message());
+        }
+
+        // Done transation
+        mState = nextState(cur);
     }
+
     // Done
     mState = targetState;
+    if (mState == State::Null) {
+        mError.clear();
+    }
     co_return {};
 }
 
@@ -288,7 +290,7 @@ auto Element::createOutputPad(std::string_view name) -> Pad & {
 auto Element::setErrorState(std::error_code errc) -> void {
     // TODO: Handle error
     logger::error("[Element] set error state: {}", errc.message());
-    mState = State::Error;
+    mError = errc;
 }
 
 auto Element::dumpInfoInternal(FILE *where, int level) -> void {
@@ -422,9 +424,9 @@ auto Bin::setChildrenState(State newState) -> IoTask<void> {
         logger::info("[Bin] '{}' topological sort done", name());
     }
     // Check we are init(forward) or shutdown(backword)
-    static_assert(int(State::Running) > int(State::Null));
-    bool init = int(newState) > int(state());
-    if (init) { // Forward
+    static_assert(toUnderlying(State::Running) > toUnderlying(State::Null));
+    bool forward = toUnderlying(newState) > toUnderlying(state());
+    if (forward) { // Forward
         for (auto &child : mChildren) {
             if (auto res = co_await child->setState(newState); !res) {
                 co_return Err(res.error());
@@ -432,9 +434,9 @@ auto Bin::setChildrenState(State newState) -> IoTask<void> {
         }
     }
     else { // Backward
-        for (auto &child : mChildren | std::views::reverse) {
+        for (auto &child : mChildren | std::views::reverse) { // Backward will ignore the error
             if (auto res = co_await child->setState(newState); !res) {
-                co_return Err(res.error());
+                logger::warn("[Bin] '{}' child '{}' failed to set state to '{}', error: {}", name(), child->name(), toString(newState), res.error().message());
             }
         }
     }
@@ -518,7 +520,6 @@ auto toString(State state) -> std::string_view {
         case State::Ready:   return "Ready";
         case State::Paused:  return "Paused";
         case State::Running: return "Running";
-        case State::Error:   return "Error";
         default:             return "Unknown"; // Impossible!
     }
 }

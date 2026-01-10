@@ -29,17 +29,13 @@ class Bin;
  *  - Running -> Paused   (Pause)
  *  - Paused  -> Ready    (Stop)
  *  - Ready   -> Null     (Teardown)
- *  - Error   -> Null     (Teardown)
  * 
- *  An Element in the Error state can only transition back to Null.
  */
 enum class State {
     Null    = 0,
     Ready   = 1,
     Paused  = 2,
     Running = 3,
-
-    Error   = 0x0721, // Error state, the element is in an unrecoverable state. can't switch to another state, (except NUll)
 };
 
 enum class StateChange {
@@ -66,7 +62,7 @@ enum class PadType {
  * Pads are used to establish the data flow pipeline. An output pad of one element
  * can be linked to an input pad of another.
  */
-class NEKOAV_API Pad {
+class NEKOAV_API Pad final {
 public:
     Pad(Element &element, PadType type, std::string_view name) : mElement(element), mType(type), mName(name) {}
     Pad(const Pad &) = delete;
@@ -338,9 +334,9 @@ public:
      * Note: Users must transition the element to the `Null` state before destroying it
      * to ensure proper resource cleanup.
      * 
-     * @param targetState The target state to transition to. (can't be State::Error)
+     * @param targetState The target state to transition to.
      * @return IoTask<void> An asynchronous task that completes when the state transition is successful.
-     *         On failure, the element's state is set to `Error`, and the task returns an error.
+     *         On failure, the element's error field is set, and the task returns an error.
      */
     auto setState(State targetState) -> IoTask<void>;
 
@@ -385,6 +381,21 @@ public:
      * @return State 
      */
     auto state() const -> State { return mState; }
+
+    /**
+     * @brief Get the error field
+     * 
+     * @return std::error_code
+     */
+    auto error() const -> std::error_code { return mError; };
+
+    /**
+     * @brief Check the element is in error status
+     * 
+     * @return true 
+     * @return false 
+     */
+    auto hasError() const -> bool { return static_cast<bool>(mError); }
 
     /**
      * @brief Get the name of the element.
@@ -438,8 +449,9 @@ private:
     PadList mOutputs;
 
     // State / Parent
-    State    mState = State::Null;
-    Bin     *mParent = nullptr;
+    State           mState = State::Null;
+    Bin            *mParent = nullptr;
+    std::error_code mError = {}; // If this is set, the element is in error
 
     // Name
     std::string mName;
@@ -463,6 +475,17 @@ public:
      * @param element The shared_ptr of the element (if nullptr, no-op)
      */
     auto addElement(Element::Ptr element) -> void;
+
+    /**
+     * @brief Add many elements to the bin
+     * 
+     * @tparam Args 
+     * @param elements 
+     */
+    template <typename ...Args>
+    auto addElements(Args &&...elements) -> void {
+        (addElement(std::forward<Args>(elements)), ...);
+    }
 
     /**
      * @brief Add an element to the bin and sync the new Element to the bin state
