@@ -56,6 +56,18 @@ namespace {
             [&](PixelFormat fmt) {
                 ::fprintf(where, "%s", toString(fmt).data());
             },
+            [&](ColorRange range) {
+                ::fprintf(where, "%s", toString(range).data());
+            },
+            [&](ColorPrimaries pri) {
+                ::fprintf(where, "%s", toString(pri).data());
+            },
+            [&](ColorTransfer transfer) {
+                ::fprintf(where, "%s", toString(transfer).data());
+            },
+            [&](ColorSpace space) {
+                ::fprintf(where, "%s", toString(space).data());
+            },
             [&](SampleFormat fmt) {
                 ::fprintf(where, "%s", toString(fmt).data());
             },

@@ -9,6 +9,7 @@
 extern "C" {
     #include <libavutil/hwcontext.h>
     #include <libavutil/pixdesc.h>
+    #include <libavcodec/avcodec.h>
 
 #if defined(_WIN32)
     #include <libavutil/hwcontext_d3d11va.h>
@@ -61,6 +62,13 @@ static auto priorityOf(AVHWDeviceType type) -> int {
         default:                            return 100;
     }
 }
+
+// Get params from the caps
+struct ParamsDeleter {
+    void operator()(AVCodecParameters *params) const {
+        avcodec_parameters_free(&params);
+    }
+};
 
 struct Decoder::Impl {
     AVCodecContext *ctxt = nullptr;
@@ -144,7 +152,7 @@ auto Decoder::onPadPush(Pad &pad, Sample sample) -> IoTask<void> {
         co_return {};
     }
     else if (res < 0) {
-        logger::error("[Decoder] Failed to decode {} => {}", res, error::toString(res));
+        logger::error("[Decoder] '{}' Failed to decode {} => {}", name(), res, error::toString(res));
         co_return Err(error::fromFFmpeg(res));
     }
 
@@ -155,7 +163,7 @@ auto Decoder::onPadPush(Pad &pad, Sample sample) -> IoTask<void> {
 
 auto Decoder::init(const Caps &caps) -> IoTask<void> {
     assert(!d);
-    logger::info("[Decoder] init with caps");
+    logger::info("[Decoder] '{}' init with caps", name());
 
 
     // Create the decoder
@@ -163,7 +171,7 @@ auto Decoder::init(const Caps &caps) -> IoTask<void> {
     auto inner = std::make_unique<Impl>();
 
     // Common part
-    auto createContext = [&](const Value &value) -> IoResult<void>{
+    auto createContext = [&](AVCodecParameters *params, const Value &value) -> IoResult<void>{
         codec = avcodec_find_decoder_by_name(value[Caps::Codec].toString().c_str());
         if (!codec) {
             return Err(Error::NoCodec);
@@ -172,46 +180,61 @@ auto Decoder::init(const Caps &caps) -> IoTask<void> {
         if (!inner->ctxt) {
             return Err(Error::OutOfMemory);
         }
+
+        // Common part of the params
+        params->codec_type = codec->type;
+        params->codec_id = codec->id;
+        params->codec_tag = static_cast<uint32_t>(value[Caps::CodecTag].toInteger());
         return {};
     };
-    auto setExtraData = [&](const Value &value) {
+    auto setExtraData = [](AVCodecParameters *params, const Value &value) {
         if (auto &extra = value[Caps::CodecExtraData]; !extra.isBytes()) {
             return;
         }
         else if (auto bytes = extra.toBytes(); !bytes.empty()) {
-            inner->ctxt->extradata = static_cast<uint8_t *>(av_mallocz(bytes.size() + AV_INPUT_BUFFER_PADDING_SIZE));
-            inner->ctxt->extradata_size = bytes.size();
-            ::memcpy(inner->ctxt->extradata, bytes.data(), bytes.size());
+            params->extradata = static_cast<uint8_t *>(av_mallocz(bytes.size() + AV_INPUT_BUFFER_PADDING_SIZE));
+            params->extradata_size = bytes.size();
+            ::memcpy(params->extradata, bytes.data(), bytes.size());
         }
     };
 
     // Convert the info
+    auto params = std::unique_ptr<AVCodecParameters, ParamsDeleter>{ avcodec_parameters_alloc() };
     if (auto &video = caps.find(Caps::VideoPacket); video.isMap()) {
-        if (auto res = createContext(video); !res) {
+        if (auto res = createContext(params.get(), video); !res) {
             co_return Err(res.error());
         }
         // Set the extra data
-        setExtraData(video);
+        setExtraData(params.get(), video);
 
         // Other info
-        inner->ctxt->width = video[Caps::Width].toInteger();
-        inner->ctxt->height = video[Caps::Height].toInteger();
-        inner->ctxt->bit_rate = video[Caps::Bitrate].toInteger();
-        inner->ctxt->pix_fmt = pixfmt::toFFmpeg(video[Caps::PixelFormat].toPixelFormat());
+        params->width = video[Caps::Width].toInteger();
+        params->height = video[Caps::Height].toInteger();
+        params->bit_rate = video[Caps::Bitrate].toInteger();
+        params->format = pixfmt::toFFmpeg(video[Caps::PixelFormat].toPixelFormat());
+        params->color_range = color_range::toFFmpeg(video[Caps::ColorRange].toColorRange());
+        params->color_primaries = color_primaries::toFFmpeg(video[Caps::ColorPrimaries].toColorPrimaries());
+        params->color_trc = color_transfer::toFFmpeg(video[Caps::ColorTransfer].toColorTransfer());
+        params->color_space = color_space::toFFmpeg(video[Caps::ColorSpace].toColorSpace());
     }
     else if (auto &audio = caps.find(Caps::AudioPacket); audio.isMap()) {
-        if (auto res = createContext(audio); !res) {
+        if (auto res = createContext(params.get(), audio); !res) {
             co_return Err(res.error());
         }
         // Set the extra data
-        setExtraData(audio);
+        setExtraData(params.get(), audio);
 
-        inner->ctxt->sample_rate = audio[Caps::SampleRate].toInteger();
-        inner->ctxt->sample_fmt = sample_fmt::toFFmpeg(audio[Caps::SampleFormat].toSampleFormat());
-        inner->ctxt->ch_layout.nb_channels = audio[Caps::Channels].toInteger();
+        params->sample_rate = audio[Caps::SampleRate].toInteger();
+        params->format = sample_fmt::toFFmpeg(audio[Caps::SampleFormat].toSampleFormat());
+        av_channel_layout_default(&params->ch_layout, audio[Caps::Channels].toInteger());
     }
     else { // WTF?
         co_return Err(Error::NoCodec);
+    }
+
+    // Store it
+    if (auto res = avcodec_parameters_to_context(inner->ctxt, params.get()); res < 0) {
+        co_return Err(error::fromFFmpeg(res));
     }
 
     // Open the codec, init hardware context may block
@@ -244,7 +267,7 @@ auto Decoder::open(Impl *inner) -> IoResult<void> {
             return priorityOf(a->device_type) < priorityOf(b->device_type);
         });
         for (auto &config : hwconfigs) {
-            logger::info("[Decoder] Found hardware config '{}'", toString(config->device_type));
+            logger::info("[Decoder] '{}' Found hardware config '{}'", name(), toString(config->device_type));
         }
 
         // Try to open it one by one
@@ -283,14 +306,14 @@ auto Decoder::open(Impl *inner) -> IoResult<void> {
 
             // Try init codec
             inner->hwfmt = config->pix_fmt;
-            logger::info("[Decoder] Try open codec for hardware device '{}' with format '{}'", toString(config->device_type), av_get_pix_fmt_name(inner->hwfmt));
+            logger::info("[Decoder] '{}' Try open codec for hardware device '{}' with format '{}'", name(), toString(config->device_type), av_get_pix_fmt_name(inner->hwfmt));
             if (auto res = avcodec_open2(inner->ctxt, inner->ctxt->codec, nullptr); res < 0) {
                 av_buffer_unref(&inner->ctxt->hw_device_ctx);
                 inner->ctxt->hw_device_ctx = nullptr;
                 inner->hwfmt = AV_PIX_FMT_NONE;
                 continue;
             }
-            logger::info("[Decoder] Open hardware codec done");
+            logger::info("[Decoder] '{}' Open hardware codec done", name());
             return {};
         }
 
@@ -308,7 +331,8 @@ auto Decoder::open(Impl *inner) -> IoResult<void> {
         return Err(error::fromFFmpeg(res));
     }
     logger::info(
-        "[Decoder] Open software codec done with fmt {}", 
+        "[Decoder] '{}' Open software codec done with fmt {}", 
+        name(),
         inner->ctxt->codec->type == AVMEDIA_TYPE_VIDEO ? av_get_pix_fmt_name(inner->ctxt->pix_fmt) : av_get_sample_fmt_name(inner->ctxt->sample_fmt)
     );
     return {};

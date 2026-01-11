@@ -100,11 +100,16 @@ auto UrlSource::onPrepare() -> IoTask<void> {
             case AVMEDIA_TYPE_VIDEO: {
                 auto extraData = reinterpret_cast<std::byte*>(stream->codecpar->extradata);
                 auto info = Value::fromMap({
-                    { std::string(Caps::Width),  stream->codecpar->width },
-                    { std::string(Caps::Height), stream->codecpar->height },
-                    { std::string(Caps::Codec),  avcodec_get_name(stream->codecpar->codec_id) },
+                    { std::string(Caps::Width),    stream->codecpar->width },
+                    { std::string(Caps::Height),   stream->codecpar->height },
+                    { std::string(Caps::Codec),    avcodec_get_name(stream->codecpar->codec_id) },
+                    { std::string(Caps::CodecTag), static_cast<int64_t>(stream->codecpar->codec_tag) },
                     { std::string(Caps::CodecExtraData), std::vector<std::byte>{extraData, extraData + stream->codecpar->extradata_size} },
                     { std::string(Caps::PixelFormat), pixfmt::fromFFmpeg(AVPixelFormat(stream->codecpar->format)) },
+                    { std::string(Caps::ColorRange), color_range::fromFFmpeg(stream->codecpar->color_range) },
+                    { std::string(Caps::ColorPrimaries), color_primaries::fromFFmpeg(stream->codecpar->color_primaries) },
+                    { std::string(Caps::ColorTransfer), color_transfer::fromFFmpeg(stream->codecpar->color_trc) },
+                    { std::string(Caps::ColorSpace), color_space::fromFFmpeg(stream->codecpar->color_space) },
                     { std::string(Caps::Bitrate), stream->codecpar->bit_rate },
                 });
                 pad = &createOutputPad("video/" + std::to_string(videoIdx++));
@@ -114,9 +119,10 @@ auto UrlSource::onPrepare() -> IoTask<void> {
             case AVMEDIA_TYPE_AUDIO: {
                 auto extraData = reinterpret_cast<std::byte*>(stream->codecpar->extradata);
                 auto info = Value::fromMap({
-                    { std::string(Caps::SampleRate), stream->codecpar->sample_rate },
-                    { std::string(Caps::Channels),   stream->codecpar->ch_layout.nb_channels },
-                    { std::string(Caps::Codec),      avcodec_get_name(stream->codecpar->codec_id) },
+                    { std::string(Caps::SampleRate),  stream->codecpar->sample_rate },
+                    { std::string(Caps::Channels),    stream->codecpar->ch_layout.nb_channels },
+                    { std::string(Caps::Codec),       avcodec_get_name(stream->codecpar->codec_id) },
+                    { std::string(Caps::CodecTag), static_cast<int64_t>(stream->codecpar->codec_tag) },
                     { std::string(Caps::CodecExtraData), std::vector<std::byte>{extraData, extraData + stream->codecpar->extradata_size} },
                     { std::string(Caps::SampleFormat), sample_fmt::fromFFmpeg(AVSampleFormat(stream->codecpar->format)) },
                     { std::string(Caps::Bitrate), stream->codecpar->bit_rate },

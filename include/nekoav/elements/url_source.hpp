@@ -26,7 +26,7 @@ public:
     /**
      * @brief Set the Url of the source
      * 
-     * @param url 
+     * @param url The utf-8 url
      */
     auto setUrl(std::string_view url) -> void;
 

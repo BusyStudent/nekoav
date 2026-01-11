@@ -81,11 +81,27 @@ auto enum2str(std::index_sequence<N...>, T i) -> std::string_view {
 } // namespace nekoav::refl
 
 auto toString(PixelFormat fmt) -> std::string_view {
-    return refl::enum2str(std::make_index_sequence<size_t(PixelFormat::_Max)>(), fmt);
+    return refl::enum2str(std::make_index_sequence<size_t(PixelFormat::Nax)>(), fmt);
+}
+
+auto toString(ColorRange rng) -> std::string_view {
+    return refl::enum2str(std::make_index_sequence<size_t(ColorRange::Nax)>(), rng);
+}
+
+auto toString(ColorPrimaries prim) -> std::string_view {
+    return refl::enum2str(std::make_index_sequence<size_t(ColorPrimaries::Nax)>(), prim);
+}
+
+auto toString(ColorTransfer trans) -> std::string_view {
+    return refl::enum2str(std::make_index_sequence<size_t(ColorTransfer::Nax)>(), trans);
+}
+
+auto toString(ColorSpace space) -> std::string_view {
+    return refl::enum2str(std::make_index_sequence<size_t(ColorSpace::Nax)>(), space);
 }
 
 auto toString(SampleFormat fmt) -> std::string_view {
-    return refl::enum2str(std::make_index_sequence<size_t(SampleFormat::_Max)>(), fmt);
+    return refl::enum2str(std::make_index_sequence<size_t(SampleFormat::Nax)>(), fmt);
 }
 
 }

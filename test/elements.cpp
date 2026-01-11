@@ -92,14 +92,11 @@ ILIAS_TEST(Core, UrlSource) {
     // Do connect here
     if (!source->videoOutputs().empty()) {
         EXPECT_TRUE(linkElement(*source, source->videoOutputs().at(0)->name(), *videoQueue, "in"));
-        EXPECT_TRUE(linkElement(*videoQueue, *videoDecoder));
-        EXPECT_TRUE(linkElement(*videoDecoder,  *videoConverter));
-        EXPECT_TRUE(linkElement(*videoConverter, *videoPrint));
+        EXPECT_TRUE(linkChain(*videoQueue, *videoDecoder, *videoConverter, *videoPrint));
     }
     if (!source->audioOutputs().empty()) {
         EXPECT_TRUE(linkElement(*source, source->audioOutputs().at(0)->name(), *audioQueue, "in"));
-        EXPECT_TRUE(linkElement(*audioQueue, *audioDecoder));
-        EXPECT_TRUE(linkElement(*audioDecoder, *audioPrint));
+        EXPECT_TRUE(linkChain(*audioQueue, *audioDecoder, *audioPrint));
     }
 
     // Run 

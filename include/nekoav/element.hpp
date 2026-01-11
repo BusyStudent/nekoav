@@ -585,4 +585,23 @@ extern NEKOAV_API auto linkElement(Element &src, Element &dst) -> bool;
  */
 extern NEKOAV_API auto toString(State state) -> std::string_view;
 
+/**
+ * @brief Link the elements in the chain together.
+ * 
+ * @param ...elements (must be at least 2 elements)
+ * @return true 
+ * @return false 
+ */
+template <typename First, typename Second, typename... Rest> 
+    requires(std::is_base_of_v<Element, First> && std::is_base_of_v<Element, Second>)
+inline bool linkChain(First &first, Second &second, Rest&... rest) {
+    if (!linkElement(first, second)) {
+        return false;
+    }
+    if constexpr (sizeof...(rest) > 0) {
+        return linkChain(second, rest...);        
+    }
+    return true;
+}
+
 } // namespace nekoav

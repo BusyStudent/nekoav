@@ -10,7 +10,8 @@
 
 namespace nekoav {
 
-using namespace std::literals;
+// For ”“sv;
+using std::literals::operator ""sv;
 
 /**
  * @brief The value for multimedia
@@ -27,9 +28,13 @@ public:
         int64_t,
         double,
         PixelFormat,
+        ColorRange,
+        ColorPrimaries,
+        ColorTransfer,
+        ColorSpace,
         SampleFormat,
         Rational,
-        std::chrono::nanoseconds,
+        Duration,
         Bytes,
         List,
         Map
@@ -49,9 +54,13 @@ public:
     auto isInteger() const noexcept { return std::holds_alternative<int64_t>(mStorage); }
     auto isDouble() const noexcept { return std::holds_alternative<double>(mStorage); }
     auto isPixelFormat() const noexcept { return std::holds_alternative<PixelFormat>(mStorage); }
+    auto isColorRange() const noexcept { return std::holds_alternative<ColorRange>(mStorage); }
+    auto isColorPrimaries() const noexcept { return std::holds_alternative<ColorPrimaries>(mStorage); }
+    auto isColorTransfer() const noexcept { return std::holds_alternative<ColorTransfer>(mStorage); }
+    auto isColorSpace() const noexcept { return std::holds_alternative<ColorSpace>(mStorage); }
     auto isSampleFormat() const noexcept { return std::holds_alternative<SampleFormat>(mStorage); }
     auto isRational() const noexcept { return std::holds_alternative<Rational>(mStorage); }
-    auto isDuration() const noexcept { return std::holds_alternative<std::chrono::nanoseconds>(mStorage); }
+    auto isDuration() const noexcept { return std::holds_alternative<Duration>(mStorage); }
     auto isBytes() const noexcept { return std::holds_alternative<Bytes>(mStorage); }
     auto isList() const noexcept { return std::holds_alternative<List>(mStorage); }
     auto isMap() const noexcept { return std::holds_alternative<Map>(mStorage); }
@@ -61,9 +70,13 @@ public:
     auto toInteger() const -> int64_t { return std::get<int64_t>(mStorage); }
     auto toDouble() const -> double { return std::get<double>(mStorage); }
     auto toPixelFormat() const -> PixelFormat { return std::get<PixelFormat>(mStorage); }
+    auto toColorRange() const -> ColorRange { return std::get<ColorRange>(mStorage); }
+    auto toColorPrimaries() const -> ColorPrimaries { return std::get<ColorPrimaries>(mStorage); }
+    auto toColorTransfer() const -> ColorTransfer { return std::get<ColorTransfer>(mStorage); }
+    auto toColorSpace() const -> ColorSpace { return std::get<ColorSpace>(mStorage); }
     auto toSampleFormat() const -> SampleFormat { return std::get<SampleFormat>(mStorage); }
     auto toRational() const -> Rational { return std::get<Rational>(mStorage); }
-    auto toDuration() const -> std::chrono::nanoseconds { return std::get<std::chrono::nanoseconds>(mStorage); }
+    auto toDuration() const -> Duration { return std::get<Duration>(mStorage); }
     auto toBytes() const -> const Bytes & { return std::get<Bytes>(mStorage); }
     auto toList() const -> const List & { return std::get<List>(mStorage); }
     auto toMap() const -> const Map & { return std::get<Map>(mStorage); }
@@ -117,14 +130,25 @@ public:
     static constexpr auto Any = "any"sv;
 
     // Somple builtin name
+    // Video
     static constexpr auto Width = "width"sv;
     static constexpr auto Height = "height"sv;
     static constexpr auto PixelFormat = "pixelFormat"sv;
+    static constexpr auto ColorRange = "colorRange"sv;
+    static constexpr auto ColorPrimaries = "colorPrimaries"sv;
+    static constexpr auto ColorTransfer = "colorTransfer"sv;
+    static constexpr auto ColorSpace = "colorSpace"sv;
+
+    // Audio
     static constexpr auto SampleFormat = "sampleFormat"sv;
     static constexpr auto Channels = "channels"sv;
+    static constexpr auto ChannelMask = "channelMask"sv;
     static constexpr auto SampleRate = "sampleRate"sv;
+    
+    // Common
     static constexpr auto Duration = "duration"sv;
     static constexpr auto Codec = "codec"sv;
+    static constexpr auto CodecTag = "codecTag"sv;
     static constexpr auto CodecExtraData = "codecExtraData"sv;
     static constexpr auto Bitrate = "bitrate"sv;
     static constexpr auto FrameRate = "frameRate"sv;
