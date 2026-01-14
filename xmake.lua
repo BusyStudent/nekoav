@@ -8,6 +8,9 @@ add_requires("ilias")
 -- import ffmpeg
 add_requires("ffmpeg")
 
+-- Import miniaudio
+add_requires("miniaudio")
+
 -- for test
 add_requires("gtest")
 
@@ -16,10 +19,11 @@ add_includedirs("include")
 
 -- update the compile_commands.json for clangd
 add_rules("plugin.compile_commands.autoupdate", {lsp = "clangd", outputdir = ".vscode"})
+set_encodings("utf-8")
 
 target("nekoav")
     add_packages("ilias", {public = true})
-    add_packages("ffmpeg")
+    add_packages("ffmpeg", "miniaudio")
     set_kind("shared")
     
     add_includedirs("src")

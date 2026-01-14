@@ -79,12 +79,7 @@ public:
     }
 
     // Unlink the pad to its peer.
-    auto unlink() -> void {
-        if (mPeer) {
-            mPeer->mPeer = nullptr;
-            mPeer = nullptr;
-        }
-    }
+    auto unlink() -> void;
 
     /**
      * @brief Link this pad to a peer pad
@@ -93,17 +88,7 @@ public:
      * @return true 
      * @return false 
      */
-    auto link(Pad &peer) -> bool {
-        if (isLinked() || peer.isLinked()) {
-            return false;
-        }
-        if (mType == peer.mType) {
-            return false;
-        }
-        mPeer = &peer;
-        peer.mPeer = this;
-        return true;
-    }
+    auto link(Pad &peer) -> bool;
 
     /**
      * @brief Get the peer pad
@@ -133,7 +118,8 @@ public:
     }
 
     /**
-     * @brief Get the mutable caps, only for the element
+     * @brief Get the mutable caps
+     * @note Only used it if you own the pad (like the element)
      * 
      * @return Caps& 
      */
@@ -456,6 +442,7 @@ private:
     // Name
     std::string mName;
 friend class Bin;
+friend class Pad;
 };
 
 /**
@@ -536,9 +523,11 @@ private:
     auto setChildrenState(State newState) -> IoTask<void>;
 
     // Child elements
+    // from Source -> Sink
     std::vector<Element::Ptr> mChildren;
     bool                      mSorted = false;
     bool                      mIsPipeline = false; // avoid to use RTTI, use bool is faster
+friend class Pad;
 };
 
 /**

@@ -185,6 +185,12 @@ namespace pixfmt {
             case AV_PIX_FMT_YUV410P:         return PixelFormat::YUV410P;
             case AV_PIX_FMT_YUV411P:         return PixelFormat::YUV411P;
             case AV_PIX_FMT_YUV440P:         return PixelFormat::YUV440P;
+            // ffmpeg depercated J-Format
+            case AV_PIX_FMT_YUVJ420P:         return PixelFormat::YUV420P;
+            case AV_PIX_FMT_YUVJ422P:         return PixelFormat::YUV422P;
+            case AV_PIX_FMT_YUVJ444P:         return PixelFormat::YUV444P;
+            case AV_PIX_FMT_YUVJ411P:         return PixelFormat::YUV411P;
+            case AV_PIX_FMT_YUVJ440P:         return PixelFormat::YUV440P;
             case AV_PIX_FMT_NV12:            return PixelFormat::NV12;
             case AV_PIX_FMT_NV21:            return PixelFormat::NV21;
             case AV_PIX_FMT_NV16:            return PixelFormat::NV16;

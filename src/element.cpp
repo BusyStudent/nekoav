@@ -108,6 +108,36 @@ namespace {
 } // namespace
 
 // MARK: Pad
+auto Pad::unlink() -> void {
+    if (!mPeer) {
+        return;
+    }
+    mPeer->mPeer = nullptr;
+    mPeer = nullptr;
+
+    // Mark Topology is changed
+    if (mElement.mParent) {
+        mElement.mParent->mSorted = false;
+    }
+}
+
+auto Pad::link(Pad &peer) -> bool {
+    if (isLinked() || peer.isLinked()) {
+        return false;
+    }
+    if (mType == peer.mType) {
+        return false;
+    }
+    mPeer = &peer;
+    peer.mPeer = this;
+    
+    // Mark Topology is changed
+    if (mElement.mParent) {
+        mElement.mParent->mSorted = false;
+    }
+    return true;
+}
+
 auto Pad::push(Sample sample) -> IoTask<void> {
     if (!isLinked()) {
         co_return Err(Error::NotLinked);
@@ -239,6 +269,7 @@ auto Element::setState(State targetState) -> IoTask<void> {
             case StateChange::Stop:       task = onStop(); break;
             case StateChange::Teardown:   task = onTeardown(); break;
         }
+        logger::info("[Element] '{}' Change state from '{}' to '{}'", mName, cur, nextState(cur));
         if (auto res = co_await std::move(task); !res && isForward) { // FORWARD, FAILED!!!
             mError = res.error();
             co_return Err(res.error());
@@ -439,15 +470,15 @@ auto Bin::setChildrenState(State newState) -> IoTask<void> {
     static_assert(toUnderlying(State::Running) > toUnderlying(State::Null));
     bool forward = toUnderlying(newState) > toUnderlying(state());
     if (forward) { // Forward
-        for (auto &child : mChildren) {
+        for (auto &child : mChildren | std::views::reverse) { // From sink to source
             if (auto res = co_await child->setState(newState); !res) {
                 co_return Err(res.error());
             }
         }
     }
     else { // Backward
-        for (auto &child : mChildren | std::views::reverse) { // Backward will ignore the error
-            if (auto res = co_await child->setState(newState); !res) {
+        for (auto &child : mChildren) { // From source to sink
+            if (auto res = co_await child->setState(newState); !res) { // Backward will ignore the error
                 logger::warn("[Bin] '{}' child '{}' failed to set state to '{}', error: {}", name(), child->name(), toString(newState), res.error().message());
             }
         }

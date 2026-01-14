@@ -230,6 +230,42 @@ enum class SampleFormat : int {
     Nax
 };
 
+/**
+ * @brief Check the sample format is planar or not
+ * 
+ * @param fmt 
+ * @return true 
+ * @return false 
+ */
+inline auto isPlanarFormat(SampleFormat fmt) -> bool {
+    switch (fmt) {
+        case SampleFormat::U8P:
+        case SampleFormat::S16P:
+        case SampleFormat::S32P:
+        case SampleFormat::FLTP:
+        case SampleFormat::DBLP:
+            return true;
+        default: return false;
+    }
+}
+
+/**
+ * @brief Get the bytes per sample
+ * 
+ * @param fmt 
+ * @return size_t 
+ */
+inline auto bytesPerSample(SampleFormat fmt) -> size_t {
+    switch (fmt) {
+        case SampleFormat::U8: case SampleFormat::U8P: return 1;
+        case SampleFormat::S16: case SampleFormat::S16P: return 2;
+        case SampleFormat::S32: case SampleFormat::S32P: return 4;
+        case SampleFormat::FLT: case SampleFormat::FLTP: return 4;
+        case SampleFormat::DBL: case SampleFormat::DBLP: return 8;
+        default: return 0;
+    }
+}
+
 extern NEKOAV_API auto toString(PixelFormat fmt) -> std::string_view;
 extern NEKOAV_API auto toString(ColorRange range) -> std::string_view;
 extern NEKOAV_API auto toString(ColorPrimaries pri) -> std::string_view;

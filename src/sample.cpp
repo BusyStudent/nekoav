@@ -48,10 +48,6 @@ auto Frame::pixelFormat() const -> PixelFormat {
     return pixfmt::fromFFmpeg(AVPixelFormat(mFrame->format));
 }
 
-auto Frame::sampleFormat() const -> SampleFormat {
-    return sample_fmt::fromFFmpeg(AVSampleFormat(mFrame->format));
-}
-
 auto Frame::height() const -> int {
     return mFrame->height;
 }
@@ -68,6 +64,22 @@ auto Frame::data(int plane) -> void * {
 auto Frame::linesize(int plane) -> int {
     assert(plane >= 0 && plane < AV_NUM_DATA_POINTERS);
     return mFrame->linesize[plane];
+}
+
+auto Frame::sampleFormat() const -> SampleFormat {
+    return sample_fmt::fromFFmpeg(AVSampleFormat(mFrame->format));
+}
+
+auto Frame::channels() const -> int {
+    return mFrame->ch_layout.nb_channels;
+}
+
+auto Frame::samples() const -> int {
+    return mFrame->nb_samples;
+}
+
+auto Frame::sampleRate() const -> int {
+    return mFrame->sample_rate;
 }
 
 // Other

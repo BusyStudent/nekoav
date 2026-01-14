@@ -37,10 +37,16 @@ public:
     auto data(int plane) -> void *;
     auto linesize(int plane) -> int;
 
+    // Video specific
     auto pixelFormat() const -> PixelFormat;
-    auto sampleFormat() const -> SampleFormat;
     auto height() const -> int;
     auto width() const -> int;
+
+    // Audio specific
+    auto sampleFormat() const -> SampleFormat;
+    auto sampleRate() const -> int;
+    auto channels() const -> int;
+    auto samples() const -> int;
 
     // Get the presentation timeBase
     auto timeBase() const -> Rational { return mTimeBase; }

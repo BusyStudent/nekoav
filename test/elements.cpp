@@ -2,6 +2,7 @@
 #include <nekoav/elements/url_source.hpp>
 #include <nekoav/elements/decoder.hpp>
 #include <nekoav/elements/video.hpp>
+#include <nekoav/elements/audio.hpp>
 #include <ilias/platform.hpp>
 #include <ilias/testing.hpp>
 #include "testing_element.hpp"
@@ -78,7 +79,8 @@ ILIAS_TEST(Core, UrlSource) {
 
     auto audioDecoder = std::make_shared<Decoder>("AudioDecoder");
     auto audioQueue = std::make_shared<Queue>("AudioQueue");
-    auto audioPrint = std::make_shared<PrintElement>("AudioPrint");
+    // auto audioPrint = std::make_shared<PrintElement>("AudioPrint");
+    auto audioPrint = std::make_shared<AudioSink>("AudioPrint");
 
     source->setUrl("https://gstreamer.freedesktop.org/data/media/sintel_trailer-480p.webm");
 
@@ -102,7 +104,7 @@ ILIAS_TEST(Core, UrlSource) {
     // Run 
     EXPECT_TRUE(co_await bin->setState(State::Running));
     bin->dumpInfo();
-    co_await ilias::sleep(5s);
+    co_await ilias::sleep(15s);
     
     EXPECT_TRUE(co_await bin->setState(State::Null));
     co_return;
