@@ -135,7 +135,7 @@ auto Decoder::onPadPush(Pad &pad, Sample sample) -> IoTask<void> {
         }
     }
     if (!sample.isPacket()) {
-        co_return Err(Error::UnsupportedSampleType);
+        co_return Err(Error::SampleTypeNotSupported);
     }
     // Begin process
     auto packet = sample.toPacket();

@@ -1,4 +1,5 @@
 #include <nekoav/elements/audio.hpp>
+#include <nekoav/clock.hpp>
 #include <ilias/sync/mpsc.hpp>
 #include <queue>
 #include <mutex>
@@ -24,7 +25,8 @@
 
 namespace nekoav {
 
-struct AudioSink::Impl {
+// MARK: AudioSink
+struct AudioSink::Impl final : public Clock { // Implementation the ClockSource
     ma_context        context {};
     ma_device         device {};
 
@@ -55,6 +57,16 @@ struct AudioSink::Impl {
         }
     }
 
+    // Clock Interface
+    auto time() const -> Timestamp override {
+        return currentPts.load();
+    }
+
+    auto category() const -> ClockCategory override {
+        return ClockCategory::Audio;
+    }
+
+    // Other...
     auto audioCallback(ma_device *device, std::byte *output, const std::byte *input, ma_uint32 frameCount) -> void;
 };
 
@@ -64,6 +76,15 @@ AudioSink::AudioSink(std::string_view name) : Element(name), mInput(createInputP
 
 AudioSink::~AudioSink() {
     assert(!d);
+}
+
+auto AudioSink::sendQuery(Query query) -> std::optional<Reply> {
+    if (!query.isClockSource() || !d) {
+        return std::nullopt;
+    }
+    return Reply::ClockSource {
+        .clock = Clock::Ptr { shared_from_this(), d.get() }
+    };
 }
 
 auto AudioSink::onPrepare() -> IoTask<void> {
@@ -95,6 +116,7 @@ auto AudioSink::onPrepare() -> IoTask<void> {
 }
 
 auto AudioSink::onStop() -> IoTask<void> {
+    // NOTE: Pipeline will discard the clock when stopping
     d.reset();
     co_return {};
 }
@@ -118,7 +140,7 @@ auto AudioSink::onPush(Pad &pad, Sample sample) -> IoTask<void> {
         co_return {};
     }
     if (!sample.isFrame()) {
-        co_return Err(Error::UnsupportedSampleType);
+        co_return Err(Error::SampleTypeNotSupported);
     }
     auto frame = sample.toFrame();
 
@@ -148,7 +170,7 @@ auto AudioSink::initDevice(Frame *frame) -> IoResult<void> {
         case SampleFormat::FLT: case SampleFormat::FLTP: config.playback.format = ma_format_f32; break;
         default: {
             logger::error("[AudioSink] '{}' Unsupported sample format: {}", name(), toString(frame->sampleFormat()));
-            return Err(Error::UnsupportedAudioFormat);
+            return Err(Error::AudioFormatNotSupported);
         }
     }
     config.dataCallback = [](ma_device *device, void *output, const void *input, ma_uint32 frameCount) {
@@ -172,7 +194,7 @@ auto AudioSink::Impl::audioCallback(ma_device *device, std::byte *output, const 
                 // logger::info("[AudioSink] Got a new frame with {} samples, pts {}", currentFrame->samples(), currentPts.load());
             }
             else { // No more frames
-                logger::info("[AudioSink] No more frames, fill with silence");
+                // logger::info("[AudioSink] No more frames, fill with silence");
                 break;
             }
         }
@@ -185,7 +207,7 @@ auto AudioSink::Impl::audioCallback(ma_device *device, std::byte *output, const 
 
         auto numToCopy = std::min(samples - currentFrameOffset, size_t {frameCount});
         auto bytesToCopy = numToCopy * perSample * channels;
-        if (isPlanarFormat(format)) { // Current is planar
+        if (isPlanarFormat(format)) { // Current is planar, convert it to packed
             for (size_t i = 0; i < numToCopy; ++i) {
                 for (size_t j = 0; j < channels; ++j) {
                     auto dst = output + (i * channels + j) * perSample;

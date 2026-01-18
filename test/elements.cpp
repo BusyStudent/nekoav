@@ -69,27 +69,32 @@ struct TestVideoSink : Element {
 };
 
 ILIAS_TEST(Core, UrlSource) {
-    auto bin = std::make_shared<Bin>("MyBin");
+    auto pipeline = std::make_shared<Pipeline>("MyPipeline");
     auto source = std::make_shared<UrlSource>("MySource");
     auto videoQueue = std::make_shared<Queue>("VideoQueue");
     auto videoDecoder = std::make_shared<Decoder>("VideoDecoder");
     auto videoConverter = std::make_shared<VideoConverter>("VideoConverter");
     // auto videoPrint = std::make_shared<PrintElement>("VideoPrint");
     auto videoPrint = std::make_shared<TestVideoSink>("VideoPrint");
+    // auto videoPrint = std::make_shared<VideoSink>("VideoPrint");
 
     auto audioDecoder = std::make_shared<Decoder>("AudioDecoder");
     auto audioQueue = std::make_shared<Queue>("AudioQueue");
     // auto audioPrint = std::make_shared<PrintElement>("AudioPrint");
     auto audioPrint = std::make_shared<AudioSink>("AudioPrint");
 
-    source->setUrl("https://gstreamer.freedesktop.org/data/media/sintel_trailer-480p.webm");
+    // Configure
+    // source->setUrl("https://gstreamer.freedesktop.org/data/media/sintel_trailer-480p.webm");
+    source->setUrl(R"(C:\Users\HP\Music\[M3-41][Riparia Records] 灯-AKASHI- (FLAC+log+jpg)\[M3-41][Riparia Records] 灯-AKASHI- (FLAC+log+jpg)\09 Blossoms.flac)");
 
-    bin->addElement(source);
-    bin->addElements(videoQueue, videoDecoder, videoConverter, videoPrint);
-    bin->addElements(audioQueue, audioDecoder, audioPrint);
+    // videoPrint->setRenderer(std::make_shared<NullVideoRenderer>());
+
+    pipeline->addElement(source);
+    pipeline->addElements(videoQueue, videoDecoder, videoConverter, videoPrint);
+    pipeline->addElements(audioQueue, audioDecoder, audioPrint);
 
     // Make the source loaded
-    EXPECT_TRUE(co_await bin->setState(State::Paused));
+    EXPECT_TRUE(co_await pipeline->setState(State::Paused));
     
     // Do connect here
     if (!source->videoOutputs().empty()) {
@@ -102,11 +107,11 @@ ILIAS_TEST(Core, UrlSource) {
     }
 
     // Run 
-    EXPECT_TRUE(co_await bin->setState(State::Running));
-    bin->dumpInfo();
+    EXPECT_TRUE(co_await pipeline->setState(State::Running));
+    pipeline->dumpInfo();
     co_await ilias::sleep(15s);
     
-    EXPECT_TRUE(co_await bin->setState(State::Null));
+    EXPECT_TRUE(co_await pipeline->setState(State::Null));
     co_return;
 }
 

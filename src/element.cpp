@@ -2,6 +2,7 @@
 #include <nekoav/error.hpp>
 #include <ilias/task.hpp>
 #include <unordered_map>
+#include <algorithm>
 #include <ranges>
 #include <queue>
 #include "internal.hpp"
@@ -298,6 +299,10 @@ auto Element::setName(std::string_view name) -> void {
     }
 }
 
+auto Element::sendQuery(Query query) -> std::optional<Reply> {
+    return std::nullopt;
+}
+
 auto Element::onInitialize() -> IoTask<void> { 
     co_return {}; 
 }
@@ -542,6 +547,107 @@ auto Bin::topologicalSort() -> bool {
         return true;
     }
 }
+
+// MARK: Pipeline
+struct Pipeline::Impl final : public Clock { // Impl the ClockSource
+    // Clock interface
+    auto time() const -> Timestamp override { 
+        if (clockPaused) { // Paused, use the last time
+            return clockTime;
+        }
+        return std::chrono::duration_cast<Timestamp>(std::chrono::steady_clock::now() - clockEpoch);
+    }
+
+    auto category() const -> ClockCategory override { 
+        return ClockCategory::System;
+    }
+
+    // Clock field
+    std::chrono::steady_clock::time_point clockEpoch {};
+    std::chrono::nanoseconds              clockTime {};
+    bool                                  clockPaused = true;
+
+    // Debug field
+    ilias::WaitHandle<void>               clockMonitor {};
+};
+
+Pipeline::Pipeline(std::string_view name) : Bin(name), d(std::make_unique<Impl>()){
+    mIsPipeline = true;
+}
+
+Pipeline::~Pipeline() {
+
+}
+
+auto Pipeline::onRun() -> IoTask<void> {
+    if (!mSorted) { // Topological changed, the clock may change
+        mClocks.clear();
+    }
+    if (mClocks.empty()) {
+        // Get all children who provide clock
+        for (auto &child : mChildren) {
+            if (auto res = child->sendQuery(Query::ClockSource{}); res) {
+                auto [clock] = res->toClockSource();
+                assert(clock);
+                mClocks.emplace_back(std::move(clock));
+            }
+        }
+        // Add self's clock, using alias
+        auto self = Clock::Ptr {shared_from_this(), d.get()};
+        mClocks.emplace_back(std::move(self));
+
+        // Sort it by category
+        std::ranges::sort(mClocks, [](auto &lhs, auto &rhs) { return toUnderlying(lhs->category()) < toUnderlying(rhs->category()); });
+    }
+
+    // Ok, start the bin
+    if (auto res = co_await Bin::onRun(); !res) {
+        co_return Err(res.error());
+    }
+
+    // Update the self clock
+    auto time = d->clockTime;
+    d->clockEpoch = std::chrono::steady_clock::now() - time;
+    d->clockPaused = false;
+    d->clockMonitor = ilias::spawn([this]() -> Task<void> {
+        auto time = mClocks.front()->time();
+        while (true) {
+            // Sleep 1s
+            co_await ilias::sleep(std::chrono::seconds(1));
+            auto now = mClocks.front()->time();
+            if ((now - time) > std::chrono::seconds(1)) {
+                auto s = std::chrono::duration_cast<std::chrono::seconds>(now);
+                logger::info("[Pipeline] '{}' clock update to {}", name(), s);
+            }
+        }
+    });
+    logger::info("[Pipeline] '{}' started, master clock: {}, num clocks source: {}", name(), mClocks.front()->time(), mClocks.size());
+    co_return {};
+}
+
+auto Pipeline::onPause() -> IoTask<void> {
+    auto time = d->clockTime;
+    if (!mClocks.empty() && mClocks.front().get() != d.get()) {
+        time = mClocks.front()->time(); // Sync the clock to master （if master is not self)
+    }
+    d->clockEpoch = {};
+    d->clockTime = time;
+    d->clockPaused = true;
+    d->clockMonitor.stop();
+    co_await std::exchange(d->clockMonitor, {});
+    logger::info("[Pipeline] '{}' paused", name());
+    co_return co_await Bin::onPause();
+}
+
+auto Pipeline::onStop() -> IoTask<void> {
+    d->clockTime = {};
+    d->clockEpoch = {};
+    d->clockPaused = true;
+    mClocks.clear();
+    logger::info("[Pipeline] '{}' stopped", name());
+    co_return co_await Bin::onStop();
+}
+
 
 // MARK: Utils
 auto linkElement(Element &src, std::string_view srcPadName, Element &dst, std::string_view dstPadName) -> bool {

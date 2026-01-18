@@ -21,6 +21,9 @@ enum class Error : int {
     NoPushCallback,          //< Pad push callback is not set
     InvalidTopology,         //< Invalid pipeline topology
 
+    // Negotiate
+    NotNegotiated,           //< Pad failed to negotiate
+
     // User / API misuse
     NoImpl,                  //< Function not implemented
     InvalidArguments,        //< Invalid arguments
@@ -30,10 +33,10 @@ enum class Error : int {
     // Media related
     NoStream,                //< No media stream found
     NoCodec,                 //< No codec found
-    UnsupportedMediaFormat,  //< Unsupported media format
-    UnsupportedPixelFormat,  //< Unsupported pixel format
-    UnsupportedAudioFormat,  //< Unsupported audio format
-    UnsupportedSampleType,   //< Unsupported sample type 
+    MediaFormatNotSupported, //< Media format not supported
+    PixelFormatNotSupported, //< Pixel format not supported
+    AudioFormatNotSupported, //< Audio format not supported
+    SampleTypeNotSupported,  //< Sample type not supported
 
     // Resource / system
     OutOfMemory,             //< Out of memory
@@ -43,6 +46,7 @@ enum class Error : int {
     // Internal / external
     Internal,                //< Internal error
     External,                //< External library error
+    FFmpeg,                  //< FFmpeg error
     Unknown,                 //< Unknown error
 };
 

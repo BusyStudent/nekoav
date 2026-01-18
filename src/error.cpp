@@ -18,6 +18,8 @@ auto ErrorCategory::message(int code) const -> std::string {
         arr[static_cast<size_t>(Error::NoPushCallback)]          = "Pad push callback is not set";
         arr[static_cast<size_t>(Error::InvalidTopology)]         = "Invalid pipeline topology";
 
+        arr[static_cast<size_t>(Error::NotNegotiated)]           = "Pad is not negotiated";
+
         arr[static_cast<size_t>(Error::NoImpl)]                  = "Function not implemented";
         arr[static_cast<size_t>(Error::InvalidArguments)]        = "Invalid arguments";
         arr[static_cast<size_t>(Error::InvalidState)]            = "Invalid state transition";
@@ -25,10 +27,10 @@ auto ErrorCategory::message(int code) const -> std::string {
 
         arr[static_cast<size_t>(Error::NoStream)]                = "No media stream found";
         arr[static_cast<size_t>(Error::NoCodec)]                 = "No codec found";
-        arr[static_cast<size_t>(Error::UnsupportedMediaFormat)]  = "Unsupported media format";
-        arr[static_cast<size_t>(Error::UnsupportedPixelFormat)]  = "Unsupported pixel format";
-        arr[static_cast<size_t>(Error::UnsupportedAudioFormat)]  = "Unsupported audio format";
-        arr[static_cast<size_t>(Error::UnsupportedSampleType)]   = "Unsupported sample type";
+        arr[static_cast<size_t>(Error::MediaFormatNotSupported)]  = "Media format not supported";
+        arr[static_cast<size_t>(Error::PixelFormatNotSupported)]  = "Pixel format not supported";
+        arr[static_cast<size_t>(Error::AudioFormatNotSupported)]  = "Audio format not supported";
+        arr[static_cast<size_t>(Error::SampleTypeNotSupported)]   = "Sample type not supported";
 
         arr[static_cast<size_t>(Error::OutOfMemory)]             = "Out of memory";
         arr[static_cast<size_t>(Error::FileNotFound)]            = "File not found";
@@ -36,6 +38,7 @@ auto ErrorCategory::message(int code) const -> std::string {
 
         arr[static_cast<size_t>(Error::Internal)]                = "Internal error";
         arr[static_cast<size_t>(Error::External)]                = "External library error";
+        arr[static_cast<size_t>(Error::FFmpeg)]                  = "External error from ffmpeg";
         arr[static_cast<size_t>(Error::Unknown)]                 = "Unknown error";
         return arr;
     }();

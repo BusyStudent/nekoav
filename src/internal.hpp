@@ -546,7 +546,7 @@ namespace error {
             case 0: return Error::Ok;
             case AVERROR_DECODER_NOT_FOUND: return Error::NoCodec;
             case AVERROR_STREAM_NOT_FOUND:  return Error::NoStream;
-            default:                        return Error::External; // from ffmpeg
+            default:                        return Error::FFmpeg; // from ffmpeg
         }
     }
 

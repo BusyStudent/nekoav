@@ -10,6 +10,8 @@ class NEKOAV_API AudioSink final : public Element {
 public:
     AudioSink(std::string_view name = {});
     ~AudioSink();
+
+    auto sendQuery(Query query) -> std::optional<Reply> override;
 private:
     auto onPrepare() -> IoTask<void> override;
     auto onPause() -> IoTask<void> override;

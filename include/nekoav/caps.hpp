@@ -116,6 +116,18 @@ private:
 };
 
 /**
+ * @brief The single capability
+ * 
+ */
+class Cap {
+public:
+    std::string key;
+    Value       value;
+
+    auto operator <=>(const Cap &other) const noexcept = default;
+};
+
+/**
  * @brief The capabilities of a media stream, used for negotiation between elements.
  * 
  */
@@ -147,6 +159,7 @@ public:
     
     // Common
     static constexpr auto Duration = "duration"sv;
+    static constexpr auto TimeBase = "timeBase"sv;
     static constexpr auto Codec = "codec"sv;
     static constexpr auto CodecTag = "codecTag"sv;
     static constexpr auto CodecExtraData = "codecExtraData"sv;
@@ -157,27 +170,35 @@ public:
     Caps(Caps &&) = default;
     Caps() = default;
 
-    auto begin() const { return mValues.begin(); }
-    auto end() const { return mValues.end(); }
-    auto clear() { mValues.clear(); }
+    auto begin() const { return mCaps.begin(); }
+    auto end() const { return mCaps.end(); }
+    auto clear() { mCaps.clear(); }
 
     // Insert an item to the vaps
-    auto insert(std::string_view type, Value value) -> void { mValues.emplace_back(type, std::move(value)); }
+    auto insert(std::string_view type, Value value) -> void { mCaps.emplace_back(Cap { .key = std::string {type}, .value = std::move(value) }); }
 
     // Check
-    auto empty() const noexcept { return mValues.empty(); }
-    auto isAny() const noexcept { return mValues.size() == 1 && mValues.front().first == Any; }
+    auto empty() const noexcept { return mCaps.empty(); }
+    auto isAny() const noexcept { return mCaps.size() == 1 && mCaps.front().key == Any; }
 
     // Find
     auto find(std::string_view type) const -> const Value & {
         static constinit Value null;
-        auto it = std::find_if(mValues.begin(), mValues.end(), [&](auto &v) { return v.first == type; });
-        if (it == mValues.end()) {
+        auto it = std::find_if(mCaps.begin(), mCaps.end(), [&](auto &v) { return v.key == type; });
+        if (it == mCaps.end()) {
             return null;
         }
         auto &[_, value] = *it;
         return value;
-    } 
+    }
+
+    // Erase
+    auto erase(std::string_view type) -> void {
+        auto it = std::find_if(mCaps.begin(), mCaps.end(), [&](auto &v) { return v.key == type; });
+        if (it != mCaps.end()) {
+            mCaps.erase(it);
+        }
+    }
 
     auto operator [](std::string_view type) const -> const Value & { return find(type); }
 
@@ -193,7 +214,7 @@ public:
         return caps;
     }
 private:
-    std::vector<std::pair<std::string, Value> > mValues;
+    std::vector<Cap> mCaps;
 };
 
 } // namespace nekoav

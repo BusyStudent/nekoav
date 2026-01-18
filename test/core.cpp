@@ -91,6 +91,24 @@ ILIAS_TEST(Core, Bin) {
     co_return;
 }
 
+ILIAS_TEST(Core, Pipeline) {
+    auto pipeline = std::make_shared<Pipeline>("MyPipeline");
+    auto first = std::make_shared<FirstElement>();
+    auto second = std::make_shared<SecondElement>();
+    pipeline->addElement(first);
+    pipeline->addElement(second);
+    EXPECT_TRUE(linkElement(*first, "out", *second, "in"));
+
+    // Try to start it
+    EXPECT_TRUE(co_await pipeline->setState(State::Running));
+
+    // Then back to null
+    EXPECT_TRUE(co_await pipeline->setState(State::Null));
+
+    pipeline->dumpInfo();
+    co_return;
+}
+
 
 auto main(int argc, char **argv) -> int {
     ::ilias::PlatformContext ctxt;

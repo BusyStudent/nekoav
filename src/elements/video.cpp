@@ -28,6 +28,125 @@ static auto getCopybackFormats(AVFrame *frame) -> std::vector<AVPixelFormat> {
 
 } // namespace
 
+// MARK: NullVideoRenderer
+auto NullVideoRenderer::init() -> IoTask<void> {
+    co_return {};
+}
+
+auto NullVideoRenderer::render(Frame frame) -> IoTask<void> {
+    co_return {};
+}
+
+auto NullVideoRenderer::shutdown() -> IoTask<void> {
+    co_return {};
+}
+
+auto NullVideoRenderer::pixelFormats() const -> std::vector<PixelFormat> {
+    return std::vector {
+        PixelFormat::RGBA,
+
+        // All YUV familes
+        PixelFormat::YUV410P,
+        PixelFormat::YUV411P,
+        PixelFormat::YUV420P,
+        PixelFormat::YUV422P,
+        PixelFormat::YUV440P,
+        PixelFormat::YUV444P,
+
+        // All YUV packed
+        PixelFormat::NV12,
+        PixelFormat::NV21,
+        PixelFormat::NV16,
+        PixelFormat::NV24,
+        PixelFormat::YUYV422,
+        PixelFormat::UYVY422,
+
+        // All hardware
+        PixelFormat::DXVA2_VLD,
+        PixelFormat::D3D11,
+        PixelFormat::D3D12,
+        PixelFormat::VAAPI,
+        PixelFormat::VDPAU,
+        PixelFormat::CUDA,
+        PixelFormat::QSV,
+        PixelFormat::OPENCL,
+    };
+}
+
+// MARK: VideoSink
+struct VideoSink::Impl {
+    Clock::Ptr masterClock;
+};
+
+VideoSink::VideoSink(std::string_view name) : Element(name), mInput(createInputPad("in")) {
+    mInput.setPushCallback<&VideoSink::onPadPush>(this);
+    mInput.setQueryCallback<&VideoSink::onPadQuery>(this);
+    mInput.mutableCaps().insert(Caps::VideoRaw, Value::Map {});
+}
+
+VideoSink::~VideoSink() {
+    
+}
+
+auto VideoSink::setRenderer(VideoRenderer::Ptr renderer) -> void {
+    mRenderer.swap(renderer);
+}
+
+auto VideoSink::onStop() -> IoTask<void> {
+    if (auto res = co_await mRenderer->shutdown(); !res) {
+        logger::warn("Failed to shutdown the renderer: {}", res.error().message());
+    }
+    // Set to empty caps
+    mInput.mutableCaps().erase(Caps::VideoRaw);
+    mInput.mutableCaps().insert(Caps::VideoRaw, Value::Map {});
+    d.reset();
+    co_return {};
+}
+
+auto VideoSink::onPrepare() -> IoTask<void> {
+    if (!mRenderer) {
+        co_return Err(Error::InvalidContext);
+    }
+    if (auto res = co_await mRenderer->init(); !res) {
+        co_return Err(res.error());
+    }
+
+    // Build the caps
+    auto values = Value::Map {};
+    auto list = Value::List {};
+    for (auto &fmt : mRenderer->pixelFormats()) {
+        list.emplace_back(fmt);
+    }
+    values.emplace(Caps::PixelFormat, std::move(list));
+
+    // Set it to the input pad
+    mInput.mutableCaps().erase(Caps::VideoRaw);
+    mInput.mutableCaps().insert(Caps::VideoRaw, std::move(values));
+    d = std::make_unique<Impl>();
+    co_return {};
+}
+
+auto VideoSink::onPadPush(Pad &, Sample sample) -> IoTask<void> {
+    if (!sample) { // EOF
+        co_return {};
+    }
+    if (!sample.isFrame()) {
+        co_return Err(Error::SampleTypeNotSupported);
+    }
+    auto frame = sample.toFrame();
+    auto pts = frame->pts();
+    // TODO: Check clock, sync here
+    co_return co_await mRenderer->render(std::move(*frame));
+}
+
+auto VideoSink::onPadQuery(Pad &pad, Query query) -> std::optional<Reply> {
+    if (query.isCaps()) {
+        return Reply::Caps { .caps = pad.caps() };
+    }
+    return std::nullopt;
+}
+
+// MARK: VideoConverter
 struct VideoConverter::Impl {
     // Common part
     AVPixelFormat dstFormat = AV_PIX_FMT_NONE;
@@ -77,7 +196,7 @@ auto VideoConverter::onPush(Pad &, Sample sample) -> IoTask<void> {
         co_return co_await mOutput.push(std::move(sample));
     }
     if (!sample.isFrame()) {
-        co_return Err(Error::UnsupportedSampleType);
+        co_return Err(Error::SampleTypeNotSupported);
     }
     auto frame = sample.toFrame();
     if (!d) { // Lazy init

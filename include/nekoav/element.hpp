@@ -1,9 +1,20 @@
+/**
+ * @file element.hpp
+ * @author BusyStudent (fyw90mc@gmail.com)
+ * @brief The core element abstraction
+ * @version 0.1
+ * @date 2026-01-18
+ * 
+ * @copyright Copyright (c) 2026
+ * 
+ */
 #pragma once
 
 #include <nekoav/defines.hpp>
 #include <nekoav/sample.hpp>
 #include <nekoav/event.hpp>
 #include <nekoav/query.hpp>
+#include <nekoav/clock.hpp>
 #include <nekoav/caps.hpp>
 #include <optional>
 #include <string>
@@ -15,6 +26,7 @@
 namespace nekoav {
 
 // Forward declare
+class Pipeline;
 class Element;
 class Bin;
 
@@ -295,13 +307,8 @@ public:
     using Ptr = std::shared_ptr<Element>;
     using PadList = std::list<Pad>;
 
-    /**
-     * @brief Construct a new Element object
-     * 
-     * @param name The name of the element (optional)
-     */
-    Element(std::string_view name = {});
     Element(const Element &) = delete;
+    Element(Element &&) = delete;
     virtual ~Element();
 
     /**
@@ -390,9 +397,39 @@ public:
      */
     auto name() const -> std::string_view { return mName; }
 
+    /**
+     * @brief Get the parent bin
+     * 
+     * @return Bin * 
+     */
+    auto parent() const -> Bin * { return mParent; }
+
+    /**
+     * @brief Get the clock used for syncronization
+     * 
+     * @return Clock::Ptr (nullptr on not in pipeline) 
+     */
+    auto clock() const -> Clock::Ptr;
+
+    /**
+     * @brief Send an sync query to the element
+     * 
+     * @param query 
+     * @return std::optional<Reply> 
+     */
+    virtual auto sendQuery(Query query) -> std::optional<Reply>;
+
     // No copy
     auto operator =(const Element &) = delete;
+    auto operator =(Element &&) = delete;
 protected:
+    /**
+     * @brief Construct a new Element object
+     * 
+     * @param name The name of the element (optional)
+     */
+    Element(std::string_view name = {});
+
     virtual auto dumpInfoInternal(FILE *where, int level) -> void;
 
     /**
@@ -527,6 +564,7 @@ private:
     std::vector<Element::Ptr> mChildren;
     bool                      mSorted = false;
     bool                      mIsPipeline = false; // avoid to use RTTI, use bool is faster
+friend class Pipeline;
 friend class Pad;
 };
 
@@ -534,12 +572,21 @@ friend class Pad;
  * @brief The top level bin, manage the global resource
  * 
  */
-class Pipeline final : public Bin {
+class NEKOAV_API Pipeline final : public Bin {
 public:
     Pipeline(std::string_view name = {});
     ~Pipeline();
 private:
+    // Collect clock before run
+    auto onRun() -> IoTask<void> override;
+    auto onPause() -> IoTask<void> override;
+    auto onStop() -> IoTask<void> override;
 
+    struct Impl;
+
+    // All clocks in the pipeline, sort by priority
+    std::vector<Clock::Ptr> mClocks;
+    std::unique_ptr<Impl>   d;
 };
 
 // Utils function

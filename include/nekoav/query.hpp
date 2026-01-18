@@ -1,6 +1,7 @@
 #pragma once
 
 #include <nekoav/defines.hpp>
+#include <nekoav/clock.hpp>
 #include <nekoav/caps.hpp>
 #include <variant>
 
@@ -28,12 +29,19 @@ public:
     auto operator <=>(const QueryCaps &) const noexcept = default;
 };
 
+class QueryClockSource {
+public:
+    // Compare
+    auto operator <=>(const QueryClockSource &) const noexcept = default;
+};
+
 class Query {
 public:
-    using Duration = QueryDuration;
-    using Position = QueryPosition;
-    using Caps     = QueryCaps;
-    using Storage  = std::variant<Duration, Position, Caps>;
+    using Duration    = QueryDuration;
+    using Position    = QueryPosition;
+    using Caps        = QueryCaps;
+    using ClockSource = QueryClockSource;
+    using Storage     = std::variant<Duration, Position, Caps, ClockSource>;
 
     Query(const Query &) = default;
     Query(Query &&) = default;
@@ -47,6 +55,7 @@ public:
     auto isDuration() const noexcept { return std::holds_alternative<Duration>(mStorage); }
     auto isPosition() const noexcept { return std::holds_alternative<Position>(mStorage); }
     auto isCaps() const noexcept { return std::holds_alternative<Caps>(mStorage); }
+    auto isClockSource() const noexcept { return std::holds_alternative<ClockSource>(mStorage); }
 
     // Visit
     template <typename Fn>
@@ -85,16 +94,25 @@ public:
     auto operator <=>(const ReplyCaps &) const noexcept = default;
 };
 
+class ReplyClockSource {
+public:
+    Clock::Ptr clock;
+
+    // Compare
+    auto operator <=>(const ReplyClockSource &) const noexcept = default;
+};
+
 /**
  * @brief The reply of the query
  * 
  */
 class Reply {
 public:
-    using Duration = ReplyDuration;
-    using Position = ReplyPosition;
-    using Caps     = ReplyCaps;
-    using Storage  = std::variant<Duration, Position, Caps>;
+    using Duration    = ReplyDuration;
+    using Position    = ReplyPosition;
+    using Caps        = ReplyCaps;
+    using ClockSource = ReplyClockSource;
+    using Storage     = std::variant<Duration, Position, Caps, ClockSource>;
 
     Reply(const Reply &) = default;
     Reply(Reply &&) = default;
@@ -108,10 +126,12 @@ public:
     auto isDuration() const noexcept { return std::holds_alternative<Duration>(mStorage); }
     auto isPosition() const noexcept { return std::holds_alternative<Position>(mStorage); }
     auto isCaps()    const noexcept { return std::holds_alternative<Caps>(mStorage); }
+    auto isClockSource() const noexcept { return std::holds_alternative<ClockSource>(mStorage); }
 
     auto toDuration() const noexcept { return std::get<Duration>(mStorage); }
     auto toPosition() const noexcept { return std::get<Position>(mStorage); }
     auto toCaps() const noexcept { return std::get<Caps>(mStorage); }
+    auto toClockSource() const noexcept { return std::get<ClockSource>(mStorage); }
 
     // Visit
     template <typename Fn>
