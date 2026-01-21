@@ -263,3 +263,21 @@ inline auto Sample::toPacket() -> Packet * {
 }
 
 } // namespace nekoav
+
+
+// Formatter
+template <>
+struct std::formatter<nekoav::Sample> {
+    constexpr auto parse(auto &ctxt) {
+        return ctxt.begin();
+    }
+
+    auto format(const nekoav::Sample &sample, auto &ctxt) const {
+        const auto visitor = nekoav::Overloads {
+            [&](std::monostate) { return std::format_to(ctxt.out(), "Sample(Null)"); },
+            [&](const nekoav::Frame &frame) { return std::format_to(ctxt.out(), "Sample(Frame(pts: {}))", frame.pts().value_or({})); },
+            [&](const nekoav::Packet &packet) { return std::format_to(ctxt.out(), "Sample(Packet(pts: {}))", packet.pts().value_or({})); },
+        };
+        return std::visit(visitor, sample.mStorage);
+    }
+};

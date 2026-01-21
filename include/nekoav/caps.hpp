@@ -173,6 +173,7 @@ public:
     auto begin() const { return mCaps.begin(); }
     auto end() const { return mCaps.end(); }
     auto clear() { mCaps.clear(); }
+    auto size() const { return mCaps.size(); }
 
     // Insert an item to the vaps
     auto insert(std::string_view type, Value value) -> void { mCaps.emplace_back(Cap { .key = std::string {type}, .value = std::move(value) }); }
@@ -218,3 +219,64 @@ private:
 };
 
 } // namespace nekoav
+
+// Formatter
+template <>
+struct std::formatter<nekoav::Value> {
+    constexpr auto parse(auto &ctxt){
+        return ctxt.begin();
+    }
+
+    auto format(const nekoav::Value &value, auto &ctxt) const {
+        const auto visitor = nekoav::Overloads {
+            [&](std::monostate) {
+                return std::format_to(ctxt.out(), "null");
+            },
+            [&](const nekoav::Value::List &l) {
+                auto out = std::format_to(ctxt.out(), "[");
+                bool first = true;
+                for (const auto& item : l) {
+                    if (!first) out = std::format_to(out, ", ");
+                    out = std::format_to(out, "{}", item);
+                    first = false;
+                }
+                return std::format_to(out, "]");
+            },
+            [&](const nekoav::Value::Map &m) {
+                auto out = std::format_to(ctxt.out(), "{{");
+                bool first = true;
+                for (const auto& [key, item] : m) {
+                    if (!first) out = std::format_to(out, ", ");
+                    out = std::format_to(out, "\"{}\": {}", key, item);
+                    first = false;
+                }
+                return std::format_to(out, "}}"); 
+            },
+            [&](const nekoav::Value::Bytes &b) {
+                return std::format_to(ctxt.out(), "bytes[{}]", b.size());
+            },
+            [&](const auto &other) {
+                return std::format_to(ctxt.out(), "{}", other);
+            }
+        };
+        return value.visit(visitor);
+    }
+};
+
+template <>
+struct std::formatter<nekoav::Caps> {
+    constexpr auto parse(auto &ctxt) {
+        return ctxt.begin();
+    }
+
+    auto format(const nekoav::Caps &caps, auto &ctxt) const {
+        auto out = std::format_to(ctxt.out(), "{{");
+        bool first = true;
+        for (const auto& [key, value] : caps) {
+            if (!first) out = std::format_to(out, ", ");
+            out = std::format_to(out, "\"{}\": {}", key, value);
+            first = false;
+        }
+        return std::format_to(out, "}}");
+    }
+};

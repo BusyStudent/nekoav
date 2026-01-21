@@ -334,6 +334,13 @@ public:
     auto setState(State targetState) -> IoTask<void>;
 
     /**
+     * @brief Set new clock for the element
+     * 
+     * @param clock The new clock to be set
+     */
+    auto setClock(Clock::Ptr clock) -> void;
+
+    /**
      * @brief Set the new name of the element
      * 
      * @param name if empty, we will set an unique name of it
@@ -471,10 +478,11 @@ private:
     PadList mInputs;
     PadList mOutputs;
 
-    // State / Parent
+    // State / Parent / Clock
     State           mState = State::Null;
     Bin            *mParent = nullptr;
     std::error_code mError = {}; // If this is set, the element is in error
+    Clock::Ptr      mClock = nullptr;
 
     // Name
     std::string mName;
@@ -641,3 +649,6 @@ inline bool linkChain(First &first, Second &second, Rest&... rest) {
 }
 
 } // namespace nekoav
+
+// Formatter
+NEKOAV_FORMATTER_4(nekoav::State);

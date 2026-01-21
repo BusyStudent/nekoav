@@ -33,6 +33,7 @@ public:
  * 
  */
 class CapsEvent {
+public:
     Caps caps;
 };
 
@@ -40,7 +41,7 @@ class CapsEvent {
  * @brief The Event class
  * 
  */
-class Event {
+class Event final {
 public:
     using Seek        = SeekEvent;
     using FlushBegin  = FlushBeginEvent;
@@ -84,3 +85,23 @@ private:
 };
 
 } // namespace nekoav
+
+// Formatter
+template <>
+struct std::formatter<nekoav::Event> {
+    constexpr auto parse(auto &ctxt) {
+        return ctxt.begin();
+    }
+
+    auto format(const nekoav::Event &event, auto &ctxt) const {
+        const auto visitor = nekoav::Overloads {
+            [&](const auto &_) { return std::format_to(ctxt.out(), "Event(Unknown)"); },
+            [&](const nekoav::Event::Seek &seek) { return std::format_to(ctxt.out(), "Event(Seek({}))", seek.timestamp); },
+            [&](const nekoav::Event::FlushBegin &) { return std::format_to(ctxt.out(), "Event(FlushBegin)"); },
+            [&](const nekoav::Event::FlushEnd &) { return std::format_to(ctxt.out(), "Event(FlushEnd)"); },
+            [&](const nekoav::Event::EndOfStream &eos) { return std::format_to(ctxt.out(), "Event(EndOfStream({}))", eos.streamIndex); },
+            [&](const nekoav::Event::Caps &caps) { return std::format_to(ctxt.out(), "Event(Caps({}))", caps.caps); },
+        };
+        return event.visit(visitor);
+    }
+};

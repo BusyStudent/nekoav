@@ -274,3 +274,11 @@ extern NEKOAV_API auto toString(ColorSpace space) -> std::string_view;
 extern NEKOAV_API auto toString(SampleFormat fmt) -> std::string_view;
 
 } // namespace nekoav
+
+// Formatter
+NEKOAV_FORMATTER_4(nekoav::PixelFormat);
+NEKOAV_FORMATTER_4(nekoav::ColorRange);
+NEKOAV_FORMATTER_4(nekoav::ColorPrimaries);
+NEKOAV_FORMATTER_4(nekoav::ColorTransfer);
+NEKOAV_FORMATTER_4(nekoav::ColorSpace);
+NEKOAV_FORMATTER_4(nekoav::SampleFormat);

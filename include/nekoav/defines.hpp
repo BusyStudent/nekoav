@@ -8,6 +8,10 @@
 // Memory management
 #include <memory>
 
+// Formatting
+#include <format>
+#include <print>
+
 // Time
 #include <chrono>
 
@@ -24,6 +28,16 @@
 #else
     #define NEKOAV_API NEKOAV_IMPORT
 #endif // _NEKOAV_SOURCE
+
+#define NEKOAV_FORMATTER_4(type)                                          \
+    template <>                                                           \
+    struct std::formatter<type> {                                         \
+        constexpr auto parse(auto &ctxt) { return ctxt.begin(); }         \
+                                                                          \
+        auto format(const type &t, auto &ctxt) const {                    \
+            return std::format_to(ctxt.out(), "{}", nekoav::toString(t)); \
+        }                                                                 \
+    };
 
 #define KEKOAV_THROW(exp) throw exp
 
@@ -71,3 +85,13 @@ template <typename T>
 inline constexpr auto toUnderlying(T value) noexcept{ return static_cast<std::underlying_type_t<T> >(value); }
 
 } // namespace nekoav
+
+// Formatter
+template <>
+struct std::formatter<nekoav::Rational> {
+    constexpr auto parse(auto &ctxt) { return ctxt.begin(); }
+
+    auto format(nekoav::Rational r, auto &ctxt) const {
+        return std::format_to(ctxt.out(), "{} / {}", r.num, r.den);
+    }
+};

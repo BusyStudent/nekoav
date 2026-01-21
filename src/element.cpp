@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <ranges>
 #include <queue>
+#include <print>
 #include "internal.hpp"
 
 namespace nekoav {
@@ -33,79 +34,6 @@ namespace {
         logger::error("Invalid state transition from {} to {}", toString(cur), toString(target));
         ::abort(); // Invalid state transition
     }
-
-    auto dumpValue(FILE *where, const Value &value) -> void {
-        const auto visitor = Overloads {
-            [&](auto &_) {
-                ::fprintf(where, "not impl yet");
-            },
-            [&](const std::string &str) {
-                ::fprintf(where, "'%s'", str.c_str());
-            },
-            [&](int64_t num) {
-                ::fprintf(where, "%lld", num);
-            },
-            [&](double num) {
-                ::fprintf(where, "%lf", num);
-            },
-            [&](bool b) {
-                ::fprintf(where, "%s", b ? "true" : "false");
-            },
-            [&](std::monostate) {
-                ::fprintf(where, "null");
-            },
-            [&](PixelFormat fmt) {
-                ::fprintf(where, "%s", toString(fmt).data());
-            },
-            [&](ColorRange range) {
-                ::fprintf(where, "%s", toString(range).data());
-            },
-            [&](ColorPrimaries pri) {
-                ::fprintf(where, "%s", toString(pri).data());
-            },
-            [&](ColorTransfer transfer) {
-                ::fprintf(where, "%s", toString(transfer).data());
-            },
-            [&](ColorSpace space) {
-                ::fprintf(where, "%s", toString(space).data());
-            },
-            [&](SampleFormat fmt) {
-                ::fprintf(where, "%s", toString(fmt).data());
-            },
-            [&](std::chrono::nanoseconds ns) {
-                if (ns.count() % 1'000'000 == 0) {
-                    ::fprintf(where, (std::to_string(ns.count() / 1'000'000) + "ms").c_str());
-                }
-                else {
-                    ::fprintf(where, (std::to_string(ns.count()) + "ns").c_str());
-                }
-            },
-            [&](Rational r) {
-                ::fprintf(where, "%d / %d", r.num, r.den);
-            },
-            [&](const Value::Bytes &bytes) {
-                ::fprintf(where, "bytes[%zu]", bytes.size());
-            },
-            [&](const Value::List &list) {
-                ::fprintf(where, "[");
-                for (auto &value : list) {
-                    dumpValue(where, value);
-                    ::fprintf(where, ", ");
-                }
-                ::fprintf(where, "]");
-            },
-            [&](const Value::Map &map) {
-                ::fprintf(where, "{");
-                for (auto &[key, value] : map) {
-                    ::fprintf(where, "'%s': ", key.c_str());
-                    dumpValue(where, value);
-                    ::fprintf(where, ", ");
-                }
-                ::fprintf(where, "}");
-            },
-        };
-        value.visit(visitor);
-    };
 } // namespace
 
 // MARK: Pad
@@ -155,7 +83,7 @@ auto Pad::pushEvent(Event event) -> IoTask<void> {
     auto cur = peer();
     if (cur) {
         auto &element = cur->mElement;
-        logger::info("[Pad] push event to element '{}', pad '{}'", element.name(), cur->name());
+        logger::info("[Pad] push event '{}' to element '{}', pad '{}'", event, element.name(), cur->name());
         if (cur->mEventCallback) {
             if (auto res = co_await cur->mEventCallback(*cur, event); !res) {
                 logger::error("Failed to push event to pad '{}': {}", cur->name(), res.error().message());
@@ -189,10 +117,11 @@ auto Pad::sendQuery(Query query) -> std::optional<Reply> {
     auto cur = peer();
     if (cur) {
         auto &element = cur->mElement;
-        logger::info("[Pad] send query to element '{}', pad '{}'", element.name(), cur->name());
+        logger::info("[Pad] send query '{}' to element '{}', pad '{}'", query, element.name(), cur->name());
         if (cur->mQueryCallback) {
             auto res = cur->mQueryCallback(*cur, query);
             if (res) {
+                logger::info("[Pad] query '{}' is handled by pad '{}' => {}", query, cur->name(), *res);
                 return res;
             }
         }
@@ -342,31 +271,44 @@ auto Element::setErrorState(std::error_code errc) -> void {
 }
 
 auto Element::dumpInfoInternal(FILE *where, int level) -> void {
+    auto indent = [level](int extra = 0) {
+        return std::string(level + extra, ' '); 
+    };
+
     auto dumpCaps = [&](const Caps &caps, int lv) {
-        for (auto &[name, value] : caps) {
-            ::fprintf(where, "%*s Caps: '%s' : ", lv, "", name.c_str());
-            dumpValue(where, value);
-            ::fprintf(where, "\n");
+        if (caps.empty()) return;
+        for (const auto &[name, value] : caps) {
+            if (value.isNull()) {
+                std::print(where, "{:{}}• {}\n", "", lv, name);
+            }
+            else {
+                std::print(where, "{:{}}• {}: {}\n", "", lv, name, value);
+            }
         }
     };
-    auto dumpPad = [&](Pad &pad, int lv) {
-        ::fprintf(where, "%*s Pad: '%s'\n", lv, "", pad.name().data());
-        ::fprintf(where, "%*s isLinked: %s\n", lv + 2, "", pad.isLinked() ? "true" : "false");
-        dumpCaps(pad.caps(), lv + 2);
+
+    auto dumpPad = [&](Pad &pad, int lv, bool isInput) {
+        std::string_view arrow = isInput ? "<-" : "->";
+        std::string_view linkState = pad.isLinked() ? "[Linked]" : "[Unlinked]";
+        
+        std::print(where, "{:{}}{} '{}' {}\n", "", lv, arrow, pad.name(), linkState);
+        dumpCaps(pad.caps(), lv + 3); 
     };
 
+    // Element ： [State] Name
+    std::print(where, "{:{}}[{}] {}\n", "", level, mState, mName);
 
-    ::fprintf(where, "%*sElement: '%s', State: %s\n", level, "", mName.c_str(), toString(mState).data());
     if (!mInputs.empty()) {
-        ::fprintf(where, "%*s  Input Pads:\n", level, "");
+        std::print(where, "{:{}}Inputs:\n", "", level + 2);
         for (auto &pad : mInputs) {
-            dumpPad(pad, level + 2);
+            dumpPad(pad, level + 4, true);
         }
     }
+
     if (!mOutputs.empty()) {
-        ::fprintf(where, "%*s  Output Pads:\n", level, "");
+        std::print(where, "{:{}}Outputs:\n", "", level + 2);
         for (auto &pad : mOutputs) {
-            dumpPad(pad, level + 2);
+            dumpPad(pad, level + 4, false);
         }
     }
 }

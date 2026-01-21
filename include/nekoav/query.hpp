@@ -35,7 +35,7 @@ public:
     auto operator <=>(const QueryClockSource &) const noexcept = default;
 };
 
-class Query {
+class Query final {
 public:
     using Duration    = QueryDuration;
     using Position    = QueryPosition;
@@ -106,7 +106,7 @@ public:
  * @brief The reply of the query
  * 
  */
-class Reply {
+class Reply final {
 public:
     using Duration    = ReplyDuration;
     using Position    = ReplyPosition;
@@ -146,3 +146,40 @@ private:
 };
 
 } // namespace nekoav
+
+// Formatter
+template <>
+struct std::formatter<nekoav::Query> {
+    constexpr auto parse(auto &ctxt) {
+        return ctxt.begin();
+    }
+
+    auto format(const nekoav::Query &query, auto &ctxt) const {
+        const auto visitor = nekoav::Overloads {
+            [&](const auto _) { return std::format_to(ctxt.out(), "Query(Unknown)"); },
+            [&](const nekoav::QueryDuration &duration) { return std::format_to(ctxt.out(), "Query(Duration)"); },
+            [&](const nekoav::QueryPosition &position) { return std::format_to(ctxt.out(), "Query(Position)"); },
+            [&](const nekoav::QueryCaps &caps) { return std::format_to(ctxt.out(), "Query(Caps)"); },
+            [&](const nekoav::QueryClockSource &clock) { return std::format_to(ctxt.out(), "Query(ClockSource)"); },
+        };
+        return query.visit(visitor);
+    }
+};
+
+template <>
+struct std::formatter<nekoav::Reply> {
+    constexpr auto parse(auto &ctxt) {
+        return ctxt.begin();
+    }
+
+    auto format(const nekoav::Reply &reply, auto &ctxt) const {
+        const auto visitor = nekoav::Overloads {
+            [&](const auto _) { return std::format_to(ctxt.out(), "Reply(Unknown)"); },
+            [&](const nekoav::ReplyDuration &duration) { return std::format_to(ctxt.out(), "Reply(Duration({}))", duration.duration); },
+            [&](const nekoav::ReplyPosition &position) { return std::format_to(ctxt.out(), "Reply(Position({}))", position.position); },
+            [&](const nekoav::ReplyCaps &caps) { return std::format_to(ctxt.out(), "Reply(Caps({}))", caps.caps); },
+            [&](const nekoav::ReplyClockSource &clock) { return std::format_to(ctxt.out(), "Reply(ClockSource({}))", static_cast<const void *>(clock.clock.get())); },
+        };
+        return reply.visit(visitor);
+    }
+};
