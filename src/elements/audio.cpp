@@ -27,11 +27,15 @@ namespace nekoav {
 
 // MARK: AudioSink
 struct AudioSink::Impl final : public Clock { // Implementation the ClockSource
-    ma_context        context {};
-    ma_device         device {};
+    // Self
+    AudioSink  *self = nullptr;
 
-    bool              contextInited = false;
-    bool              deviceInited  = false;
+    // Audio Context and Device
+    ma_context context {};
+    ma_device  device {};
+
+    bool       contextInited = false;
+    bool       deviceInited  = false;
 
     // Send the Frame to the device callback
     ilias::mpsc::Sender<Frame>   frameSender {};
@@ -68,6 +72,7 @@ struct AudioSink::Impl final : public Clock { // Implementation the ClockSource
 
     // Other...
     auto audioCallback(ma_device *device, std::byte *output, const std::byte *input, ma_uint32 frameCount) -> void;
+    auto audioUpdateClock() -> void;
 };
 
 AudioSink::AudioSink(std::string_view name) : Element(name), mInput(createInputPad("in")) {
@@ -89,6 +94,7 @@ auto AudioSink::sendQuery(Query query) -> std::optional<Reply> {
 
 auto AudioSink::onPrepare() -> IoTask<void> {
     auto impl = std::make_unique<Impl>();
+    impl->self = this;
     if (auto res = ma_context_init(nullptr, 0, nullptr, &impl->context); res != MA_SUCCESS) {
         co_return Err(Error::External);
     }
@@ -117,6 +123,7 @@ auto AudioSink::onPrepare() -> IoTask<void> {
 
 auto AudioSink::onStop() -> IoTask<void> {
     // NOTE: Pipeline will discard the clock when stopping
+    // SO, It is safe
     d.reset();
     co_return {};
 }
@@ -190,8 +197,9 @@ auto AudioSink::Impl::audioCallback(ma_device *device, std::byte *output, const 
             if (auto frame = frameReceiver.tryRecv(); frame) {
                 currentFrameOffset = 0;
                 currentFrame = std::move(*frame);
-                currentPts = currentFrame->pts().value_or({});
+                currentPts = currentFrame->pts().value_or(Timestamp {});
                 // logger::info("[AudioSink] Got a new frame with {} samples, pts {}", currentFrame->samples(), currentPts.load());
+                audioUpdateClock();
             }
             else { // No more frames
                 // logger::info("[AudioSink] No more frames, fill with silence");
@@ -237,6 +245,19 @@ auto AudioSink::Impl::audioCallback(ma_device *device, std::byte *output, const 
     
     if (frameCount > 0) {
         ::memset(output, 0, ma_get_bytes_per_frame(device->playback.format, device->playback.channels) * frameCount);
+    }
+}
+
+auto AudioSink::Impl::audioUpdateClock() -> void {
+    auto &bus = self->pipelineBus();
+    if (!bus) {
+        return;
+    }
+    auto res = bus.trySend(Event::ClockUpdate {
+        .clock = Clock::Ptr { self->shared_from_this(), this }
+    });
+    if (!res) {
+        logger::error("[AudioSink] Failed to send clock update event");
     }
 }
 

@@ -31,7 +31,7 @@ namespace {
         else if (cur == State::Ready && target == State::Null) {
             return StateChange::Teardown;
         }
-        logger::error("Invalid state transition from {} to {}", toString(cur), toString(target));
+        logger::error("Invalid state transition from {} to {}", cur, target);
         ::abort(); // Invalid state transition
     }
 } // namespace
@@ -48,6 +48,9 @@ auto Pad::unlink() -> void {
     if (mElement.mParent) {
         mElement.mParent->mSorted = false;
     }
+    if (mElement.mState == State::Running) {
+        logger::error("[Pad] Topology changed while element '{}' is running, this may cause undefined behavior", mElement.name());
+    }
 }
 
 auto Pad::link(Pad &peer) -> bool {
@@ -63,6 +66,9 @@ auto Pad::link(Pad &peer) -> bool {
     // Mark Topology is changed
     if (mElement.mParent) {
         mElement.mParent->mSorted = false;
+    }
+    if (mElement.mState == State::Running) {
+        logger::error("[Pad] Topology changed while element '{}' is running, this may cause undefined behavior", mElement.name());
     }
     return true;
 }
@@ -81,31 +87,30 @@ auto Pad::push(Sample sample) -> IoTask<void> {
 auto Pad::pushEvent(Event event) -> IoTask<void> {
     auto walkToUp = mType == PadType::Input; // If self is input pad, we walk upstream
     auto cur = peer();
-    if (cur) {
-        auto &element = cur->mElement;
-        logger::info("[Pad] push event '{}' to element '{}', pad '{}'", event, element.name(), cur->name());
-        if (cur->mEventCallback) {
-            if (auto res = co_await cur->mEventCallback(*cur, event); !res) {
-                logger::error("Failed to push event to pad '{}': {}", cur->name(), res.error().message());
+    if (!cur) {
+        co_return Err(Error::NotLinked);
+    }
+    auto &element = cur->mElement;
+    logger::info("[Pad] push event '{}' to element '{}', pad '{}'", event, element.name(), cur->name());
+    if (cur->mEventCallback) {
+        if (auto res = co_await cur->mEventCallback(*cur, event); !res) {
+            logger::error("Failed to push event to pad '{}': {}", cur->name(), res.error().message());
+            co_return Err(res.error());
+        }
+        co_return {};
+    }
+    // Continue walk to find an handler
+    if (walkToUp) {
+        for (auto &pad : element.inputs()) {
+            if (auto res = co_await pad.pushEvent(event); !res) {
                 co_return Err(res.error());
             }
-            if (event.consumed()) {
-                co_return {};
-            }
         }
-        // Continue walk
-        if (walkToUp) {
-            for (auto &pad : element.inputs()) {
-                if (auto res = co_await pad.pushEvent(event); !res) {
-                    co_return Err(res.error());
-                }
-            }
-        }
-        else {
-            for (auto &pad : element.outputs()) {
-                if (auto res = co_await pad.pushEvent(event); !res) {
-                    co_return Err(res.error());
-                }
+    }
+    else {
+        for (auto &pad : element.outputs()) {
+            if (auto res = co_await pad.pushEvent(event); !res) {
+                co_return Err(res.error());
             }
         }
     }
@@ -122,10 +127,10 @@ auto Pad::sendQuery(Query query) -> std::optional<Reply> {
             auto res = cur->mQueryCallback(*cur, query);
             if (res) {
                 logger::info("[Pad] query '{}' is handled by pad '{}' => {}", query, cur->name(), *res);
-                return res;
             }
+            return res;
         }
-        // Continue
+        // Continue to find an handler
         if (walkToUp) {
             for (auto &pad : element.inputs()) {
                 if (auto res = pad.sendQuery(query); res) {
@@ -163,6 +168,19 @@ auto Element::setState(State targetState) -> IoTask<void> {
     if (targetState == mState) { // Same state, no-op
         co_return {};
     }
+
+    // Check
+    if (mStateChanging) {
+        co_return Err(Error::InBusy);
+    }
+    struct Guard {
+        ~Guard() {
+            element.mStateChanging = false;
+        }
+
+        Element &element;
+    } guard {*this};
+    mStateChanging = true;
     
     // Do transations
     // Check is forward (Null -> Running)
@@ -196,7 +214,7 @@ auto Element::setState(State targetState) -> IoTask<void> {
             case StateChange::Prepare:    task = onPrepare(); break;
             case StateChange::Run:        task = onRun(); break;
             case StateChange::Pause:      task = onPause(); break;
-            case StateChange::Stop:       task = onStop(); break;
+            case StateChange::Stop:       task = onStop(); break; // Clear any clock and bus
             case StateChange::Teardown:   task = onTeardown(); break;
         }
         logger::info("[Element] '{}' Change state from '{}' to '{}'", mName, cur, nextState(cur));
@@ -265,9 +283,30 @@ auto Element::createOutputPad(std::string_view name) -> Pad & {
 }
 
 auto Element::setErrorState(std::error_code errc) -> void {
-    // TODO: Handle error
     logger::error("[Element] set error state: {}", errc.message());
     mError = errc;
+    if (mPipelineBus) {
+        auto _ = mPipelineBus.trySend(Event::Error {errc});
+    }
+}
+
+// MARK: Set Clock
+auto Element::setClock(Clock::Ptr clock) -> void {
+    mClock = clock;
+    if (mIsBin) {
+        for (auto &child : static_cast<Bin *>(this)->mChildren) {
+            child->setClock(clock);
+        }
+    }
+}
+
+auto Element::setPipelineBus(ilias::mpsc::Sender<Event> bus) -> void {
+    mPipelineBus = bus;
+    if (mIsBin) {
+        for (auto &child : static_cast<Bin *>(this)->mChildren) {
+            child->setPipelineBus(bus);
+        }
+    }
 }
 
 auto Element::dumpInfoInternal(FILE *where, int level) -> void {
@@ -296,8 +335,13 @@ auto Element::dumpInfoInternal(FILE *where, int level) -> void {
     };
 
     // Element ： [State] Name
+    //   Clock
+    //   Bus
     std::print(where, "{:{}}[{}] {}\n", "", level, mState, mName);
+    std::print(where, "{:{}}Clock: {}\n", "", level + 2, static_cast<const void*>(mClock.get()));
+    std::print(where, "{:{}}Bus: {}\n", "", level + 2, mPipelineBus ? "Have" : "None");
 
+    //   Caps
     if (!mInputs.empty()) {
         std::print(where, "{:{}}Inputs:\n", "", level + 2);
         for (auto &pad : mInputs) {
@@ -315,7 +359,7 @@ auto Element::dumpInfoInternal(FILE *where, int level) -> void {
 
 // MARK: Bin
 Bin::Bin(std::string_view name) : Element(name) {
-
+    mIsBin = true;
 }
 
 Bin::~Bin() {
@@ -327,7 +371,11 @@ auto Bin::addElement(Element::Ptr element) -> void {
     if (!element) {
         return;
     }
+    assert(!element->mIsPipeline); // Can't add an pipeline to a bin
+    // Set the member belong the bin
     element->mParent = this;
+    element->setClock(clock());
+    element->setPipelineBus(pipelineBus());
     mChildren.emplace_back(std::move(element));
     mSorted = false;
 }
@@ -336,15 +384,12 @@ auto Bin::addElementSync(Element::Ptr element) -> IoTask<void> {
     if (!element) {
         co_return Err(Error::InvalidArguments);
     }
-    element->mParent = this;
-    mChildren.emplace_back(element);
+    addElement(element);
     // Async state here
     if (auto res = co_await element->setState(state()); !res) {
-        element->mParent = nullptr;
-        mChildren.pop_back();
+        removeElement(element);
         co_return Err(res.error());
     }
-    mSorted = false;
     co_return {};
 }
 
@@ -356,7 +401,10 @@ auto Bin::removeElement(Element::Ptr element) -> bool {
     if (it == mChildren.end()) {
         return false;
     }
+    // Remove the member belong the bin
     (*it)->mParent = nullptr;
+    (*it)->setClock({});
+    (*it)->setPipelineBus({});
     mChildren.erase(it);
     mSorted = false;
     return true;
@@ -426,7 +474,7 @@ auto Bin::setChildrenState(State newState) -> IoTask<void> {
     else { // Backward
         for (auto &child : mChildren) { // From source to sink
             if (auto res = co_await child->setState(newState); !res) { // Backward will ignore the error
-                logger::warn("[Bin] '{}' child '{}' failed to set state to '{}', error: {}", name(), child->name(), toString(newState), res.error().message());
+                logger::warn("[Bin] '{}' child '{}' failed to set state to '{}', error: {}", name(), child->name(), newState, res.error().message());
             }
         }
     }
@@ -504,21 +552,45 @@ struct Pipeline::Impl final : public Clock { // Impl the ClockSource
         return ClockCategory::System;
     }
 
+    // Bus
+    auto watchBus(ilias::mpsc::Receiver<Event> receiver) -> Task<void>;
+
+    // To Reference pipeline
+    Pipeline                             *self = nullptr;
+
     // Clock field
     std::chrono::steady_clock::time_point clockEpoch {};
     std::chrono::nanoseconds              clockTime {};
     bool                                  clockPaused = true;
 
-    // Debug field
-    ilias::WaitHandle<void>               clockMonitor {};
+    // Bus field
+    ilias::WaitHandle<void>               busMonitor {};
 };
 
 Pipeline::Pipeline(std::string_view name) : Bin(name), d(std::make_unique<Impl>()){
     mIsPipeline = true;
+    d->self = this;
 }
 
 Pipeline::~Pipeline() {
 
+}
+
+auto Pipeline::onInitialize() -> IoTask<void> {
+    // pipelineBus initialize onInitialize, cleanup onTeardown
+    assert(!d->busMonitor);
+    auto [sender, receiver] = ilias::mpsc::channel<Event>();
+    d->busMonitor = ilias::spawn(d->watchBus(std::move(receiver)));
+    setPipelineBus(sender);// Set the bus to self and all children
+    co_return co_await Bin::onInitialize();
+}
+
+auto Pipeline::onTeardown() -> IoTask<void> {
+    assert(d->busMonitor);
+    d->busMonitor.stop();
+    co_await std::exchange(d->busMonitor, {});
+    setPipelineBus({}); // Clear the bus
+    co_return co_await Bin::onTeardown();
 }
 
 auto Pipeline::onRun() -> IoTask<void> {
@@ -527,19 +599,15 @@ auto Pipeline::onRun() -> IoTask<void> {
     }
     if (mClocks.empty()) {
         // Get all children who provide clock
-        for (auto &child : mChildren) {
-            if (auto res = child->sendQuery(Query::ClockSource{}); res) {
-                auto [clock] = res->toClockSource();
-                assert(clock);
-                mClocks.emplace_back(std::move(clock));
-            }
-        }
         // Add self's clock, using alias
         auto self = Clock::Ptr {shared_from_this(), d.get()};
         mClocks.emplace_back(std::move(self));
 
         // Sort it by category
         std::ranges::sort(mClocks, [](auto &lhs, auto &rhs) { return toUnderlying(lhs->category()) < toUnderlying(rhs->category()); });
+
+        // Set clock to the children
+        setClock(mClocks.front());
     }
 
     // Ok, start the bin
@@ -551,18 +619,6 @@ auto Pipeline::onRun() -> IoTask<void> {
     auto time = d->clockTime;
     d->clockEpoch = std::chrono::steady_clock::now() - time;
     d->clockPaused = false;
-    d->clockMonitor = ilias::spawn([this]() -> Task<void> {
-        auto time = mClocks.front()->time();
-        while (true) {
-            // Sleep 1s
-            co_await ilias::sleep(std::chrono::seconds(1));
-            auto now = mClocks.front()->time();
-            if ((now - time) > std::chrono::seconds(1)) {
-                auto s = std::chrono::duration_cast<std::chrono::seconds>(now);
-                logger::info("[Pipeline] '{}' clock update to {}", name(), s);
-            }
-        }
-    });
     logger::info("[Pipeline] '{}' started, master clock: {}, num clocks source: {}", name(), mClocks.front()->time(), mClocks.size());
     co_return {};
 }
@@ -575,19 +631,27 @@ auto Pipeline::onPause() -> IoTask<void> {
     d->clockEpoch = {};
     d->clockTime = time;
     d->clockPaused = true;
-    d->clockMonitor.stop();
-    co_await std::exchange(d->clockMonitor, {});
     logger::info("[Pipeline] '{}' paused", name());
     co_return co_await Bin::onPause();
 }
 
 auto Pipeline::onStop() -> IoTask<void> {
+    auto res = co_await Bin::onStop();
+    // Clear the clock
     d->clockTime = {};
     d->clockEpoch = {};
     d->clockPaused = true;
-    mClocks.clear();
     logger::info("[Pipeline] '{}' stopped", name());
-    co_return co_await Bin::onStop();
+    mClocks.clear();
+    setClock({});
+    co_return res;
+}
+
+auto Pipeline::Impl::watchBus(ilias::mpsc::Receiver<Event> receiver) -> Task<void> {
+    while (auto res = co_await receiver.recv()) {
+        auto &event = *res;
+        logger::info("[Pipeline] '{}' received event: {}", self->name(), event);
+    }
 }
 
 

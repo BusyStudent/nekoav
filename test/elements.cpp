@@ -7,6 +7,7 @@
 #include <ilias/testing.hpp>
 #include "testing_element.hpp"
 
+using namespace std::literals;
 using namespace nekoav;
 
 ILIAS_TEST(Core, Queue) {
@@ -56,7 +57,7 @@ struct TestVideoSink : Element {
             co_return {};
         }
         auto frame = sample.toFrame();
-        std::cout << name() << " Frame arrive: " << "pts: " << frame->pts().value_or({}) << " " << frame->width() << "x" << frame->height() << " fmt " << toString(frame->pixelFormat()) << std::endl;
+        std::cout << name() << " Frame arrive: " << "pts: " << frame->pts().value_or(0ms) << " " << frame->width() << "x" << frame->height() << " fmt " << toString(frame->pixelFormat()) << std::endl;
         co_return {};
     }
 

@@ -273,10 +273,11 @@ struct std::formatter<nekoav::Sample> {
     }
 
     auto format(const nekoav::Sample &sample, auto &ctxt) const {
+        const auto zero = nekoav::Timestamp {};
         const auto visitor = nekoav::Overloads {
             [&](std::monostate) { return std::format_to(ctxt.out(), "Sample(Null)"); },
-            [&](const nekoav::Frame &frame) { return std::format_to(ctxt.out(), "Sample(Frame(pts: {}))", frame.pts().value_or({})); },
-            [&](const nekoav::Packet &packet) { return std::format_to(ctxt.out(), "Sample(Packet(pts: {}))", packet.pts().value_or({})); },
+            [&](const nekoav::Frame &frame) { return std::format_to(ctxt.out(), "Sample(Frame(pts: {}))", frame.pts().value_or(zero)); },
+            [&](const nekoav::Packet &packet) { return std::format_to(ctxt.out(), "Sample(Packet(pts: {}))", packet.pts().value_or(zero)); },
         };
         return std::visit(visitor, sample.mStorage);
     }

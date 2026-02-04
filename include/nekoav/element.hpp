@@ -16,6 +16,8 @@
 #include <nekoav/query.hpp>
 #include <nekoav/clock.hpp>
 #include <nekoav/caps.hpp>
+#include <ilias/sync/mpsc.hpp>
+#include <ilias/task.hpp>
 #include <optional>
 #include <string>
 #include <vector>
@@ -334,13 +336,6 @@ public:
     auto setState(State targetState) -> IoTask<void>;
 
     /**
-     * @brief Set new clock for the element
-     * 
-     * @param clock The new clock to be set
-     */
-    auto setClock(Clock::Ptr clock) -> void;
-
-    /**
      * @brief Set the new name of the element
      * 
      * @param name if empty, we will set an unique name of it
@@ -416,7 +411,7 @@ public:
      * 
      * @return Clock::Ptr (nullptr on not in pipeline) 
      */
-    auto clock() const -> Clock::Ptr;
+    auto clock() const -> const Clock::Ptr & { return mClock; }
 
     /**
      * @brief Send an sync query to the element
@@ -473,19 +468,50 @@ protected:
      * @param errc The error code
      */
     auto setErrorState(std::error_code errc) -> void;
+
+    /**
+     * @brief Get the bus object
+     * 
+     * @return The bus used to send message to pipeline 
+     */
+    auto pipelineBus() -> ilias::mpsc::Sender<Event> & { return mPipelineBus; }
 private:
+    // Interface for pipeline and bin to use
+    /**
+     * @brief Set new clock for the element, it will broadcast this element to all children if self is `bin`
+     * 
+     * @param clock The new clock to be set
+     */
+    auto setClock(Clock::Ptr clock) -> void;
+
+    /**
+     * @brief Set the Pipeline Bus that send an event to pipeline
+     * 
+     * @param bus 
+     */
+    auto setPipelineBus(ilias::mpsc::Sender<Event> bus) -> void;
+
     // Pads
     PadList mInputs;
     PadList mOutputs;
 
     // State / Parent / Clock
     State           mState = State::Null;
-    Bin            *mParent = nullptr;
+    bool            mStateChanging = false;
     std::error_code mError = {}; // If this is set, the element is in error
+
+    // Filed used for topological
+    Bin            *mParent = nullptr;
     Clock::Ptr      mClock = nullptr;
+    ilias::mpsc::Sender<Event> mPipelineBus {};
+
+    // avoid to use RTTI, use bool is faster
+    bool            mIsPipeline = false;
+    bool            mIsBin = false;
 
     // Name
     std::string mName;
+friend class Pipeline;
 friend class Bin;
 friend class Pad;
 };
@@ -571,8 +597,8 @@ private:
     // from Source -> Sink
     std::vector<Element::Ptr> mChildren;
     bool                      mSorted = false;
-    bool                      mIsPipeline = false; // avoid to use RTTI, use bool is faster
 friend class Pipeline;
+friend class Element;
 friend class Pad;
 };
 
@@ -586,9 +612,11 @@ public:
     ~Pipeline();
 private:
     // Collect clock before run
+    auto onInitialize() -> IoTask<void> override;
     auto onRun() -> IoTask<void> override;
     auto onPause() -> IoTask<void> override;
     auto onStop() -> IoTask<void> override;
+    auto onTeardown() -> IoTask<void> override;
 
     struct Impl;
 

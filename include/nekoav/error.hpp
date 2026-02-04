@@ -29,6 +29,7 @@ enum class Error : int {
     InvalidArguments,        //< Invalid arguments
     InvalidState,            //< Invalid state transition
     InvalidContext,          //< Invalid context
+    InBusy,                  //< This method can't be called cocurently
 
     // Media related
     NoStream,                //< No media stream found
