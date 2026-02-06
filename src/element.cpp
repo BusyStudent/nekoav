@@ -290,6 +290,24 @@ auto Element::setErrorState(std::error_code errc) -> void {
     }
 }
 
+auto Element::pipeline() const -> const Pipeline * {
+    auto cur = this;
+    while (cur) {
+        if (cur->mIsPipeline) {
+            return static_cast<const Pipeline *>(cur);
+        }
+        cur = cur->mParent;
+    }
+    return nullptr;
+}
+
+auto Element::context() const -> Context * {
+    if (auto pipeline = this->pipeline(); pipeline) {
+        return pipeline->mContext.get();
+    }
+    return nullptr;
+}
+
 // MARK: Set Clock
 auto Element::setClock(Clock::Ptr clock) -> void {
     mClock = clock;
@@ -562,12 +580,13 @@ struct Pipeline::Impl final : public Clock { // Impl the ClockSource
     std::chrono::steady_clock::time_point clockEpoch {};
     std::chrono::nanoseconds              clockTime {};
     bool                                  clockPaused = true;
+    ilias::WaitHandle<void>               clockTicking {}; // Used when the master clock is self, used to generate the clock update event
 
     // Bus field
     ilias::WaitHandle<void>               busMonitor {};
 };
 
-Pipeline::Pipeline(std::string_view name) : Bin(name), d(std::make_unique<Impl>()){
+Pipeline::Pipeline(std::string_view name) : Bin(name), d(std::make_unique<Impl>()), mContext(std::make_unique<Context>()) {
     mIsPipeline = true;
     d->self = this;
 }
@@ -599,15 +618,35 @@ auto Pipeline::onRun() -> IoTask<void> {
     }
     if (mClocks.empty()) {
         // Get all children who provide clock
+        for (auto &child : mChildren) {
+            if (auto res = child->sendQuery(Query::ClockSource {}); res) {
+                auto [clock] = res->toClockSource();
+                assert(clock);
+                mClocks.emplace_back(std::move(clock));
+            }
+        }
+
         // Add self's clock, using alias
         auto self = Clock::Ptr {shared_from_this(), d.get()};
         mClocks.emplace_back(std::move(self));
 
         // Sort it by category
-        std::ranges::sort(mClocks, [](auto &lhs, auto &rhs) { return toUnderlying(lhs->category()) < toUnderlying(rhs->category()); });
+        std::ranges::sort(mClocks, [](const auto &lhs, const auto &rhs) { return toUnderlying(lhs->category()) < toUnderlying(rhs->category()); });
 
         // Set clock to the children
         setClock(mClocks.front());
+    }
+    if (mClocks.front().get() == d.get()) { // Use system as clock
+        logger::info("[Pipeline] '{}' use system clock", name());
+        d->clockTicking = ilias::spawn([this] -> Task<void> {
+            while (true) {
+                auto _ = co_await pipelineBus().send(Event::ClockUpdate {
+                    .clock = clock(),
+                    .time = d->time(),
+                });
+                co_await ilias::sleep(std::chrono::seconds {1});
+            }
+        });
     }
 
     // Ok, start the bin
@@ -627,6 +666,10 @@ auto Pipeline::onPause() -> IoTask<void> {
     auto time = d->clockTime;
     if (!mClocks.empty() && mClocks.front().get() != d.get()) {
         time = mClocks.front()->time(); // Sync the clock to master （if master is not self)
+    }
+    if (d->clockTicking) { // Stop the ticking 
+        d->clockTicking.stop();
+        co_await std::exchange(d->clockTicking, {});
     }
     d->clockEpoch = {};
     d->clockTime = time;

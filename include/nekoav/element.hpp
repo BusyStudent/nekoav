@@ -11,6 +11,7 @@
 #pragma once
 
 #include <nekoav/defines.hpp>
+#include <nekoav/context.hpp>
 #include <nekoav/sample.hpp>
 #include <nekoav/event.hpp>
 #include <nekoav/query.hpp>
@@ -414,6 +415,20 @@ public:
     auto clock() const -> const Clock::Ptr & { return mClock; }
 
     /**
+     * @brief Get the root pipeline
+     * 
+     * @return Pipeline * 
+     */
+    auto pipeline() const -> const Pipeline *;
+
+    /**
+     * @brief Get the pipeline context for query / set interface
+     * 
+     * @return Context * 
+     */
+    auto context() const -> Context *;
+
+    /**
      * @brief Send an sync query to the element
      * 
      * @param query 
@@ -621,8 +636,10 @@ private:
     struct Impl;
 
     // All clocks in the pipeline, sort by priority
-    std::vector<Clock::Ptr> mClocks;
-    std::unique_ptr<Impl>   d;
+    std::unique_ptr<Context> mContext; // The context of the pipeline
+    std::vector<Clock::Ptr>  mClocks;
+    std::unique_ptr<Impl>    d;
+friend class Element;
 };
 
 // Utils function

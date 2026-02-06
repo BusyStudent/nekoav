@@ -1,4 +1,5 @@
 #include <nekoav/element.hpp>
+#include <nekoav/context.hpp>
 #include <nekoav/sample.hpp>
 #include <nekoav/format.hpp>
 #include <gtest/gtest.h>

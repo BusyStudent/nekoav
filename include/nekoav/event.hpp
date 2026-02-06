@@ -51,6 +51,7 @@ public:
 class ClockUpdateEvent {
 public:
     Clock::Ptr clock;
+    Timestamp  time;
 };
 
 /**
@@ -122,7 +123,7 @@ struct std::formatter<nekoav::Event> {
             [&](const nekoav::Event::EndOfStream &eos) { return std::format_to(ctxt.out(), "Event(EndOfStream({}))", eos.streamIndex); },
             [&](const nekoav::Event::Caps &caps) { return std::format_to(ctxt.out(), "Event(Caps({}))", caps.caps); },
             [&](const nekoav::Event::Error &error) { return std::format_to(ctxt.out(), "Event(Error({}))", error.message); },
-            [&](const nekoav::Event::ClockUpdate &clock) { return std::format_to(ctxt.out(), "Event(ClockUpdate({}))", clock.clock->time()); },
+            [&](const nekoav::Event::ClockUpdate &clock) { return std::format_to(ctxt.out(), "Event(ClockUpdate({}: {}))", clock.clock->category(), clock.time); },
         };
         return event.visit(visitor);
     }

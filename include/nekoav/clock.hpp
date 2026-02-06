@@ -52,6 +52,7 @@ inline auto toString(ClockCategory cat) -> std::string_view {
         case ClockCategory::Audio:  return "Audio";
         case ClockCategory::System: return "System";
         case ClockCategory::Video:  return "Video";
+        default: return "Unknown";
     }
 }
 

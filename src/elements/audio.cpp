@@ -254,7 +254,8 @@ auto AudioSink::Impl::audioUpdateClock() -> void {
         return;
     }
     auto res = bus.trySend(Event::ClockUpdate {
-        .clock = Clock::Ptr { self->shared_from_this(), this }
+        .clock = Clock::Ptr { self->shared_from_this(), this },
+        .time = currentPts.load(),
     });
     if (!res) {
         logger::error("[AudioSink] Failed to send clock update event");

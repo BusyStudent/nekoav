@@ -2,6 +2,11 @@
 #include "internal.hpp"
 #include <ranges>
 
+#if defined(_WIN32)
+    #include <d3d11.h>
+    #include <d2d1.h>
+#endif // _WIN32
+
 extern "C" {
     #include <libavutil/frame.h>
     #include <libavutil/pixdesc.h>
@@ -34,6 +39,7 @@ auto NullVideoRenderer::init() -> IoTask<void> {
 }
 
 auto NullVideoRenderer::render(Frame frame) -> IoTask<void> {
+    logger::info("[NullVideoRenderer] Render frame: {}", frame.pts().value_or(Timestamp {}));
     co_return {};
 }
 
@@ -75,7 +81,7 @@ auto NullVideoRenderer::pixelFormats() const -> std::vector<PixelFormat> {
 
 // MARK: VideoSink
 struct VideoSink::Impl {
-    Clock::Ptr masterClock;
+    Timestamp renderDuration {};
 };
 
 VideoSink::VideoSink(std::string_view name) : Element(name), mInput(createInputPad("in")) {
@@ -105,7 +111,14 @@ auto VideoSink::onStop() -> IoTask<void> {
 
 auto VideoSink::onPrepare() -> IoTask<void> {
     if (!mRenderer) {
-        co_return Err(Error::InvalidContext);
+        // Try to find the renderer from the context
+        if (auto ctxt = context(); ctxt) {
+            mRenderer = ctxt->find<VideoRenderer>();
+        }
+        if (!mRenderer) {
+            logger::warn("[VideoSink] '{}', no renderer found, using NullVideoRenderer as fallback", name());
+            mRenderer = std::make_unique<NullVideoRenderer>();
+        }
     }
     if (auto res = co_await mRenderer->init(); !res) {
         co_return Err(res.error());
@@ -127,6 +140,8 @@ auto VideoSink::onPrepare() -> IoTask<void> {
 }
 
 auto VideoSink::onPadPush(Pad &, Sample sample) -> IoTask<void> {
+    using namespace std::literals;
+
     if (!sample) { // EOF
         co_return {};
     }
@@ -134,8 +149,25 @@ auto VideoSink::onPadPush(Pad &, Sample sample) -> IoTask<void> {
         co_return Err(Error::SampleTypeNotSupported);
     }
     auto frame = sample.toFrame();
-    auto pts = frame->pts();
-    // TODO: Check clock, sync here
+    auto pts = frame->pts().value_or(Timestamp {});
+    auto time = clock()->time(); // Get the master clock time
+
+    // Sync here
+    if (pts > time) {
+        auto waitTime = pts - time;
+
+        if (waitTime > 1ms) {
+            co_await ilias::sleep(std::chrono::duration_cast<std::chrono::milliseconds>(waitTime));
+        }
+    }
+    else {
+        auto lateTime = time - pts;
+        if (lateTime >= 500ms) { // Drop
+            logger::warn("Dropping late frame: {}ns", lateTime.count());
+            co_return {};
+        }
+    }
+
     co_return co_await mRenderer->render(std::move(*frame));
 }
 

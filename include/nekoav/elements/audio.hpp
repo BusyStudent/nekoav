@@ -6,6 +6,14 @@
 
 namespace nekoav {
 
+/**
+ * @brief The AudioContext class, wrapping miniaudio ma_context
+ * 
+ */
+class AudioContext {
+
+};
+
 class NEKOAV_API AudioSink final : public Element {
 public:
     AudioSink(std::string_view name = {});

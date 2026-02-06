@@ -3,6 +3,7 @@
 #include <nekoav/element.hpp>
 #include <nekoav/format.hpp>
 #include <nekoav/caps.hpp>
+#include <string>
 
 namespace nekoav {
 
@@ -12,6 +13,8 @@ namespace nekoav {
  */
 class VideoRenderer {
 public:
+    static constexpr auto TypeId = std::string_view {"videoRenderer"};
+
     using Ptr = std::shared_ptr<VideoRenderer>;
 
     virtual ~VideoRenderer() = default;
@@ -74,6 +77,7 @@ private:
 
 /**
  * @brief Present the frame to the user. 
+ * @note If the renderer is not set, the sink will try to find it on the global context, if still not found, fallback to null renderer.
  * 
  */
 class NEKOAV_API VideoSink final : public Element {
