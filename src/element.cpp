@@ -432,6 +432,12 @@ auto Bin::syncElements() -> IoTask<void> {
     return setChildrenState(state());
 }
 
+auto Bin::clear() -> IoTask<void> {
+    auto res = co_await setChildrenState(State::Null);
+    mChildren.clear();
+    co_return res;
+}
+
 auto Bin::dumpInfoInternal(FILE * where, int level) -> void {
     Element::dumpInfoInternal(where, level);
     ::fprintf(where, "%*s  Children:\n", level, "");

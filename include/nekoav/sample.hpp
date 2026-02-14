@@ -98,6 +98,9 @@ private:
     Rational                          mTimeBase = {0, 1};
 };
 
+// class AudioFrame : Frame;
+// class VideoFrame : Frame;
+
 /**
  * @brief A Packet of encoded data, usually compressed. wrapping AVPacket.
  * 

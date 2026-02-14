@@ -39,8 +39,12 @@ target("test_core")
     add_files("test/core.cpp")
 
 target("test_elements")
-    add_packages("ffmpeg")
     add_packages("gtest")
     set_kind("binary")
     add_deps("nekoav")
     add_files("test/elements.cpp")
+
+target("cmd_player")
+    add_packages("ilias")
+    add_deps("nekoav")
+    add_files("test/cmd_player.cpp")

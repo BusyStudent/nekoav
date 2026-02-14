@@ -585,6 +585,13 @@ public:
     auto syncElements() -> IoTask<void>;
 
     /**
+     * @brief Set all child elements to the Null state and clear all child elements
+     * 
+     * @return IoTask<void> 
+     */
+    auto clear() -> IoTask<void>;
+
+    /**
      * @brief Check the bin is empty
      * 
      * @return true 
@@ -594,9 +601,6 @@ public:
 protected:
     // Sort, return false on Cycle detected
     auto topologicalSort() -> bool;
-private:
-    // Dump
-    auto dumpInfoInternal(FILE *where, int level) -> void override;
 
     // State management
     auto onInitialize() -> IoTask<void> override;
@@ -605,7 +609,9 @@ private:
     auto onPause() -> IoTask<void> override;
     auto onStop() -> IoTask<void> override;
     auto onTeardown() -> IoTask<void> override;
-
+private:
+    // Dump
+    auto dumpInfoInternal(FILE *where, int level) -> void override;
     auto setChildrenState(State newState) -> IoTask<void>;
 
     // Child elements
