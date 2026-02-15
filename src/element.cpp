@@ -624,13 +624,19 @@ auto Pipeline::onRun() -> IoTask<void> {
     }
     if (mClocks.empty()) {
         // Get all children who provide clock
-        for (auto &child : mChildren) {
-            if (auto res = child->sendQuery(Query::ClockSource {}); res) {
-                auto [clock] = res->toClockSource();
-                assert(clock);
-                mClocks.emplace_back(std::move(clock));
+        auto forEach = [&](auto self, Bin *bin) -> void {
+            for (auto &child : bin->mChildren) {
+                if (auto res = child->sendQuery(Query::ClockSource {}); res) {
+                    auto [clock] = res->toClockSource();
+                    assert(clock);
+                    mClocks.emplace_back(std::move(clock));
+                }
+                if (child->mIsBin) {
+                    self(self, static_cast<Bin*>(child.get()));
+                }
             }
-        }
+        };
+        forEach(forEach, this);
 
         // Add self's clock, using alias
         auto self = Clock::Ptr {shared_from_this(), d.get()};
@@ -699,7 +705,7 @@ auto Pipeline::onStop() -> IoTask<void> {
 auto Pipeline::Impl::watchBus(ilias::mpsc::Receiver<Event> receiver) -> Task<void> {
     while (auto res = co_await receiver.recv()) {
         auto &event = *res;
-        logger::info("[Pipeline] '{}' received event: {}", self->name(), event);
+        // logger::info("[Pipeline] '{}' received event: {}", self->name(), event);
     }
 }
 

@@ -3,8 +3,12 @@
 #include <nekoav/element.hpp>
 #include <nekoav/sample.hpp>
 #include <string>
+#include <memory>
 
 namespace nekoav {
+
+// Forward declarations
+class VideoRenderer;
 
 /**
  * @brief The PlayBin used to play media files.
@@ -17,6 +21,9 @@ public:
 
     // Source
     auto setUrl(std::string_view url) -> void;
+
+    // VideoSink
+    auto setRenderer(std::shared_ptr<VideoRenderer> renderer) -> void;
 private:
     auto onPrepare() -> IoTask<void> override;
     auto onStop() -> IoTask<void> override;
@@ -24,6 +31,7 @@ private:
     struct Impl;
     std::unique_ptr<Impl> d;
     std::string           mUrl;
+    std::shared_ptr<VideoRenderer> mRenderer;
 };
 
 } // namespace nekoav

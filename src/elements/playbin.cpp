@@ -37,11 +37,11 @@ auto PlayBin::onPrepare() -> IoTask<void> {
     auto main = [&]() -> IoTask<void> {
         impl->source = std::make_shared<UrlSource>("PlayBin::UrlSource");
         impl->source->setUrl(mUrl);
+        addElement(impl->source);
         if (auto res = co_await impl->source->setState(State::Paused); !res) {
             logger::error("[PlayBin] '{}' Failed to initialize the urlSource", name());
             co_return res;
         }
-        addElement(impl->source);
 
         // Create the video sink if needed
         if (!impl->source->videoOutputs().empty()) {
@@ -56,6 +56,9 @@ auto PlayBin::onPrepare() -> IoTask<void> {
             if (!linkElement(*impl->source, impl->source->videoOutputs().front()->name(), *queue, "in")) {
                 // ???
                 assert(false);
+            }
+            if (mRenderer) {
+                sink->setRenderer(mRenderer);
             }
             impl->videoSink = sink;
         }
@@ -103,6 +106,10 @@ auto PlayBin::onStop() -> IoTask<void> {
 
 auto PlayBin::setUrl(std::string_view url) -> void {
     mUrl = url;
+}
+
+auto PlayBin::setRenderer(std::shared_ptr<VideoRenderer> renderer) -> void {
+    mRenderer.swap(renderer);
 }
 
 } // namespace nekoav

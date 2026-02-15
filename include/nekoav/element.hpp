@@ -629,6 +629,8 @@ friend class Pad;
  */
 class NEKOAV_API Pipeline final : public Bin {
 public:
+    using Ptr = std::shared_ptr<Pipeline>;
+
     Pipeline(std::string_view name = {});
     ~Pipeline();
 private:
