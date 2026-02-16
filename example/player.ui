@@ -16,11 +16,7 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
     <item>
-     <widget class="QLabel" name="videoLabel">
-      <property name="text">
-       <string>VideoLabel</string>
-      </property>
-     </widget>
+     <widget class="VideoWidget" name="videoWidget" native="true"/>
     </item>
     <item>
      <widget class="QSlider" name="horizontalSlider">
@@ -55,6 +51,14 @@
    </property>
   </action>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>VideoWidget</class>
+   <extends>QWidget</extends>
+   <header>video_widget.hpp</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>
