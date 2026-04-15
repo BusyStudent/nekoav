@@ -71,6 +71,7 @@ enum class PadType {
     Output,
 };
 
+// MARK: Pad
 /**
  * @brief Represents a connection point on an Element for linking to other Elements.
  * 
@@ -301,6 +302,7 @@ private:
     UserData      mQueryUser = {};
 };
 
+// MARK: Element
 /**
  * @brief Base class for all media processing elements.
  * 
@@ -531,6 +533,7 @@ friend class Bin;
 friend class Pad;
 };
 
+// MARK: Bin
 /**
  * @brief The Bin element can contain multiple child elements and manage them as a single unit.
  * 
@@ -623,6 +626,7 @@ friend class Element;
 friend class Pad;
 };
 
+// MARK: Pipeline
 /**
  * @brief The top level bin, manage the global resource
  * 
@@ -633,6 +637,13 @@ public:
 
     Pipeline(std::string_view name = {});
     ~Pipeline();
+
+    /**
+     * @brief Read the event from the pipeline bus
+     * 
+     * @return Task<Event> 
+     */
+    auto readEvent() -> Task<Event>;
 private:
     // Collect clock before run
     auto onInitialize() -> IoTask<void> override;

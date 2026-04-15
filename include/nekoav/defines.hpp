@@ -15,6 +15,9 @@
 // Time
 #include <chrono>
 
+// Assertion
+#include <cassert>
+
 #if defined(_MSC_VER)
     #define NEKOAV_EXPORT __declspec(dllexport)
     #define NEKOAV_IMPORT __declspec(dllimport)
@@ -58,14 +61,14 @@ struct Rational {
     int num; //< Numerator
     int den; //< Denominator
 
-    auto operator <=>(const Rational &other) const noexcept { return num * other.den <=> den * other.num; }
-    auto operator ==(const Rational &other) const noexcept -> bool = default;
+    constexpr auto operator <=>(const Rational &other) const noexcept { return num * other.den <=> den * other.num; }
+    constexpr auto operator ==(const Rational &other) const noexcept -> bool = default;
 
-    static auto nano() -> Rational { return {1, 1000000000}; }
-    static auto micro() -> Rational { return {1, 1000000}; }
-    static auto milli() -> Rational { return {1, 1000}; }
-    static auto second() -> Rational { return {1, 1}; }
-    static auto null() -> Rational { return {0, 1}; }
+    constexpr static auto nano() -> Rational { return {1, 1000000000}; }
+    constexpr static auto micro() -> Rational { return {1, 1000000}; }
+    constexpr static auto milli() -> Rational { return {1, 1000}; }
+    constexpr static auto second() -> Rational { return {1, 1}; }
+    constexpr static auto null() -> Rational { return {0, 1}; }
 };
 
 // Forward declarations

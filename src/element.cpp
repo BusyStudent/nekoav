@@ -590,15 +590,28 @@ struct Pipeline::Impl final : public Clock { // Impl the ClockSource
 
     // Bus field
     ilias::WaitHandle<void>               busMonitor {};
+    ilias::mpsc::Sender<Event>            eventSender {}; // Use this field to send event to the (user)
+    ilias::mpsc::Receiver<Event>          eventReceiver {};
 };
 
 Pipeline::Pipeline(std::string_view name) : Bin(name), d(std::make_unique<Impl>()), mContext(std::make_unique<Context>()) {
-    mIsPipeline = true;
+    // Initialize the self
+    auto [sender, receiver] = ilias::mpsc::channel<Event>();
+    d->eventSender = std::move(sender);
+    d->eventReceiver = std::move(receiver);
     d->self = this;
+
+    // Mark the typeinfo
+    mIsPipeline = true;
 }
 
 Pipeline::~Pipeline() {
 
+}
+
+auto Pipeline::readEvent() -> Task<Event> {
+    // This recv should never fail because we only close it when destroy the Pipeline
+    co_return (co_await d->eventReceiver.recv()).value();
 }
 
 auto Pipeline::onInitialize() -> IoTask<void> {
@@ -639,7 +652,7 @@ auto Pipeline::onRun() -> IoTask<void> {
         forEach(forEach, this);
 
         // Add self's clock, using alias
-        auto self = Clock::Ptr {shared_from_this(), d.get()};
+        Clock::Ptr self {shared_from_this(), d.get()};
         mClocks.emplace_back(std::move(self));
 
         // Sort it by category
@@ -705,7 +718,18 @@ auto Pipeline::onStop() -> IoTask<void> {
 auto Pipeline::Impl::watchBus(ilias::mpsc::Receiver<Event> receiver) -> Task<void> {
     while (auto res = co_await receiver.recv()) {
         auto &event = *res;
+        // Handle it...
         // logger::info("[Pipeline] '{}' received event: {}", self->name(), event);
+#if !defined(NDEBUG)
+        // if (event.isClockUpdate()) { // Dump the all clocks
+        //     for (auto &clock : self->mClocks) {
+        //         logger::info("[Pipeline] '{}' clock: {}", self->name(), clock->time());
+        //     }
+        // }
+#endif
+
+        // Put it to the user
+        auto _ = co_await eventSender.send(std::move(event));
     }
 }
 

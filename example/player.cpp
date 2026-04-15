@@ -1,7 +1,9 @@
 #include <nekoav/elements/playbin.hpp>
 #include <nekoav/elements/video.hpp>
 #include <nekoav/element.hpp>
+#include <nekoav/event.hpp>
 #include <ilias/platform/qt.hpp>
+#include <ilias/console.hpp>
 #include <ilias/signal.hpp>
 #include <QApplication>
 #include <QMainWindow>
@@ -57,7 +59,25 @@ private:
         auto cleanup = [&]() -> ilias::Task<void> {
             co_await pipeline->setState(nekoav::State::Null);            
         };
-        co_await (main() | ilias::finally(cleanup));
+        co_await ilias::finally(
+            ilias::whenAll(main(), watchEvent(*pipeline)),
+            cleanup
+        );
+    }
+    
+    auto watchEvent(nekoav::Pipeline &pipeline) -> ilias::Task<void> {
+        while (true) {
+            auto event = co_await pipeline.readEvent();
+            if (event.isClockUpdate()) {
+                auto clock = event.toClockUpdate();
+                auto s = std::chrono::duration_cast<std::chrono::seconds>(clock.time);
+                ui.horizontalSlider->setValue(s.count());
+            }
+            if (event.isError()) {
+                auto error = event.toError();
+                ui.statusbar->showMessage(error.message.c_str());
+            }
+        }
     }
 
     Ui::MainWindow          ui;
@@ -67,7 +87,9 @@ private:
 auto main(int argc, char** argv) -> int {
     QApplication app(argc, argv);
     ilias::QIoContext ctxt {};
+    ilias::TracingWebUi webui {"127.0.0.1:8066"};
     ctxt.install();
+    webui.install();
 
     Player player;
     player.show();

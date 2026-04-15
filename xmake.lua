@@ -3,7 +3,7 @@ set_languages("c++23")
 
 -- import async runtime
 add_repositories("btk-repo https://github.com/Btk-Project/xmake-repo.git")
-add_requires("ilias")
+add_requires("ilias", {configs = {coro_trace = true}, version = "dev"})
 
 -- import ffmpeg
 add_requires("ffmpeg")

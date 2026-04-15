@@ -207,20 +207,13 @@ public:
     auto operator <=>(const Caps &other) const noexcept = default;
     auto operator =(const Caps &other) -> Caps & = default;
     auto operator =(Caps &&other) -> Caps & = default;
-
-    // Construct
-    static auto makeAny() -> Caps {
-        auto caps = Caps {};
-        caps.insert(Any, {});
-        return caps;
-    }
 private:
     std::vector<Cap> mCaps;
 };
 
 } // namespace nekoav
 
-// Formatter
+// MARK: Formatter
 template <>
 struct std::formatter<nekoav::Value> {
     constexpr auto parse(auto &ctxt){

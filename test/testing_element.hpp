@@ -70,7 +70,6 @@ struct SecondElement : Element {
 struct PrintElement : Element {
     PrintElement(std::string_view name = {}) : Element(name) {
         auto &in = createInputPad("in");
-        in.mutableCaps() = Caps::makeAny();
         in.setPushCallback<&PrintElement::onPush>(this);
     }
 

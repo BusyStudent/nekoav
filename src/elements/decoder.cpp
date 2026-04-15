@@ -123,6 +123,7 @@ auto Decoder::onTeardown() -> IoTask<void> {
 
 auto Decoder::onPadPush(Pad &pad, Sample sample) -> IoTask<void> {
     if (!sample) { // Forward EOS
+        // TODO: We maybe need to flush the decoder
         co_return co_await mOutput.push(std::move(sample));
     }
     if (!d) { // The decoder is not initialize, try init now
@@ -139,26 +140,39 @@ auto Decoder::onPadPush(Pad &pad, Sample sample) -> IoTask<void> {
     }
     // Begin process
     auto packet = sample.toPacket();
-    auto res = co_await ilias::blocking([&]() {
-        int res = avcodec_send_packet(d->ctxt, packet->get());
-        if (res != 0) {
+    auto packetSent = false;
+    auto process = [&]() {
+        while (true) {
+            // First, try to drain the frame
+            int res = avcodec_receive_frame(d->ctxt, d->frame);
+            if (res == AVERROR(EAGAIN) && !packetSent) { // No frame left
+                res = avcodec_send_packet(d->ctxt, packet->get());
+                if (res != 0) { // Error Happend
+                    return res;
+                }
+                packetSent = true;
+                continue;
+            }
             return res;
         }
-        return avcodec_receive_frame(d->ctxt, d->frame);
-    });
+    };
+    while (true) {
+        int res = co_await ilias::blocking(process);
+        if (res == AVERROR(EAGAIN)) { // Packet conssumed and all frame drained
+            break;
+        }
+        if (res < 0) {
+            logger::error("[Decoder] '{}' Failed to decode {} => {}", name(), res, error::toString(res));
+            co_return Err(error::fromFFmpeg(res));
+        }
 
-    // Need more data
-    if (res == AVERROR(EAGAIN)) {
-        co_return {};
+        // Create new frame
+        auto frame = Frame::from(av_frame_clone(d->frame), packet->timeBase());
+        if (auto res = co_await mOutput.push(std::move(frame)); !res) {
+            co_return Err(res.error());
+        }
     }
-    else if (res < 0) {
-        logger::error("[Decoder] '{}' Failed to decode {} => {}", name(), res, error::toString(res));
-        co_return Err(error::fromFFmpeg(res));
-    }
-
-    // Create new frame
-    auto frame = Frame::from(av_frame_clone(d->frame), packet->timeBase());
-    co_return co_await mOutput.push(std::move(frame));
+    co_return {};
 }
 
 auto Decoder::init(const Caps &caps) -> IoTask<void> {

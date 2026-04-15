@@ -28,10 +28,6 @@ Queue::Queue(std::string_view name) : Element(name), d(std::make_unique<Impl>())
     auto &in = createInputPad("in");
     auto &out = createOutputPad("out");
 
-    // Configure, we accept anything
-    in.mutableCaps() = Caps::makeAny();
-    out.mutableCaps() = Caps::makeAny();
-
     // Bind it
     in.setPushCallback<&Queue::onPush>(this);
 
