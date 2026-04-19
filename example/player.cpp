@@ -49,6 +49,23 @@ public:
                 ui.playButton->setText("Pause");
             }
         });
+
+        // When the slider moved
+        connect(ui.progressSlider, &QSlider::sliderPressed, [this]() {
+            mSliderPressing = true;
+        });
+
+        connect(ui.progressSlider, &QSlider::sliderReleased, [this]() {
+            mSliderPressing = false;
+            if (!mPipeline) {
+                return;
+            }
+            int value = ui.progressSlider->value();
+            std::println("Slider to {}", value);
+            mPipeline->sendEvent(nekoav::Event::Seek {
+                .timestamp = std::chrono::seconds {value}
+            }).wait();
+        });
     }
 
     ~Player() {
@@ -90,7 +107,9 @@ private:
             if (event.isClockUpdate()) {
                 auto clock = event.toClockUpdate();
                 auto s = std::chrono::duration_cast<std::chrono::seconds>(clock.time);
-                ui.progressSlider->setValue(s.count());
+                if (!mSliderPressing) {
+                    ui.progressSlider->setValue(s.count());
+                }
             }
             if (event.isError()) {
                 auto error = event.toError();
@@ -102,6 +121,7 @@ private:
     Ui::MainWindow          ui;
     ilias::WaitHandle<void> mHandle;
     nekoav::Pipeline::Ptr   mPipeline;
+    bool                    mSliderPressing = false;
 };
 
 auto main(int argc, char** argv) -> int {

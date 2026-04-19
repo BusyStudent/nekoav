@@ -155,14 +155,20 @@ auto VideoSink::onPadPush(Pad &, Sample sample) -> IoTask<void> {
     // Sync here
     if (pts > time) {
         auto waitTime = pts - time;
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(waitTime);
 
-        if (waitTime > 1ms) {
-            co_await ilias::sleep(std::chrono::duration_cast<std::chrono::milliseconds>(waitTime));
+        if (waitTime > 1ms && waitTime < 500ms) {
+            logger::info("[VideoSink] Waiting for {}", ms);
+            co_await ilias::sleep(ms);
+        }
+        if (waitTime > 500ms) { // What, we are too fast?
+            logger::warn("Frame is too far ahead: {}ns", waitTime.count());
+            co_return {};
         }
     }
     else {
         auto lateTime = time - pts;
-        if (lateTime >= 500ms) { // Drop
+        if (lateTime >= 100ms) { // Drop
             logger::warn("Dropping late frame: {}ns", lateTime.count());
             co_return {};
         }

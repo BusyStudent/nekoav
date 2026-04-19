@@ -74,6 +74,7 @@ struct Decoder::Impl {
     AVCodecContext *ctxt = nullptr;
     AVFrame        *frame = nullptr;
     AVPixelFormat   hwfmt = AV_PIX_FMT_NONE; // Use for HW decoding
+    bool            flush = false; // Need for flaush ?
 
     Impl() {
         frame = av_frame_alloc();
@@ -93,6 +94,7 @@ Decoder::Decoder(std::string_view name) :
     mInput.mutableCaps().insert(Caps::AudioPacket, {});
     mInput.mutableCaps().insert(Caps::VideoPacket, {});
     mInput.setPushCallback<&Decoder::onPadPush>(this);
+    mInput.setEventCallback<&Decoder::onPadEvent>(this);
 
     // Output
     mOutput.mutableCaps().insert(Caps::AudioRaw, {});
@@ -143,6 +145,10 @@ auto Decoder::onPadPush(Pad &pad, Sample sample) -> IoTask<void> {
     auto packetSent = false;
     auto process = [&]() {
         while (true) {
+            if (d->flush) [[unlikely]] {
+                d->flush = false;
+                avcodec_flush_buffers(d->ctxt);
+            }
             // First, try to drain the frame
             int res = avcodec_receive_frame(d->ctxt, d->frame);
             if (res == AVERROR(EAGAIN) && !packetSent) { // No frame left
@@ -173,6 +179,14 @@ auto Decoder::onPadPush(Pad &pad, Sample sample) -> IoTask<void> {
         }
     }
     co_return {};
+}
+
+auto Decoder::onPadEvent(Pad &pad, const Event &event) -> IoTask<void> {
+    if (event.isFlushEnd()) {
+        logger::info("[Decoder] '{}' flush end", name());
+        d->flush = true;
+    }
+    co_return co_await mOutput.pushEvent(std::move(event));
 }
 
 auto Decoder::init(const Caps &caps) -> IoTask<void> {

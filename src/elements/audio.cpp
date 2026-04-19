@@ -77,6 +77,7 @@ struct AudioSink::Impl final : public Clock { // Implementation the ClockSource
 
 AudioSink::AudioSink(std::string_view name) : Element(name), mInput(createInputPad("in")) {
     mInput.setPushCallback<&AudioSink::onPush>(this);
+    mInput.setEventCallback<&AudioSink::onEvent>(this);
 }
 
 AudioSink::~AudioSink() {
@@ -162,6 +163,30 @@ auto AudioSink::onPush(Pad &pad, Sample sample) -> IoTask<void> {
     // Ok, push the frame to the queue
     // assert(ma_device_is_started(&d->device));
     auto _ = co_await d->frameSender.send(std::move(*frame));
+    co_return {};
+}
+
+auto AudioSink::onEvent(Pad &pad, Event event) -> IoTask<void> {
+    if (!event.isFlushBegin()) {
+        co_return {};
+    }
+    if (!d->deviceInited) { // Did we mutex with d->device?
+        co_return {};
+    }
+    // Do flush
+    // Pause the device
+    bool started = ma_device_is_started(&d->device);
+    if (started) {
+        ma_device_stop(&d->device);
+    }
+
+    // Drain the queue
+    while (d->frameReceiver.tryRecv()) {}
+
+    // Restore if needed
+    if (started) {
+        ma_device_start(&d->device);
+    }
     co_return {};
 }
 

@@ -30,6 +30,7 @@ Queue::Queue(std::string_view name) : Element(name), d(std::make_unique<Impl>())
 
     // Bind it
     in.setPushCallback<&Queue::onPush>(this);
+    in.setEventCallback<&Queue::onEvent>(this);
 
     d->in = &in;
     d->out = &out;
@@ -59,6 +60,19 @@ auto Queue::onPush(Pad &, Sample sample) -> IoTask<void> {
     d->queue.emplace_back(std::move(sample));
     d->queueHasSample.set();
     co_return {};
+}
+
+auto Queue::onEvent(Pad &, Event event) -> IoTask<void> {
+    // TODO: Maybe we need mutex with push?
+    if (event.isFlushBegin()) {
+        logger::info("[Queue] '{}' flush begin", name());
+        d->queue.clear();
+    }
+    if (event.isFlushEnd()) {
+        logger::info("[Queue] '{}' flush end", name());
+        d->queueHasSpace.set();
+    }
+    co_return co_await d->out->pushEvent(event); // Forward the event
 }
 
 auto Queue::onStop() -> IoTask<void> {

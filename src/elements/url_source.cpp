@@ -283,10 +283,11 @@ auto UrlSource::sendEvent(Event event) -> IoTask<void> {
 
 auto UrlSource::doSeek() -> IoTask<void> {
     assert(d->seekTime);
+    logger::info("[UrlSource] '{}' seek to {}", name(), d->seekTime.value());
 
     // Seek all stream to the same time
     auto ts = d->seekTime.value();
-    auto fftime = time::toFFmpeg(ts, time::NANO_TIME_BASE);
+    auto fftime = time::toFFmpeg(ts, AV_TIME_BASE_Q);
     auto res = co_await ilias::blocking([&]() {
         return av_seek_frame(d->ctxt, -1, fftime, AVSEEK_FLAG_BACKWARD);
     });
@@ -294,7 +295,14 @@ auto UrlSource::doSeek() -> IoTask<void> {
         co_return Err(error::fromFFmpeg(res));
     }
 
-    // TODO: Notify all the pads that flush the buffer
+    // Notify all the downstream that flush the buffer
+    for (auto &pad : outputs()) {
+        auto _ = co_await pad.pushEvent(Event::FlushBegin {});
+    }
+    for (auto &pad : outputs()) {
+        auto _ = co_await pad.pushEvent(Event::FlushEnd {});
+    }
+    logger::info("[UrlSource] '{}' seek done", name());
     co_return {};
 }
 

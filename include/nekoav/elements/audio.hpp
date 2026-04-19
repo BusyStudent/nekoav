@@ -26,6 +26,7 @@ private:
     auto onRun() -> IoTask<void> override;
     auto onStop() -> IoTask<void> override;
     auto onPush(Pad &, Sample sample) -> IoTask<void>;
+    auto onEvent(Pad &, Event event) -> IoTask<void>;
     auto initDevice(Frame *frame) -> IoResult<void>;
 
     struct Impl;
