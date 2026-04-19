@@ -438,6 +438,14 @@ public:
      */
     virtual auto sendQuery(Query query) -> std::optional<Reply>;
 
+    /**
+     * @brief Send an async event to the element
+     * 
+     * @param event 
+     * @return IoTask<void> 
+     */
+    virtual auto sendEvent(Event event) -> IoTask<void>;
+
     // No copy
     auto operator =(const Element &) = delete;
     auto operator =(Element &&) = delete;
@@ -593,6 +601,14 @@ public:
      * @return IoTask<void> 
      */
     auto clear() -> IoTask<void>;
+
+    /**
+     * @brief Send the event to all child elements
+     * 
+     * @param event The event to be sent
+     * @return IoTask<void> 
+     */
+    auto sendEvent(Event event) -> IoTask<void> override;
 
     /**
      * @brief Check the bin is empty

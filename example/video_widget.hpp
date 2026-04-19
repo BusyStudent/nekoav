@@ -53,7 +53,15 @@ protected:
         if (mPixmap.isNull()) {
             return;
         }
-        painter.drawPixmap(rect(), mPixmap);
+        // Calculate the rect of the video
+        QSize scaledSize = mPixmap.size().scaled(this->size(), Qt::KeepAspectRatio);
+        QRect r {
+            QPoint {0, 0}, scaledSize
+        };
+        r.moveCenter(this->rect().center());
+        
+        // Draw it
+        painter.drawPixmap(r, mPixmap);
     }
 private:
     QPixmap mPixmap;

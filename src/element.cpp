@@ -250,6 +250,10 @@ auto Element::sendQuery(Query query) -> std::optional<Reply> {
     return std::nullopt;
 }
 
+auto Element::sendEvent(Event event) -> IoTask<void> {
+    co_return {};
+}
+
 auto Element::onInitialize() -> IoTask<void> { 
     co_return {}; 
 }
@@ -436,6 +440,19 @@ auto Bin::clear() -> IoTask<void> {
     auto res = co_await setChildrenState(State::Null);
     mChildren.clear();
     co_return res;
+}
+
+auto Bin::sendEvent(Event event) -> IoTask<void> {
+    std::vector<IoTask<void> > tasks {};
+    for (auto &child : mChildren) {
+        tasks.emplace_back(child->sendEvent(event));
+    }
+    auto res = co_await ilias::whenAll(std::move(tasks));
+    auto it = std::ranges::find_if(res, [](auto &r) { return !r; });
+    if (it != res.end()) {
+        co_return Err(it->error());
+    }
+    co_return {};
 }
 
 auto Bin::dumpInfoInternal(FILE * where, int level) -> void {

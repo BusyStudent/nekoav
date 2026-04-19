@@ -23,6 +23,9 @@ public:
     UrlSource(std::string_view name = {});
     ~UrlSource();
 
+    /// @copydoc Element::sendEvent
+    auto sendEvent(Event event) -> IoTask<void> override;
+
     /**
      * @brief Set the Url of the source
      * 
@@ -72,6 +75,7 @@ private:
     auto onPadEvent(Pad &pad, const Event &event) -> IoTask<void>;
 
     // FFmpeg
+    auto doSeek() -> IoTask<void>;
     auto readWorker() -> Task<void>;
     auto interruptCallback() -> int;
 

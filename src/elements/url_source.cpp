@@ -18,6 +18,9 @@ struct UrlSource::Impl {
     std::unordered_map<int, Pad *> padsMapping; // Mapping ffmpeg stream index to pad
     std::atomic<int>               interrupted {0}; // Read for interrupted handler
 
+    // Seem
+    std::optional<Timestamp>       seekTime;
+
     // Worker
     ilias::WaitHandle<void>        readWorker;
     ilias::Event                   runningEvent;
@@ -100,17 +103,17 @@ auto UrlSource::onPrepare() -> IoTask<void> {
             case AVMEDIA_TYPE_VIDEO: {
                 auto extraData = reinterpret_cast<std::byte*>(stream->codecpar->extradata);
                 auto info = Value::fromMap({
-                    { std::string(Caps::Width),    stream->codecpar->width },
-                    { std::string(Caps::Height),   stream->codecpar->height },
-                    { std::string(Caps::Codec),    avcodec_get_name(stream->codecpar->codec_id) },
-                    { std::string(Caps::CodecTag), static_cast<int64_t>(stream->codecpar->codec_tag) },
-                    { std::string(Caps::CodecExtraData), std::vector<std::byte>{extraData, extraData + stream->codecpar->extradata_size} },
-                    { std::string(Caps::PixelFormat), pixfmt::fromFFmpeg(AVPixelFormat(stream->codecpar->format)) },
-                    { std::string(Caps::ColorRange), color_range::fromFFmpeg(stream->codecpar->color_range) },
-                    { std::string(Caps::ColorPrimaries), color_primaries::fromFFmpeg(stream->codecpar->color_primaries) },
-                    { std::string(Caps::ColorTransfer), color_transfer::fromFFmpeg(stream->codecpar->color_trc) },
-                    { std::string(Caps::ColorSpace), color_space::fromFFmpeg(stream->codecpar->color_space) },
-                    { std::string(Caps::Bitrate), stream->codecpar->bit_rate },
+                    { std::string{Caps::Width},    stream->codecpar->width },
+                    { std::string{Caps::Height},   stream->codecpar->height },
+                    { std::string{Caps::Codec},    avcodec_get_name(stream->codecpar->codec_id) },
+                    { std::string{Caps::CodecTag}, static_cast<int64_t>(stream->codecpar->codec_tag) },
+                    { std::string{Caps::CodecExtraData}, std::vector<std::byte>{extraData, extraData + stream->codecpar->extradata_size} },
+                    { std::string{Caps::PixelFormat}, pixfmt::fromFFmpeg(AVPixelFormat(stream->codecpar->format)) },
+                    { std::string{Caps::ColorRange}, color_range::fromFFmpeg(stream->codecpar->color_range) },
+                    { std::string{Caps::ColorPrimaries}, color_primaries::fromFFmpeg(stream->codecpar->color_primaries) },
+                    { std::string{Caps::ColorTransfer}, color_transfer::fromFFmpeg(stream->codecpar->color_trc) },
+                    { std::string{Caps::ColorSpace}, color_space::fromFFmpeg(stream->codecpar->color_space) },
+                    { std::string{Caps::Bitrate}, stream->codecpar->bit_rate },
                 });
                 pad = &createOutputPad("video/" + std::to_string(videoIdx++));
                 pad->mutableCaps().insert(Caps::VideoPacket, std::move(info));
@@ -119,13 +122,13 @@ auto UrlSource::onPrepare() -> IoTask<void> {
             case AVMEDIA_TYPE_AUDIO: {
                 auto extraData = reinterpret_cast<std::byte*>(stream->codecpar->extradata);
                 auto info = Value::fromMap({
-                    { std::string(Caps::SampleRate),  stream->codecpar->sample_rate },
-                    { std::string(Caps::Channels),    stream->codecpar->ch_layout.nb_channels },
-                    { std::string(Caps::Codec),       avcodec_get_name(stream->codecpar->codec_id) },
-                    { std::string(Caps::CodecTag), static_cast<int64_t>(stream->codecpar->codec_tag) },
-                    { std::string(Caps::CodecExtraData), std::vector<std::byte>{extraData, extraData + stream->codecpar->extradata_size} },
-                    { std::string(Caps::SampleFormat), sample_fmt::fromFFmpeg(AVSampleFormat(stream->codecpar->format)) },
-                    { std::string(Caps::Bitrate), stream->codecpar->bit_rate },
+                    { std::string{Caps::SampleRate},  stream->codecpar->sample_rate },
+                    { std::string{Caps::Channels},    stream->codecpar->ch_layout.nb_channels },
+                    { std::string{Caps::Codec},       avcodec_get_name(stream->codecpar->codec_id) },
+                    { std::string{Caps::CodecTag}, static_cast<int64_t>(stream->codecpar->codec_tag) },
+                    { std::string{Caps::CodecExtraData}, std::vector<std::byte>{extraData, extraData + stream->codecpar->extradata_size} },
+                    { std::string{Caps::SampleFormat}, sample_fmt::fromFFmpeg(AVSampleFormat(stream->codecpar->format)) },
+                    { std::string{Caps::Bitrate}, stream->codecpar->bit_rate },
                 });
                 pad = &createOutputPad("audio/" + std::to_string(audioIdx++));
                 pad->mutableCaps().insert(Caps::AudioPacket, std::move(info));
@@ -202,11 +205,15 @@ auto UrlSource::readWorker() -> Task<void> {
         UrlSource *self;
     } guard { packet, this };
 
-    auto token = co_await ilias::this_coro::stopToken();
-    while (!token.stop_requested()) {
-        if (d->seekEvent.isSet()) {
+    while (true) {
+        if (d->seekEvent.isSet() && d->seekTime) {
             d->seekEvent.clear();
-            // TODO: handle the seek
+
+            if (auto res = co_await ilias::unstoppable(doSeek()); !res) {
+                logger::error("[UrlSource] '{}' seek failed: {}", name(), res.error().message());
+                setErrorState(res.error());
+                co_return;
+            }
         }
 
         // Only run on the running state
@@ -214,7 +221,7 @@ auto UrlSource::readWorker() -> Task<void> {
         
         // Do the job
         av_packet_unref(packet);
-        auto res = co_await ilias::blocking([&]() { return av_read_frame(d->ctxt, packet); });
+        int res = co_await ilias::blocking([&]() { return av_read_frame(d->ctxt, packet); });
         switch (res) {
             case 0: break; // OK
 
@@ -240,7 +247,8 @@ auto UrlSource::readWorker() -> Task<void> {
                 co_return;
             }
         }
-        // Push it
+
+        // Find the pad
         auto it = d->padsMapping.find(packet->stream_index);
         if (it == d->padsMapping.end()) {
             continue;
@@ -251,6 +259,8 @@ auto UrlSource::readWorker() -> Task<void> {
         if (!pad->isLinked()) {
             continue;
         }
+        
+        // Alloc the packet, push to the pad
         auto pak = av_packet_alloc();
         av_packet_move_ref(pak, packet);
 
@@ -260,6 +270,32 @@ auto UrlSource::readWorker() -> Task<void> {
             co_return;
         }
     }
+}
+
+auto UrlSource::sendEvent(Event event) -> IoTask<void> {
+    if (event.isSeek()) {
+        auto seek = event.toSeek();
+        d->seekTime = seek.timestamp;
+        d->seekEvent.set();
+    }
+    co_return {};
+}
+
+auto UrlSource::doSeek() -> IoTask<void> {
+    assert(d->seekTime);
+
+    // Seek all stream to the same time
+    auto ts = d->seekTime.value();
+    auto fftime = time::toFFmpeg(ts, time::NANO_TIME_BASE);
+    auto res = co_await ilias::blocking([&]() {
+        return av_seek_frame(d->ctxt, -1, fftime, AVSEEK_FLAG_BACKWARD);
+    });
+    if (res != 0) {
+        co_return Err(error::fromFFmpeg(res));
+    }
+
+    // TODO: Notify all the pads that flush the buffer
+    co_return {};
 }
 
 auto UrlSource::interruptCallback() -> int {

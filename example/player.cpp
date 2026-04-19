@@ -6,6 +6,7 @@
 #include <ilias/console.hpp>
 #include <ilias/signal.hpp>
 #include <QApplication>
+#include <QMessageBox>
 #include <QMainWindow>
 #include <QFileDialog>
 #include "ui_player.h"
@@ -32,6 +33,22 @@ public:
             }
             mHandle = ilias::spawn(mediaTask(file));
         });
+
+        // When the play button clicked
+        connect(ui.playButton, &QPushButton::clicked, [this] {
+            if (!mPipeline) {
+                QMessageBox::critical(this, "Error", "No media loaded");
+                return;
+            }
+            if (mPipeline->state() == nekoav::State::Running) {
+                mPipeline->setState(nekoav::State::Paused).wait();
+                ui.playButton->setText("Play");
+            }
+            else {
+                mPipeline->setState(nekoav::State::Running).wait();
+                ui.playButton->setText("Pause");
+            }
+        });
     }
 
     ~Player() {
@@ -53,11 +70,13 @@ private:
         // Then, start it
         auto main = [&]() -> ilias::Task<void> {
             if (co_await pipeline->setState(nekoav::State::Running)) {
+                mPipeline = pipeline;
+                ui.playButton->setText("Pause");
                 co_await ilias::sleep(1000s);
             }
         };
         auto cleanup = [&]() -> ilias::Task<void> {
-            co_await pipeline->setState(nekoav::State::Null);            
+            co_await pipeline->setState(nekoav::State::Null);
         };
         co_await ilias::finally(
             ilias::whenAll(main(), watchEvent(*pipeline)),
@@ -71,7 +90,7 @@ private:
             if (event.isClockUpdate()) {
                 auto clock = event.toClockUpdate();
                 auto s = std::chrono::duration_cast<std::chrono::seconds>(clock.time);
-                ui.horizontalSlider->setValue(s.count());
+                ui.progressSlider->setValue(s.count());
             }
             if (event.isError()) {
                 auto error = event.toError();
@@ -82,6 +101,7 @@ private:
 
     Ui::MainWindow          ui;
     ilias::WaitHandle<void> mHandle;
+    nekoav::Pipeline::Ptr   mPipeline;
 };
 
 auto main(int argc, char** argv) -> int {
