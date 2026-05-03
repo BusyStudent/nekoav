@@ -44,7 +44,7 @@ struct AudioSink::Impl final : public Clock { // Implementation the ClockSource
     ilias::mpsc::Receiver<Frame> frameReceiver {};
     std::optional<Frame>         currentFrame {};
     size_t                       currentFrameOffset = 0;
-    std::atomic<Timestamp>       currentPts {};
+    std::atomic<int64_t>         currentPts {}; // int64_t on Timestamp unit
 
     Impl() {
         auto [sender, receiver] = ilias::mpsc::channel<Frame>(20); // Cache 20 frames ?, I think it's enough
@@ -63,7 +63,7 @@ struct AudioSink::Impl final : public Clock { // Implementation the ClockSource
 
     // Clock Interface
     auto time() const -> Timestamp override {
-        return currentPts.load();
+        return Timestamp { currentPts.load() };
     }
 
     auto category() const -> ClockCategory override {
@@ -222,7 +222,7 @@ auto AudioSink::Impl::audioCallback(ma_device *device, std::byte *output, const 
             if (auto frame = frameReceiver.tryRecv(); frame) {
                 currentFrameOffset = 0;
                 currentFrame = std::move(*frame);
-                currentPts = currentFrame->pts().value_or(Timestamp {});
+                currentPts = currentFrame->pts().value_or(Timestamp {}).count();
                 // logger::info("[AudioSink] Got a new frame with {} samples, pts {}", currentFrame->samples(), currentPts.load());
                 audioUpdateClock();
             }
@@ -235,6 +235,7 @@ auto AudioSink::Impl::audioCallback(ma_device *device, std::byte *output, const 
         // Begin fill it
         auto format = currentFrame->sampleFormat();
         auto perSample = bytesPerSample(format);
+        auto sampleRate = currentFrame->sampleRate();
         auto channels = currentFrame->channels();
         auto samples = currentFrame->samples();
 
@@ -260,6 +261,15 @@ auto AudioSink::Impl::audioCallback(ma_device *device, std::byte *output, const 
             ::memcpy(output, src, bytesToCopy);
         }
 
+        // Calc the time offset, advance the currentPts (timestamp is in nanoseconds)
+        int64_t pts = currentPts.load();
+        int64_t offsetTime = numToCopy * 1000'000'000 / sampleRate;
+        int64_t newPts = pts + offsetTime;
+        if (newPts > pts) {
+            currentPts.store(newPts);
+        }
+
+        // Update
         output += bytesToCopy;
         frameCount -= numToCopy;
         currentFrameOffset += numToCopy;
@@ -280,7 +290,7 @@ auto AudioSink::Impl::audioUpdateClock() -> void {
     }
     auto res = bus.trySend(Event::ClockUpdate {
         .clock = Clock::Ptr { self->shared_from_this(), this },
-        .time = currentPts.load(),
+        .time = Timestamp { currentPts.load() },
     });
     if (!res) {
         logger::error("[AudioSink] Failed to send clock update event");

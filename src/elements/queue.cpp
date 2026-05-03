@@ -82,7 +82,13 @@ auto Queue::onStop() -> IoTask<void> {
 }
 
 auto Queue::doPull() -> Task<void> {
-    while (!d->pauseRequested.isSet()) {
+    // Maek the queue name
+    co_await ilias::this_coro::setName(name());
+    
+    while (true) {
+        if (d->pauseRequested.isSet()) {
+            break;
+        }
         while (d->queue.empty()) { // Wait for sample
             d->queueHasSample.clear();
             auto [_, pause] = co_await ilias::whenAny(d->queueHasSample.wait(), d->pauseRequested.wait());
@@ -96,7 +102,7 @@ auto Queue::doPull() -> Task<void> {
         d->queueHasSpace.set();
 
         // Push it to the pad
-        if (auto res = co_await ilias::unstoppable(d->out->push(std::move(sample))); !res) {
+        if (auto res = co_await d->out->push(std::move(sample)); !res) {
             logger::error("[Queue] '{}' failed to push sample to the pad => {}", name(), res.error().message());
             setErrorState(res.error());
             co_return;

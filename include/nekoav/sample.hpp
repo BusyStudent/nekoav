@@ -78,6 +78,7 @@ public:
 
     // Operators
     auto operator =(Frame &&) -> Frame & = default;
+    auto operator <=>(const Frame &rhs) const noexcept = default;
 
     /**
      * @brief Create an frame from an exisited avfeame, it will take the ownship of it
@@ -136,6 +137,7 @@ public:
 
     // Operators
     auto operator =(Packet &&) -> Packet & = default;
+    auto operator <=>(const Packet &rhs) const noexcept = default;
 
     /**
      * @brief Create an Packet from an exisited avpacket, it will take the ownership of it
@@ -205,6 +207,7 @@ public:
 
     // Operators
     auto operator =(Sample &&) -> Sample & = default;
+    auto operator <=>(const Sample &rhs) const noexcept = default;
 
     explicit operator bool() const noexcept { return !isNull(); }
 private:
