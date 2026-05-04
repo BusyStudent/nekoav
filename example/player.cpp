@@ -9,6 +9,7 @@
 #include <QMessageBox>
 #include <QMainWindow>
 #include <QFileDialog>
+#include <QKeyEvent>
 #include "ui_player.h"
 
 #if defined(_MSC_VER)
@@ -63,7 +64,7 @@ public:
             int value = ui.progressSlider->value();
             std::println("Slider to {}", value);
             mPipeline->sendEvent(nekoav::Event::Seek {
-                .timestamp = std::chrono::seconds {value}
+                .timestamp = std::chrono::milliseconds {value}
             }).wait();
         });
     }
@@ -72,6 +73,17 @@ public:
         if (mHandle) {
             mHandle.stop();
             mHandle.wait();
+        }
+    }
+protected:
+    auto keyPressEvent(QKeyEvent *event) -> void override {
+        if (event->key() == Qt::Key_F11) {
+            if (windowState() == Qt::WindowFullScreen) {
+                setWindowState(Qt::WindowNoState);
+            }
+            else {
+                setWindowState(Qt::WindowFullScreen);
+            }
         }
     }
 private:
@@ -85,31 +97,38 @@ private:
         playbin->setRenderer(ui.videoWidget->renderer());
 
         // Then, start it
-        auto main = [&]() -> ilias::Task<void> {
-            if (co_await pipeline->setState(nekoav::State::Running)) {
-                mPipeline = pipeline;
-                ui.playButton->setText("Pause");
-                co_await ilias::sleep(1000s);
-            }
-        };
         auto cleanup = [&]() -> ilias::Task<void> {
             co_await pipeline->setState(nekoav::State::Null);
         };
         co_await ilias::finally(
-            ilias::whenAll(main(), watchEvent(*pipeline)),
+            ilias::whenAll(main(pipeline), watchEvent(pipeline)),
             cleanup
         );
     }
+
+    auto main(nekoav::Pipeline::Ptr pipeline) -> ilias::Task<void> {
+        if (co_await pipeline->setState(nekoav::State::Running)) {
+            mPipeline = pipeline;
+            ui.playButton->setText("Pause");
+            co_await ilias::sleep(1000s);
+        }
+    }
     
-    auto watchEvent(nekoav::Pipeline &pipeline) -> ilias::Task<void> {
+    auto watchEvent(nekoav::Pipeline::Ptr pipeline) -> ilias::Task<void> {
         while (true) {
-            auto event = co_await pipeline.readEvent();
+            auto event = co_await pipeline->readEvent();
             if (event.isClockUpdate()) {
                 auto clock = event.toClockUpdate();
-                auto s = std::chrono::duration_cast<std::chrono::seconds>(clock.time);
+                auto s = std::chrono::duration_cast<std::chrono::milliseconds>(clock.time);
                 if (!mSliderPressing) {
                     ui.progressSlider->setValue(s.count());
                 }
+            }
+            if (event.isMediaLoaded()) {
+                auto media = event.toMediaLoaded();
+                auto startTime = std::chrono::duration_cast<std::chrono::milliseconds>(media.startTime);
+                auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(media.duration);
+                ui.progressSlider->setRange(startTime.count(), duration.count());
             }
             if (event.isError()) {
                 auto error = event.toError();

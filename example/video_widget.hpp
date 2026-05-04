@@ -1,24 +1,67 @@
 #pragma once
 
 #include <nekoav/elements/video.hpp>
+#include <QMetaObject>
 #include <QRhiWidget>
-#include <QPainter>
+#include <QPointer>
 #include <QWidget>
+#include <mutex>
 #include <rhi/qrhi.h>
 
 // For the video output
-class VideoWidget final : public QRhiWidget, public nekoav::VideoRenderer {
+class VideoWidget final : public QRhiWidget {
 public:
-    VideoWidget(QWidget *parent = nullptr) : QRhiWidget(parent) {
-        
+    VideoWidget(QWidget *parent = nullptr) : QRhiWidget(parent), mRenderer(std::make_shared<Proxy>()) {
+        mRenderer->widget = this;
+    }
+
+    ~VideoWidget(){
+        mRenderer->widget = nullptr;
     }
 
     auto renderer() -> nekoav::VideoRenderer::Ptr {
-        return { // Not shared, take care of the ownership
-            this, [](auto *) {}
-        };
+        return mRenderer;
     }
 protected:
+    class Proxy final : public nekoav::VideoRenderer {
+    public:
+        // VideoRenderer
+        auto init() -> ilias::IoTask<void> override {
+            co_return {};
+        }
+
+        auto shutdown() -> ilias::IoTask<void> override {
+            {
+                std::lock_guard locker{mtx};
+                frame = {};
+            }
+            if (widget) {
+                QMetaObject::invokeMethod(widget, &VideoWidget::submitFrame, Qt::QueuedConnection);
+            }
+
+            co_return {};
+        }
+
+        auto render(nekoav::Frame f) -> ilias::IoTask<void> override {
+            {
+                std::lock_guard locker{mtx};
+                frame = std::move(f);
+            }
+            if (widget) {
+                QMetaObject::invokeMethod(widget, &VideoWidget::submitFrame, Qt::QueuedConnection);
+            }
+            co_return {};
+        }
+
+        auto pixelFormats() const -> std::vector<nekoav::PixelFormat> override {
+            return { nekoav::PixelFormat::RGBA };
+        }
+
+        QPointer<VideoWidget> widget;
+        nekoav::Frame frame; // The current frame
+        std::mutex mtx;
+    };
+
     struct Vertex {
         float x;
         float y;
@@ -26,25 +69,10 @@ protected:
         float v;
     };
 
-    // VideoRenderer
-    auto init() -> ilias::IoTask<void> override {
-        co_return {};
-    }
-
-    auto shutdown() -> ilias::IoTask<void> override {
-        mFrame = {};
-        co_return {};
-    }
-
-    auto render(nekoav::Frame frame) -> ilias::IoTask<void> override {
-        mFrame = std::move(frame);
-        mTextureDirty = true;
-        update();
-        co_return {};
-    }
-
-    auto pixelFormats() const -> std::vector<nekoav::PixelFormat> override {
-        return { nekoav::PixelFormat::RGBA };
+    // QWidget
+    auto resizeEvent(QResizeEvent *event) -> void override {
+        mBufferDirty = true; // Recalc the vertex
+        QRhiWidget::resizeEvent(event);
     }
 
     // QRhiWidget
@@ -52,12 +80,13 @@ protected:
         if (mRhi != rhi()) { // Query the rhi
             mRhi = rhi();
             releaseResources();
+            qDebug() << "Initialize Rhi";
         }
         if (mRpDesc != renderTarget()->renderPassDescriptor()) { // Query the render pass
             mRpDesc = renderTarget()->renderPassDescriptor();
             mPipeline.reset();
+            qDebug() << "Rebuild Rhi Pipeline";
         }
-
     }
 
     auto render(QRhiCommandBuffer *cb) -> void override {
@@ -114,42 +143,71 @@ protected:
         cb->endPass();
     }
 
-    // Pipeline
     auto ensureBuffer(QRhiResourceUpdateBatch *updates) -> void {
-        if (mVbuf) {
+        std::array<Vertex, 6> vertices {};
+        if (!mVbuf) {
+            mVbuf.reset(mRhi->newBuffer(
+                QRhiBuffer::Dynamic,
+                QRhiBuffer::VertexBuffer,
+                sizeof(vertices)
+            ));
+            if (!mVbuf->create()) {
+                qWarning() << "Failed to create vertex buffer";
+                mVbuf.reset();
+                return;
+            }
+        }
+
+        // Update vertex buffer
+        if (mFrame == nekoav::Frame {}) {
             return;
         }
-    
-        // 直接铺满整个 widget。
-        // 如果画面上下反了，把 v 的 0/1 对调即可。
-        constexpr std::array<Vertex, 6> vertices {{
-            { -1.0f, -1.0f, 0.0f, 1.0f },
-            {  1.0f, -1.0f, 1.0f, 1.0f },
-            { -1.0f,  1.0f, 0.0f, 0.0f },
 
-            {  1.0f, -1.0f, 1.0f, 1.0f },
-            {  1.0f,  1.0f, 1.0f, 0.0f },
-            { -1.0f,  1.0f, 0.0f, 0.0f },
+        auto screenSize = renderTarget()->pixelSize();
+        auto scaledSize = QSize {
+            mFrame.width(),
+            mFrame.height()
+        }.scaled(screenSize, mAspectRatio);
+
+        QRect r { QPoint{0, 0}, scaledSize};
+        r.moveCenter(QRect { QPoint{0, 0}, screenSize }.center());
+
+        float sw = float(screenSize.width());
+        float sh = float(screenSize.height());
+
+        float x0 =  2.0f * float(r.left()) / sw - 1.0f;
+        float x1 =  2.0f * float(r.left() + r.width()) / sw - 1.0f;
+
+        float y0 = 1.0f - 2.0f * float(r.top() + r.height()) / sh;
+        float y1 = 1.0f - 2.0f * float(r.top()) / sh;
+
+        vertices = {{
+            { x0, y0, 0.0f, 1.0f },
+            { x1, y0, 1.0f, 1.0f },
+            { x0, y1, 0.0f, 0.0f },
+
+            { x1, y0, 1.0f, 1.0f },
+            { x1, y1, 1.0f, 0.0f },
+            { x0, y1, 0.0f, 0.0f },
         }};
 
-        mVbuf.reset(mRhi->newBuffer(
-            QRhiBuffer::Immutable,
-            QRhiBuffer::VertexBuffer,
-            int(sizeof(vertices))
-        ));
-
-        if (!mVbuf->create()) {
-            qWarning() << "Failed to create vertex buffer";
-            mVbuf.reset();
-            return;
-        }
-
-        updates->uploadStaticBuffer(mVbuf.get(), vertices.data());
+        updates->updateDynamicBuffer(
+            mVbuf.get(),
+            0,
+            sizeof(vertices),
+            vertices.data()
+        );
     }
 
     auto ensureTexture(QRhiResourceUpdateBatch *updates) -> void {
         if (mFrame == nekoav::Frame {}) {
             return;
+        }
+        if (mTexture && mTexture->pixelSize() != QSize {mFrame.width(), mFrame.height()}) { // Texture size changed. rebuild it
+            mTexture.reset();
+            mSampler.reset();
+            mSrb.reset();
+            mPipeline.reset();
         }
         if (!mTexture) {
             QSize size {
@@ -277,6 +335,16 @@ protected:
         QRhiWidget::releaseResources();
     }
 
+    auto submitFrame() -> void {
+        {
+            std::lock_guard locker {mRenderer->mtx};
+            mFrame = std::exchange(mRenderer->frame, {});
+        }
+        mTextureDirty = true;
+        mBufferDirty = true;
+        repaint();
+    }
+
 
     auto loadShader(const QString &fileName) -> QShader {
         QFile file(fileName);
@@ -296,7 +364,12 @@ private:
     std::unique_ptr<QRhiShaderResourceBindings> mSrb;
     std::unique_ptr<QRhiGraphicsPipeline> mPipeline;
 
+    // Frame cache
+    Qt::AspectRatioMode mAspectRatio = Qt::KeepAspectRatio;
     bool mTextureDirty = true;
     bool mBufferDirty = true;
     nekoav::Frame mFrame;
+
+    // Renderer
+    std::shared_ptr<Proxy> mRenderer;
 };

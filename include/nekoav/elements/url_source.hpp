@@ -14,12 +14,6 @@ namespace nekoav {
  */
 class NEKOAV_API UrlSource final : public Element {
 public:
-    /**
-     * @brief The callback called when the output pad changed
-     * 
-     */
-    using OutputChanged = std::function<auto (UrlSource &source) -> Task<void> >;
-
     UrlSource(std::string_view name = {});
     ~UrlSource();
 
@@ -53,13 +47,6 @@ public:
      * @return std::vector<Pad *> 
      */
     auto subtitleOutputs() -> std::vector<Pad *>;
-
-    /**
-     * @brief Set the Output Changed Callback object
-     * 
-     * @param callback 
-     */
-    auto setOutputChangedCallback(OutputChanged callback) -> void;
 private:
     // State
     auto onInitialize() -> IoTask<void> override;
@@ -85,9 +72,6 @@ private:
 
     // Configure...
     std::string   mUrl;
-
-    // Callbacks
-    OutputChanged mOutputChanged;
 };
 
 } // namespace nekoav

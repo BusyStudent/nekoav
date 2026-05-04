@@ -55,6 +55,17 @@ public:
 };
 
 /**
+ * @brief The media has been loaded
+ * 
+ */
+class MediaLoadedEvent {
+public:
+    // The media info
+    Timestamp startTime;
+    Duration  duration;
+};
+
+/**
  * @brief The Event class
  * 
  */
@@ -67,7 +78,8 @@ public:
     using Caps         = CapsEvent;
     using Error        = ErrorEvent;
     using ClockUpdate  = ClockUpdateEvent;
-    using Storage      = std::variant<Seek, FlushBegin, FlushEnd, EndOfStream, Caps, Error, ClockUpdate>;
+    using MediaLoaded  = MediaLoadedEvent;
+    using Storage      = std::variant<Seek, FlushBegin, FlushEnd, EndOfStream, Caps, Error, ClockUpdate, MediaLoaded>;
     using Ref          = Event &;
 
     Event(const Event &) = default;
@@ -85,6 +97,7 @@ public:
     auto isCaps () const noexcept { return std::holds_alternative<Caps>(mStorage); }
     auto isError() const noexcept { return std::holds_alternative<Error>(mStorage); }
     auto isClockUpdate() const noexcept { return std::holds_alternative<ClockUpdate>(mStorage); }
+    auto isMediaLoaded() const noexcept { return std::holds_alternative<MediaLoaded>(mStorage); }
 
     auto toSeek() const noexcept { return std::get<Seek>(mStorage); }
     auto toFlushBegin() const noexcept { return std::get<FlushBegin>(mStorage); }
@@ -92,6 +105,7 @@ public:
     auto toCaps() const noexcept { return std::get<Caps>(mStorage); }
     auto toError() const noexcept { return std::get<Error>(mStorage); }
     auto toClockUpdate() const noexcept { return std::get<ClockUpdate>(mStorage); }
+    auto toMediaLoaded() const noexcept { return std::get<MediaLoaded>(mStorage); }
 
     // Visit
     template <typename Fn>
@@ -124,6 +138,7 @@ struct std::formatter<nekoav::Event> {
             [&](const nekoav::Event::Caps &caps) { return std::format_to(ctxt.out(), "Event(Caps({}))", caps.caps); },
             [&](const nekoav::Event::Error &error) { return std::format_to(ctxt.out(), "Event(Error({}))", error.message); },
             [&](const nekoav::Event::ClockUpdate &clock) { return std::format_to(ctxt.out(), "Event(ClockUpdate({}: {}))", clock.clock->category(), clock.time); },
+            [&](const nekoav::Event::MediaLoaded &loaded) { return std::format_to(ctxt.out(), "Event(MediaLoaded({}))", loaded.duration); },
         };
         return event.visit(visitor);
     }

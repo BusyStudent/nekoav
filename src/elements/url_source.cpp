@@ -50,9 +50,6 @@ auto UrlSource::onTeardown() -> IoTask<void> {
 
     // Clear the output & notify it
     outputs().clear();
-    if (mOutputChanged) {
-        co_await mOutputChanged(*this);
-    }
 
     // The avformat_close_input may blocking?
     co_await ilias::blocking([&]() {
@@ -147,9 +144,12 @@ auto UrlSource::onPrepare() -> IoTask<void> {
         pad->setQueryCallback<&UrlSource::onPadQuery>(this);
     }
 
-    // Notify that the output is changed
-    if (mOutputChanged) {
-        co_await mOutputChanged(*this);
+    // Notify the bus, media is ready
+    if (auto bus = pipelineBus(); bus) {
+        auto _ = co_await bus.send(Event::MediaLoaded {
+            .startTime = time::fromFFmpeg(d->ctxt->start_time, AV_TIME_BASE_Q),
+            .duration = time::fromFFmpeg(d->ctxt->duration, AV_TIME_BASE_Q),
+        });
     }
 
     // Start the worker
@@ -180,7 +180,7 @@ auto UrlSource::onPadQuery(Pad &pad, const Query &query) -> std::optional<Reply>
         if (!d) {
             return std::nullopt;
         }
-        return Reply::Duration { Duration(d->ctxt->duration / AV_TIME_BASE) };
+        return Reply::Duration { time::fromFFmpeg(d->ctxt->duration, AV_TIME_BASE_Q) };
     }
     if (query.isCaps()) { // QueryCaps
         return Reply::Caps { pad.caps() };
@@ -336,10 +336,6 @@ auto UrlSource::subtitleOutputs() -> std::vector<Pad *> {
         vec.push_back(&pad);
     }
     return vec;
-}
-
-auto UrlSource::setOutputChangedCallback(OutputChanged callback) -> void {
-    mOutputChanged.swap(callback);
 }
 
 } // namespace nekoav
