@@ -39,7 +39,7 @@ auto PlayBin::onPrepare() -> IoTask<void> {
         impl->source->setUrl(mUrl);
         addElement(impl->source);
         if (auto res = co_await impl->source->setState(State::Paused); !res) {
-            logger::error("[PlayBin] '{}' Failed to initialize the urlSource", name());
+            NEKOAV_ERROR("[PlayBin] '{}' Failed to initialize the urlSource", name());
             co_return res;
         }
 
@@ -78,7 +78,7 @@ auto PlayBin::onPrepare() -> IoTask<void> {
             impl->audioSink = sink;
         }
         if (!impl->audioSink && !impl->videoSink) {
-            logger::error("[PlayBin] '{}' No audio or video stream found", name());
+            NEKOAV_ERROR("[PlayBin] '{}' No audio or video stream found", name());
             co_return Err(Error::NoStream);
         }
         // Done

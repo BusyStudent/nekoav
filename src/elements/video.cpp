@@ -39,7 +39,7 @@ auto NullVideoRenderer::init() -> IoTask<void> {
 }
 
 auto NullVideoRenderer::render(Frame frame) -> IoTask<void> {
-    logger::info("[NullVideoRenderer] Render frame: {}", frame.pts().value_or(Timestamp {}));
+    NEKOAV_INFO("[NullVideoRenderer] Render frame: {}", frame.pts().value_or(Timestamp {}));
     co_return {};
 }
 
@@ -100,7 +100,7 @@ auto VideoSink::setRenderer(VideoRenderer::Ptr renderer) -> void {
 
 auto VideoSink::onStop() -> IoTask<void> {
     if (auto res = co_await mRenderer->shutdown(); !res) {
-        logger::warn("Failed to shutdown the renderer: {}", res.error().message());
+        NEKOAV_WARN("Failed to shutdown the renderer: {}", res.error().message());
     }
     // Set to empty caps
     mInput.mutableCaps().erase(Caps::VideoRaw);
@@ -116,7 +116,7 @@ auto VideoSink::onPrepare() -> IoTask<void> {
             mRenderer = ctxt->find<VideoRenderer>();
         }
         if (!mRenderer) {
-            logger::warn("[VideoSink] '{}', no renderer found, using NullVideoRenderer as fallback", name());
+            NEKOAV_WARN("[VideoSink] '{}', no renderer found, using NullVideoRenderer as fallback", name());
             mRenderer = std::make_unique<NullVideoRenderer>();
         }
     }
@@ -158,18 +158,18 @@ auto VideoSink::onPadPush(Pad &, Sample sample) -> IoTask<void> {
         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(waitTime);
 
         if (waitTime > 1ms && waitTime < 500ms) {
-            logger::info("[VideoSink] Waiting for {}", ms);
+            NEKOAV_INFO("[VideoSink] Waiting for {}", ms);
             co_await ilias::sleep(ms);
         }
         if (waitTime > 500ms) { // What, we are too fast?
-            logger::warn("Frame is too far ahead: {}ns", waitTime.count());
+            NEKOAV_WARN("Frame is too far ahead: {}ns", waitTime.count());
             co_return {};
         }
     }
     else {
         auto lateTime = time - pts;
         if (lateTime >= 100ms) { // Drop
-            logger::warn("Dropping late frame: {}ns", lateTime.count());
+            NEKOAV_WARN("Dropping late frame: {}ns", lateTime.count());
             co_return {};
         }
     }
@@ -291,7 +291,7 @@ auto VideoConverter::init(Frame *frame) -> IoResult<void> {
     auto [caps] = reply->toCaps();
     auto video = caps.find(Caps::VideoRaw);
     if (!video.isMap()) { // Not found
-        logger::warn("[VideoConverter] '{}' No downstream video caps found", name());
+        NEKOAV_WARN("[VideoConverter] '{}' No downstream video caps found", name());
         return Err(Error::InvalidTopology);
     }
 
@@ -327,7 +327,7 @@ auto VideoConverter::init(Frame *frame) -> IoResult<void> {
     auto ffmt = pixfmt::toFFmpeg(frame->pixelFormat());
     if (width == frame->width() && height == frame->height()) {
         if (fmts.empty() || std::ranges::find(fmts, ffmt) != fmts.end()) { // Not Require fmt or Format matches
-            logger::info("[VideoConverter] Passthrough enabled");
+            NEKOAV_INFO("[VideoConverter] Passthrough enabled");
             d = std::make_unique<Impl>();
             d->passThrough = true;
             return {};
@@ -345,7 +345,7 @@ auto VideoConverter::init(Frame *frame) -> IoResult<void> {
     if (impl->copyback) {
         auto copybackFormats = getCopybackFormats(inFrame);
         if (copybackFormats.empty()) {
-            logger::warn("[VideoConverter] '{}' No copyback formats found", name());
+            NEKOAV_WARN("[VideoConverter] '{}' No copyback formats found", name());
             return Err(Error::External);
         }
         // Find the best format
@@ -358,7 +358,7 @@ auto VideoConverter::init(Frame *frame) -> IoResult<void> {
         if (auto res = av_hwframe_transfer_data(impl->backFrame, inFrame, 0); res < 0) {
             return Err(error::fromFFmpeg(res));
         }
-        logger::info("[VideoConverter] '{}' Copyback to {}x{} format {}", name(), impl->backFrame->width, impl->backFrame->height, av_get_pix_fmt_name(fmt));
+        NEKOAV_INFO("[VideoConverter] '{}' Copyback to {}x{} format {}", name(), impl->backFrame->width, impl->backFrame->height, av_get_pix_fmt_name(fmt));
         inFrame = impl->backFrame;
     }
 
@@ -373,7 +373,7 @@ auto VideoConverter::init(Frame *frame) -> IoResult<void> {
         if (!impl->swsCtxt) { // ?
             return Err(Error::OutOfMemory);
         }
-        logger::info("[VideoConverter] '{}' Sws scale to {}x{} format {}", name(), width.value(), height.value(), av_get_pix_fmt_name(dstFormat));
+        NEKOAV_INFO("[VideoConverter] '{}' Sws scale to {}x{} format {}", name(), width.value(), height.value(), av_get_pix_fmt_name(dstFormat));
     }
 
     impl->dstFormat = dstFormat;

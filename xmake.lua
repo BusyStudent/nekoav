@@ -21,16 +21,35 @@ add_includedirs("include")
 add_rules("plugin.compile_commands.autoupdate", {lsp = "clangd", outputdir = ".vscode"})
 set_encodings("utf-8")
 
+-- Optional requires
+option("log")
+    set_default(false)
+    set_description("Enable logging")
+    set_showmenu(true)
+option_end()
+
+if has_config("log") then
+    add_requires("spdlog", {configs = {header_only = false, std_format = true} })
+end
+
 target("nekoav")
     add_packages("ilias", {public = true})
     add_packages("ffmpeg", "miniaudio")
     set_kind("shared")
+    set_license("MIT")
     
     add_includedirs("src")
     add_defines("_NEKOAV_SOURCE")
     add_files("src/**.cpp")
+
+    -- Check log
+    if has_config("log") then
+        add_defines("NEKOAV_USE_LOG")
+        add_packages("spdlog")
+    end
 target_end()
 
+-- Testing
 target("test_core")
     add_packages("ffmpeg")
     add_packages("gtest")

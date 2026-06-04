@@ -15,7 +15,7 @@ auto Context::findObject(std::string_view name) const -> std::shared_ptr<void> {
 }
 
 auto Context::insertObject(std::string_view name, std::shared_ptr<void> object) -> void {
-    logger::info("[Context] Inserting '{}': {}", name, object.get());
+    NEKOAV_INFO("[Context] Inserting '{}': {}", name, object.get());
     mSlots.insert({std::string {name}, object});
 }
 

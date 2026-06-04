@@ -65,11 +65,11 @@ auto Queue::onPush(Pad &, Sample sample) -> IoTask<void> {
 auto Queue::onEvent(Pad &, Event event) -> IoTask<void> {
     // TODO: Maybe we need mutex with push?
     if (event.isFlushBegin()) {
-        logger::info("[Queue] '{}' flush begin", name());
+        NEKOAV_INFO("[Queue] '{}' flush begin", name());
         d->queue.clear();
     }
     if (event.isFlushEnd()) {
-        logger::info("[Queue] '{}' flush end", name());
+        NEKOAV_INFO("[Queue] '{}' flush end", name());
         d->queueHasSpace.set();
     }
     co_return co_await d->out->pushEvent(event); // Forward the event
@@ -93,7 +93,7 @@ auto Queue::doPull() -> Task<void> {
             d->queueHasSample.clear();
             auto [_, pause] = co_await ilias::whenAny(d->queueHasSample.wait(), d->pauseRequested.wait());
             if (pause) { // The queue is paused or something, return immediately
-                logger::info("[Queue] '{}' paused got, pull worker quiting", name());
+                NEKOAV_INFO("[Queue] '{}' paused got, pull worker quiting", name());
                 co_return;
             }
         }
@@ -103,7 +103,7 @@ auto Queue::doPull() -> Task<void> {
 
         // Push it to the pad
         if (auto res = co_await d->out->push(std::move(sample)); !res) {
-            logger::error("[Queue] '{}' failed to push sample to the pad => {}", name(), res.error().message());
+            NEKOAV_INFO("[Queue] '{}' failed to push sample to the pad => {}", name(), res.error().message());
             setErrorState(res.error());
             co_return;
         }

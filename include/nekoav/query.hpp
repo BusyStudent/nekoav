@@ -150,11 +150,12 @@ private:
 // Formatter
 template <>
 struct std::formatter<nekoav::Query> {
-    constexpr auto parse(auto &ctxt) {
+    constexpr auto parse(std::format_parse_context &ctxt) {
         return ctxt.begin();
     }
 
-    auto format(const nekoav::Query &query, auto &ctxt) const {
+    template <typename FormatContext>
+    auto format(const nekoav::Query &query, FormatContext &ctxt) const {
         const auto visitor = nekoav::Overloads {
             [&](const auto _) { return std::format_to(ctxt.out(), "Query(Unknown)"); },
             [&](const nekoav::QueryDuration &duration) { return std::format_to(ctxt.out(), "Query(Duration)"); },
@@ -168,11 +169,12 @@ struct std::formatter<nekoav::Query> {
 
 template <>
 struct std::formatter<nekoav::Reply> {
-    constexpr auto parse(auto &ctxt) {
+    constexpr auto parse(std::format_parse_context &ctxt) {
         return ctxt.begin();
     }
 
-    auto format(const nekoav::Reply &reply, auto &ctxt) const {
+    template <typename FormatContext>
+    auto format(const nekoav::Reply &reply, FormatContext &ctxt) const {
         const auto visitor = nekoav::Overloads {
             [&](const auto _) { return std::format_to(ctxt.out(), "Reply(Unknown)"); },
             [&](const nekoav::ReplyDuration &duration) { return std::format_to(ctxt.out(), "Reply(Duration({}))", duration.duration); },

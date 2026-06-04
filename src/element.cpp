@@ -31,7 +31,7 @@ namespace {
         else if (cur == State::Ready && target == State::Null) {
             return StateChange::Teardown;
         }
-        logger::error("Invalid state transition from {} to {}", cur, target);
+        NEKOAV_ERROR("Invalid state transition from {} to {}", cur, target);
         ::abort(); // Invalid state transition
     }
 } // namespace
@@ -49,7 +49,7 @@ auto Pad::unlink() -> void {
         mElement.mParent->mSorted = false;
     }
     if (mElement.mState == State::Running) {
-        logger::error("[Pad] Topology changed while element '{}' is running, this may cause undefined behavior", mElement.name());
+        NEKOAV_ERROR("[Pad] Topology changed while element '{}' is running, this may cause undefined behavior", mElement.name());
     }
 }
 
@@ -68,7 +68,7 @@ auto Pad::link(Pad &peer) -> bool {
         mElement.mParent->mSorted = false;
     }
     if (mElement.mState == State::Running) {
-        logger::error("[Pad] Topology changed while element '{}' is running, this may cause undefined behavior", mElement.name());
+        NEKOAV_ERROR("[Pad] Topology changed while element '{}' is running, this may cause undefined behavior", mElement.name());
     }
     return true;
 }
@@ -78,7 +78,7 @@ auto Pad::push(Sample sample) -> IoTask<void> {
         co_return Err(Error::NotLinked);
     }
     if (!mPeer->mPushCallback) {
-        logger::debug("No push callback set on pad '{}'", mPeer->name());
+        NEKOAV_DEBUG("No push callback set on pad '{}'", mPeer->name());
         co_return Err(Error::NoPushCallback);
     }
     co_return co_await mPeer->mPushCallback(*mPeer, std::move(sample));
@@ -91,10 +91,10 @@ auto Pad::pushEvent(Event event) -> IoTask<void> {
         co_return Err(Error::NotLinked);
     }
     auto &element = cur->mElement;
-    logger::info("[Pad] push event '{}' to element '{}', pad '{}'", event, element.name(), cur->name());
+    NEKOAV_INFO("[Pad] push event '{}' to element '{}', pad '{}'", event, element.name(), cur->name());
     if (cur->mEventCallback) {
         if (auto res = co_await cur->mEventCallback(*cur, event); !res) {
-            logger::error("Failed to push event to pad '{}': {}", cur->name(), res.error().message());
+            NEKOAV_ERROR("Failed to push event to pad '{}': {}", cur->name(), res.error().message());
             co_return Err(res.error());
         }
         co_return {};
@@ -122,11 +122,11 @@ auto Pad::sendQuery(Query query) -> std::optional<Reply> {
     auto cur = peer();
     if (cur) {
         auto &element = cur->mElement;
-        logger::info("[Pad] send query '{}' to element '{}', pad '{}'", query, element.name(), cur->name());
+        NEKOAV_INFO("[Pad] send query '{}' to element '{}', pad '{}'", query, element.name(), cur->name());
         if (cur->mQueryCallback) {
             auto res = cur->mQueryCallback(*cur, query);
             if (res) {
-                logger::info("[Pad] query '{}' is handled by pad '{}' => {}", query, cur->name(), *res);
+                NEKOAV_INFO("[Pad] query '{}' is handled by pad '{}' => {}", query, cur->name(), *res);
             }
             return res;
         }
@@ -185,9 +185,9 @@ auto Element::setState(State targetState) -> IoTask<void> {
     // Do transations
     // Check is forward (Null -> Running)
     // Backward is (Running -> NUll)
-    auto isForward = toUnderlying(targetState) > toUnderlying(mState);
+    auto isForward = std::to_underlying(targetState) > std::to_underlying(mState);
     auto nextState = [&](State state) {
-        auto value = toUnderlying(state);
+        auto value = std::to_underlying(state);
         if (isForward) {
             value += 1;
         }
@@ -217,14 +217,14 @@ auto Element::setState(State targetState) -> IoTask<void> {
             case StateChange::Stop:       task = onStop(); break; // Clear any clock and bus
             case StateChange::Teardown:   task = onTeardown(); break;
         }
-        logger::info("[Element] '{}' Change state from '{}' to '{}'", mName, cur, nextState(cur));
+        NEKOAV_INFO("[Element] '{}' Change state from '{}' to '{}'", mName, cur, nextState(cur));
         if (auto res = co_await std::move(task); !res && isForward) { // FORWARD, FAILED!!!
             mError = res.error();
             co_return Err(res.error());
         }
         else if (!res) { // BACKWARD, FAILED!!!
             mError = res.error();
-            logger::warn("[Element] '{}' Failed to backward to state '{}': {}, ignore it", mName, nextState(cur), res.error().message());
+            NEKOAV_WARN("[Element] '{}' Failed to backward to state '{}': {}, ignore it", mName, nextState(cur), res.error().message());
         }
 
         // Done transation
@@ -287,7 +287,7 @@ auto Element::createOutputPad(std::string_view name) -> Pad & {
 }
 
 auto Element::setErrorState(std::error_code errc) -> void {
-    logger::error("[Element] set error state: {}", errc.message());
+    NEKOAV_ERROR("[Element] set error state: {}", errc.message());
     mError = errc;
     if (mPipelineBus) {
         auto _ = mPipelineBus.trySend(Event::Error {errc});
@@ -464,32 +464,32 @@ auto Bin::dumpInfoInternal(FILE * where, int level) -> void {
 }
 
 auto Bin::onInitialize() -> IoTask<void> {
-    logger::info("[Bin] '{}' initializing children", name());
+    NEKOAV_INFO("[Bin] '{}' initializing children", name());
     return setChildrenState(State::Ready);
 }
 
 auto Bin::onPrepare() -> IoTask<void> {
-    logger::info("[Bin] '{}' preparing children", name());
+    NEKOAV_INFO("[Bin] '{}' preparing children", name());
     return setChildrenState(State::Paused);
 }
 
 auto Bin::onRun() -> IoTask<void> {
-    logger::info("[Bin] '{}' running children", name());
+    NEKOAV_INFO("[Bin] '{}' running children", name());
     return setChildrenState(State::Running);
 }
 
 auto Bin::onPause() -> IoTask<void> {
-    logger::info("[Bin] '{}' pausing children", name());
+    NEKOAV_INFO("[Bin] '{}' pausing children", name());
     return setChildrenState(State::Paused);
 }
 
 auto Bin::onStop() -> IoTask<void> {
-    logger::info("[Bin] '{}' stopping children", name());
+    NEKOAV_INFO("[Bin] '{}' stopping children", name());
     return setChildrenState(State::Ready);
 }
 
 auto Bin::onTeardown() -> IoTask<void> {
-    logger::info("[Bin] '{}' tearing down children", name());
+    NEKOAV_INFO("[Bin] '{}' tearing down children", name());
     return setChildrenState(State::Null);
 }
 
@@ -500,11 +500,11 @@ auto Bin::setChildrenState(State newState) -> IoTask<void> {
             co_return Err(Error::InvalidTopology);
         }
         mSorted = true;
-        logger::info("[Bin] '{}' topological sort done", name());
+        NEKOAV_INFO("[Bin] '{}' topological sort done", name());
     }
     // Check we are init(forward) or shutdown(backword)
-    static_assert(toUnderlying(State::Running) > toUnderlying(State::Null));
-    bool forward = toUnderlying(newState) > toUnderlying(state());
+    static_assert(std::to_underlying(State::Running) > std::to_underlying(State::Null));
+    bool forward = std::to_underlying(newState) > std::to_underlying(state());
     if (forward) { // Forward
         for (auto &child : mChildren | std::views::reverse) { // From sink to source
             if (auto res = co_await child->setState(newState); !res) {
@@ -515,7 +515,7 @@ auto Bin::setChildrenState(State newState) -> IoTask<void> {
     else { // Backward
         for (auto &child : mChildren) { // From source to sink
             if (auto res = co_await child->setState(newState); !res) { // Backward will ignore the error
-                logger::warn("[Bin] '{}' child '{}' failed to set state to '{}', error: {}", name(), child->name(), newState, res.error().message());
+                NEKOAV_WARN("[Bin] '{}' child '{}' failed to set state to '{}', error: {}", name(), child->name(), newState, res.error().message());
             }
         }
     }
@@ -570,7 +570,7 @@ auto Bin::topologicalSort() -> bool {
 
     // Check
     if (sorted.size() != mChildren.size()) {
-        logger::error("[Bin] '{}' topological sort failed, cycle detected", name());
+        NEKOAV_ERROR("[Bin] '{}' topological sort failed, cycle detected", name());
         return false; // Circle detected
     }
     else {
@@ -673,13 +673,13 @@ auto Pipeline::onRun() -> IoTask<void> {
         mClocks.emplace_back(std::move(self));
 
         // Sort it by category
-        std::ranges::sort(mClocks, [](const auto &lhs, const auto &rhs) { return toUnderlying(lhs->category()) < toUnderlying(rhs->category()); });
+        std::ranges::sort(mClocks, [](const auto &lhs, const auto &rhs) { return std::to_underlying(lhs->category()) < std::to_underlying(rhs->category()); });
 
         // Set clock to the children
         setClock(mClocks.front());
     }
     if (mClocks.front().get() == d.get()) { // Use system as clock
-        logger::info("[Pipeline] '{}' use system clock", name());
+        NEKOAV_INFO("[Pipeline] '{}' use system clock", name());
         d->clockTicking = ilias::spawn([this] -> Task<void> {
             while (true) {
                 auto _ = co_await pipelineBus().send(Event::ClockUpdate {
@@ -700,7 +700,7 @@ auto Pipeline::onRun() -> IoTask<void> {
     auto time = d->clockTime;
     d->clockEpoch = std::chrono::steady_clock::now() - time;
     d->clockPaused = false;
-    logger::info("[Pipeline] '{}' started, master clock: {}, num clocks source: {}", name(), mClocks.front()->time(), mClocks.size());
+    NEKOAV_INFO("[Pipeline] '{}' started, master clock: {}, num clocks source: {}", name(), mClocks.front()->time(), mClocks.size());
     co_return {};
 }
 
@@ -716,7 +716,7 @@ auto Pipeline::onPause() -> IoTask<void> {
     d->clockEpoch = {};
     d->clockTime = time;
     d->clockPaused = true;
-    logger::info("[Pipeline] '{}' paused", name());
+    NEKOAV_INFO("[Pipeline] '{}' paused", name());
     co_return co_await Bin::onPause();
 }
 
@@ -726,7 +726,7 @@ auto Pipeline::onStop() -> IoTask<void> {
     d->clockTime = {};
     d->clockEpoch = {};
     d->clockPaused = true;
-    logger::info("[Pipeline] '{}' stopped", name());
+    NEKOAV_INFO("[Pipeline] '{}' stopped", name());
     mClocks.clear();
     setClock({});
     co_return res;
@@ -736,11 +736,11 @@ auto Pipeline::Impl::watchBus(ilias::mpsc::Receiver<Event> receiver) -> Task<voi
     while (auto res = co_await receiver.recv()) {
         auto &event = *res;
         // Handle it...
-        // logger::info("[Pipeline] '{}' received event: {}", self->name(), event);
+        // NEKOAV_INFO("[Pipeline] '{}' received event: {}", self->name(), event);
 #if !defined(NDEBUG)
         // if (event.isClockUpdate()) { // Dump the all clocks
         //     for (auto &clock : self->mClocks) {
-        //         logger::info("[Pipeline] '{}' clock: {}", self->name(), clock->time());
+        //         NEKOAV_INFO("[Pipeline] '{}' clock: {}", self->name(), clock->time());
         //     }
         // }
 #endif

@@ -168,7 +168,7 @@ auto Decoder::onPadPush(Pad &pad, Sample sample) -> IoTask<void> {
             break;
         }
         if (res < 0) {
-            logger::error("[Decoder] '{}' Failed to decode {} => {}", name(), res, error::toString(res));
+            NEKOAV_ERROR("[Decoder] '{}' Failed to decode {} => {}", name(), res, error::toString(res));
             co_return Err(error::fromFFmpeg(res));
         }
 
@@ -183,7 +183,7 @@ auto Decoder::onPadPush(Pad &pad, Sample sample) -> IoTask<void> {
 
 auto Decoder::onPadEvent(Pad &pad, const Event &event) -> IoTask<void> {
     if (event.isFlushEnd()) {
-        logger::info("[Decoder] '{}' flush end", name());
+        NEKOAV_INFO("[Decoder] '{}' flush end", name());
         d->flush = true;
     }
     co_return co_await mOutput.pushEvent(std::move(event));
@@ -191,7 +191,7 @@ auto Decoder::onPadEvent(Pad &pad, const Event &event) -> IoTask<void> {
 
 auto Decoder::init(const Caps &caps) -> IoTask<void> {
     assert(!d);
-    logger::info("[Decoder] '{}' init with caps", name());
+    NEKOAV_INFO("[Decoder] '{}' init with caps", name());
 
 
     // Create the decoder
@@ -295,7 +295,7 @@ auto Decoder::open(Impl *inner) -> IoResult<void> {
             return priorityOf(a->device_type) < priorityOf(b->device_type);
         });
         for (auto &config : hwconfigs) {
-            logger::info("[Decoder] '{}' Found hardware config '{}'", name(), toString(config->device_type));
+            NEKOAV_INFO("[Decoder] '{}' Found hardware config '{}'", name(), toString(config->device_type));
         }
 
         // Try to open it one by one
@@ -317,7 +317,7 @@ auto Decoder::open(Impl *inner) -> IoResult<void> {
                 }
                 p++;
             }
-            logger::info("[Decoder] Select pixelformat '{}'", av_get_pix_fmt_name(outputFormat));
+            NEKOAV_INFO("[Decoder] Select pixelformat '{}'", av_get_pix_fmt_name(outputFormat));
             return outputFormat;
         };
 
@@ -334,14 +334,14 @@ auto Decoder::open(Impl *inner) -> IoResult<void> {
 
             // Try init codec
             inner->hwfmt = config->pix_fmt;
-            logger::info("[Decoder] '{}' Try open codec for hardware device '{}' with format '{}'", name(), toString(config->device_type), av_get_pix_fmt_name(inner->hwfmt));
+            NEKOAV_INFO("[Decoder] '{}' Try open codec for hardware device '{}' with format '{}'", name(), toString(config->device_type), av_get_pix_fmt_name(inner->hwfmt));
             if (auto res = avcodec_open2(inner->ctxt, inner->ctxt->codec, nullptr); res < 0) {
                 av_buffer_unref(&inner->ctxt->hw_device_ctx);
                 inner->ctxt->hw_device_ctx = nullptr;
                 inner->hwfmt = AV_PIX_FMT_NONE;
                 continue;
             }
-            logger::info("[Decoder] '{}' Open hardware codec done", name());
+            NEKOAV_INFO("[Decoder] '{}' Open hardware codec done", name());
             return {};
         }
 
@@ -358,7 +358,7 @@ auto Decoder::open(Impl *inner) -> IoResult<void> {
     if (auto res = avcodec_open2(inner->ctxt, inner->ctxt->codec, nullptr); res < 0) {
         return Err(error::fromFFmpeg(res));
     }
-    logger::info(
+    NEKOAV_INFO(
         "[Decoder] '{}' Open software codec done with fmt {}", 
         name(),
         inner->ctxt->codec->type == AVMEDIA_TYPE_VIDEO ? av_get_pix_fmt_name(inner->ctxt->pix_fmt) : av_get_sample_fmt_name(inner->ctxt->sample_fmt)

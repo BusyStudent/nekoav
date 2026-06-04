@@ -124,11 +124,12 @@ private:
 // Formatter
 template <>
 struct std::formatter<nekoav::Event> {
-    constexpr auto parse(auto &ctxt) {
+    constexpr auto parse(std::format_parse_context &ctxt) {
         return ctxt.begin();
     }
 
-    auto format(const nekoav::Event &event, auto &ctxt) const {
+    template <typename FormatContext>
+    auto format(const nekoav::Event &event, FormatContext &ctxt) const {
         const auto visitor = nekoav::Overloads {
             [&](const auto &_) { return std::format_to(ctxt.out(), "Event(Unknown)"); },
             [&](const nekoav::Event::Seek &seek) { return std::format_to(ctxt.out(), "Event(Seek({}))", seek.timestamp); },

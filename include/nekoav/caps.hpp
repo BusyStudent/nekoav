@@ -6,6 +6,7 @@
 #include <string>
 #include <chrono>
 #include <vector>
+#include <ranges>
 #include <map>
 
 namespace nekoav {
@@ -216,11 +217,12 @@ private:
 // MARK: Formatter
 template <>
 struct std::formatter<nekoav::Value> {
-    constexpr auto parse(auto &ctxt){
+    constexpr auto parse(std::format_parse_context &ctxt){
         return ctxt.begin();
     }
 
-    auto format(const nekoav::Value &value, auto &ctxt) const {
+    template <typename FormatContext>
+    auto format(const nekoav::Value &value, FormatContext &ctxt) const {
         const auto visitor = nekoav::Overloads {
             [&](std::monostate) {
                 return std::format_to(ctxt.out(), "null");
@@ -257,19 +259,25 @@ struct std::formatter<nekoav::Value> {
 };
 
 template <>
-struct std::formatter<nekoav::Caps> {
-    constexpr auto parse(auto &ctxt) {
+struct std::formatter<nekoav::Cap> {
+    constexpr auto parse(std::format_parse_context &ctxt) {
         return ctxt.begin();
     }
 
-    auto format(const nekoav::Caps &caps, auto &ctxt) const {
-        auto out = std::format_to(ctxt.out(), "{{");
-        bool first = true;
-        for (const auto& [key, value] : caps) {
-            if (!first) out = std::format_to(out, ", ");
-            out = std::format_to(out, "\"{}\": {}", key, value);
-            first = false;
-        }
-        return std::format_to(out, "}}");
+    template <typename FormatContext>
+    auto format(const nekoav::Cap &cap, FormatContext &ctxt) const {
+        return std::format_to(ctxt.out(), "\"{}\": {}", cap.key, cap.value);
+    }
+};
+
+template <>
+struct std::formatter<nekoav::Caps> {
+    constexpr auto parse(std::format_parse_context &ctxt) {
+        return ctxt.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const nekoav::Caps &caps, FormatContext &ctxt) const {
+        return std::format_to(ctxt.out(), "{}", std::ranges::subrange(caps.begin(), caps.end()));
     }
 };

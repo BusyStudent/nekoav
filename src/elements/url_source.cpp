@@ -79,7 +79,7 @@ auto UrlSource::onPrepare() -> IoTask<void> {
     });
     if (res != 0) {
         // Error happen
-        logger::error("[UrlSource] '{}' failed to open url: {} => {}", name(), mUrl, error::toString(res));
+        NEKOAV_ERROR("[UrlSource] '{}' failed to open url: {} => {}", name(), mUrl, error::toString(res));
         co_return Err(error::fromFFmpeg(res));
     }
 
@@ -189,7 +189,7 @@ auto UrlSource::onPadQuery(Pad &pad, const Query &query) -> std::optional<Reply>
 }
 
 auto UrlSource::readWorker() -> Task<void> {
-    logger::debug("[UrlSource] '{}' read worker started", name());
+    NEKOAV_DEBUG("[UrlSource] '{}' read worker started", name());
 
     // Packet
     auto packet = av_packet_alloc();
@@ -198,7 +198,7 @@ auto UrlSource::readWorker() -> Task<void> {
             av_packet_unref(packet);
             av_packet_free(&packet);
 
-            logger::info("[UrlSource] '{}' read worker stopped", self->name());
+            NEKOAV_INFO("[UrlSource] '{}' read worker stopped", self->name());
         }
 
         AVPacket *packet;
@@ -210,7 +210,7 @@ auto UrlSource::readWorker() -> Task<void> {
             d->seekEvent.clear();
 
             if (auto res = co_await ilias::unstoppable(doSeek()); !res) {
-                logger::error("[UrlSource] '{}' seek failed: {}", name(), res.error().message());
+                NEKOAV_ERROR("[UrlSource] '{}' seek failed: {}", name(), res.error().message());
                 setErrorState(res.error());
                 co_return;
             }
@@ -242,7 +242,7 @@ auto UrlSource::readWorker() -> Task<void> {
 
             // TODO: Need handle
             default: {
-                logger::error("[UrlSource] '{}' read frame failed: {} => {}", name(), res, error::toString(res));
+                NEKOAV_ERROR("[UrlSource] '{}' read frame failed: {} => {}", name(), res, error::toString(res));
                 setErrorState(error::fromFFmpeg(res));
                 co_return;
             }
@@ -266,7 +266,7 @@ auto UrlSource::readWorker() -> Task<void> {
 
         auto sample = Packet::from(pak, timeBase);
         if (auto res = co_await ilias::unstoppable(pad->push(std::move(sample))); !res) {
-            logger::error("[UrlSource] '{}' push {} packet failed: {}", name(), pad->name(), res.error().message());
+            NEKOAV_ERROR("[UrlSource] '{}' push {} packet failed: {}", name(), pad->name(), res.error().message());
             co_return;
         }
     }
@@ -283,7 +283,7 @@ auto UrlSource::sendEvent(Event event) -> IoTask<void> {
 
 auto UrlSource::doSeek() -> IoTask<void> {
     assert(d->seekTime);
-    logger::info("[UrlSource] '{}' seek to {}", name(), d->seekTime.value());
+    NEKOAV_INFO("[UrlSource] '{}' seek to {}", name(), d->seekTime.value());
 
     // Seek all stream to the same time
     auto ts = d->seekTime.value();
@@ -302,7 +302,7 @@ auto UrlSource::doSeek() -> IoTask<void> {
     for (auto &pad : outputs()) {
         auto _ = co_await pad.pushEvent(Event::FlushEnd {});
     }
-    logger::info("[UrlSource] '{}' seek done", name());
+    NEKOAV_INFO("[UrlSource] '{}' seek done", name());
     co_return {};
 }
 

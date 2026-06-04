@@ -84,17 +84,15 @@ class Pad;
 template <typename ...Ts>
 struct Overloads : Ts... { using Ts::operator()...; };
 
-template <typename T>
-inline constexpr auto toUnderlying(T value) noexcept{ return static_cast<std::underlying_type_t<T> >(value); }
-
 } // namespace nekoav
 
 // Formatter
 template <>
 struct std::formatter<nekoav::Rational> {
-    constexpr auto parse(auto &ctxt) { return ctxt.begin(); }
+    constexpr auto parse(std::format_parse_context &ctxt) { return ctxt.begin(); }
 
-    auto format(nekoav::Rational r, auto &ctxt) const {
+    template <typename FormatContext>
+    auto format(nekoav::Rational r, FormatContext &ctxt) const {
         return std::format_to(ctxt.out(), "{} / {}", r.num, r.den);
     }
 };

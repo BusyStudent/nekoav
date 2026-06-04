@@ -201,7 +201,7 @@ auto AudioSink::initDevice(Frame *frame) -> IoResult<void> {
         case SampleFormat::S32: case SampleFormat::S32P: config.playback.format = ma_format_s32; break;
         case SampleFormat::FLT: case SampleFormat::FLTP: config.playback.format = ma_format_f32; break;
         default: {
-            logger::error("[AudioSink] '{}' Unsupported sample format: {}", name(), toString(frame->sampleFormat()));
+            NEKOAV_ERROR("[AudioSink] '{}' Unsupported sample format: {}", name(), toString(frame->sampleFormat()));
             return Err(Error::AudioFormatNotSupported);
         }
     }
@@ -223,11 +223,11 @@ auto AudioSink::Impl::audioCallback(ma_device *device, std::byte *output, const 
                 currentFrameOffset = 0;
                 currentFrame = std::move(*frame);
                 currentPts = currentFrame->pts().value_or(Timestamp {}).count();
-                // logger::info("[AudioSink] Got a new frame with {} samples, pts {}", currentFrame->samples(), currentPts.load());
+                // NEKOAV_INFO("[AudioSink] Got a new frame with {} samples, pts {}", currentFrame->samples(), currentPts.load());
                 audioUpdateClock();
             }
             else { // No more frames
-                // logger::info("[AudioSink] No more frames, fill with silence");
+                // NEKOAV_INFO("[AudioSink] No more frames, fill with silence");
                 break;
             }
         }
@@ -293,7 +293,7 @@ auto AudioSink::Impl::audioUpdateClock() -> void {
         .time = Timestamp { currentPts.load() },
     });
     if (!res) {
-        logger::error("[AudioSink] Failed to send clock update event");
+        NEKOAV_ERROR("[AudioSink] Failed to send clock update event");
     }
 }
 
