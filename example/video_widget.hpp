@@ -42,7 +42,7 @@ protected:
             co_return {};
         }
 
-        auto render(nekoav::Frame f) -> ilias::IoTask<void> override {
+        auto render(nekoav::VideoFrame f) -> ilias::IoTask<void> override {
             {
                 std::lock_guard locker{mtx};
                 frame = std::move(f);
@@ -58,7 +58,7 @@ protected:
         }
 
         QPointer<VideoWidget> widget;
-        nekoav::Frame frame; // The current frame
+        nekoav::VideoFrame frame; // The current frame
         std::mutex mtx;
     };
 
@@ -159,7 +159,7 @@ protected:
         }
 
         // Update vertex buffer
-        if (mFrame == nekoav::Frame {}) {
+        if (!mFrame) {
             return;
         }
 
@@ -200,7 +200,7 @@ protected:
     }
 
     auto ensureTexture(QRhiResourceUpdateBatch *updates) -> void {
-        if (mFrame == nekoav::Frame {}) {
+        if (!mFrame) {
             return;
         }
         if (mTexture && mTexture->pixelSize() != QSize {mFrame.width(), mFrame.height()}) { // Texture size changed. rebuild it
@@ -368,7 +368,7 @@ private:
     Qt::AspectRatioMode mAspectRatio = Qt::KeepAspectRatio;
     bool mTextureDirty = true;
     bool mBufferDirty = true;
-    nekoav::Frame mFrame;
+    nekoav::VideoFrame mFrame;
 
     // Renderer
     std::shared_ptr<Proxy> mRenderer;

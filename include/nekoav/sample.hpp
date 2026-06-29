@@ -4,6 +4,7 @@
 #include <nekoav/format.hpp>
 #include <optional>
 #include <variant>
+#include <cassert>
 #include <chrono>
 #include <memory>
 #include <span>
@@ -20,9 +21,8 @@ namespace nekoav {
  * @brief A Frame of raw data, usually uncompressed. wrapping AVFrame.
  * 
  */
-class NEKOAV_API Frame final {
+class NEKOAV_API Frame {
 public:
-    Frame() = default;
     Frame(Frame &&) = default;
     ~Frame() = default;
 
@@ -36,17 +36,6 @@ public:
 
     auto data(int plane) -> void *;
     auto linesize(int plane) -> int;
-
-    // Video specific
-    auto pixelFormat() const -> PixelFormat;
-    auto height() const -> int;
-    auto width() const -> int;
-
-    // Audio specific
-    auto sampleFormat() const -> SampleFormat;
-    auto sampleRate() const -> int;
-    auto channels() const -> int;
-    auto samples() const -> int;
 
     // Get the presentation timeBase
     auto timeBase() const -> Rational { return mTimeBase; }
@@ -69,27 +58,30 @@ public:
      */
     auto isWritable() const -> bool;
 
-    /**
-     * @brief Clone the frame, it will create a new frame and ref the data (COW)
-     * 
-     * @return Frame 
-     */
-    auto clone() const -> Frame;
-
     // Operators
     auto operator =(Frame &&) -> Frame & = default;
     auto operator <=>(const Frame &rhs) const noexcept = default;
 
     /**
-     * @brief Create an frame from an exisited avfeame, it will take the ownship of it
+     * @brief Check the frame is valid
      * 
-     * @param avframe The avframe, can't be nullptr
-     * @param timeBase The time base of the frame
-     * @return Ptr 
+     * @return true 
+     * @return false 
      */
-    static auto from(AVFrame *avframe, Rational timeBase) -> Frame;
-private:
+    explicit operator bool() const { return static_cast<bool>(mFrame); }
+protected:
+    /**
+     * @brief Construct a new Frame object
+     * 
+     * @param ptr The avframe, can't be nullptr, must match the frame type
+     * @param timeBase The time base of the frame
+     */
+    explicit Frame(AVFrame *ptr, Rational timeBase) : mFrame(ptr), mTimeBase(timeBase) { assert(ptr); }
+    Frame() = default;
+
+    // Wrapper of ffmpeg functions
     static auto free(AVFrame *ptr) -> void;
+    static auto clone(AVFrame *ptr) -> AVFrame *;
 
     struct Deleter {
         auto operator()(AVFrame *ptr) { free(ptr); }
@@ -99,8 +91,62 @@ private:
     Rational                          mTimeBase = {0, 1};
 };
 
-// class AudioFrame : Frame;
-// class VideoFrame : Frame;
+/**
+ * @brief The audio frame
+ * 
+ */
+class NEKOAV_API AudioFrame final : public Frame {
+public:
+    explicit AudioFrame(AVFrame *ptr, Rational timeBase) : Frame(ptr, timeBase) {}
+    AudioFrame(AudioFrame &&) = default;
+    AudioFrame() = default;
+    ~AudioFrame() = default;
+
+    // Audio specific
+    auto sampleFormat() const -> SampleFormat;
+    auto sampleRate() const -> int;
+    auto channels() const -> int;
+    auto samples() const -> int;
+
+    /**
+     * @brief Clone the frame, it will create a new frame and ref the data (COW)
+     * 
+     * @return Frame 
+     */
+    auto clone() const -> AudioFrame;
+
+    // Operators
+    auto operator =(AudioFrame &&) -> AudioFrame & = default;
+    auto operator <=>(const AudioFrame &rhs) const noexcept = default;
+};
+
+/**
+ * @brief The video frame
+ * 
+ */
+class NEKOAV_API VideoFrame final : public Frame {
+public:
+    explicit VideoFrame(AVFrame *ptr, Rational timeBase) : Frame(ptr, timeBase) {}
+    VideoFrame(VideoFrame &&) = default;
+    VideoFrame() = default;
+    ~VideoFrame() = default;
+
+    // Video specific
+    auto pixelFormat() const -> PixelFormat;
+    auto height() const -> int;
+    auto width() const -> int;
+
+    /**
+     * @brief Clone the frame, it will create a new frame and ref the data (COW)
+     * 
+     * @return Frame 
+     */
+    auto clone() const -> VideoFrame;
+
+    // Operators
+    auto operator =(VideoFrame &&) -> VideoFrame & = default;
+    auto operator <=>(const VideoFrame &rhs) const noexcept = default;
+};
 
 /**
  * @brief A Packet of encoded data, usually compressed. wrapping AVPacket.
@@ -108,6 +154,13 @@ private:
  */
 class NEKOAV_API Packet final {
 public:
+    /**
+     * @brief Construct a new Packet object, it will take the ownership of it
+     * 
+     * @param ptr The avpacket, can't be nullptr
+     * @param timeBase The time base of the packet
+     */
+    explicit Packet(AVPacket *ptr, Rational timeBase) : mPacket(ptr), mTimeBase(timeBase) { assert(ptr); }
     Packet() = default;
     Packet(Packet &&) = default;
     ~Packet() = default;
@@ -138,15 +191,6 @@ public:
     // Operators
     auto operator =(Packet &&) -> Packet & = default;
     auto operator <=>(const Packet &rhs) const noexcept = default;
-
-    /**
-     * @brief Create an Packet from an exisited avpacket, it will take the ownership of it
-     * 
-     * @param avpacket The avpacket, can't be nullptr
-     * @param timeBase The time base of the packet
-     * @return Ptr 
-     */
-    static auto from(AVPacket *avpacket, Rational timeBase) -> Packet;
 private:
     static auto free(AVPacket *ptr) -> void;
 
@@ -164,7 +208,7 @@ private:
  */
 class NEKOAV_API Sample final {
 public:
-    using Storage = std::variant<std::monostate, Frame, Packet>;
+    using Storage = std::variant<std::monostate, VideoFrame, AudioFrame, Packet>;
 
     Sample() = default;
     Sample(std::nullptr_t) noexcept : mStorage(std::monostate()) {}
@@ -192,12 +236,14 @@ public:
     auto clone() const -> Sample;
 
     // Cast
-    auto isFrame() const -> bool { return std::holds_alternative<Frame>(mStorage); }
+    auto isAudioFrame() const -> bool { return std::holds_alternative<AudioFrame>(mStorage); }
+    auto isVideoFrame() const -> bool { return std::holds_alternative<VideoFrame>(mStorage); }
     auto isPacket() const -> bool { return std::holds_alternative<Packet>(mStorage); }
     auto isNull() const -> bool { return std::holds_alternative<std::monostate>(mStorage); }
     
-    auto toFrame() -> Frame *;
     auto toPacket() -> Packet *;
+    auto toVideoFrame() -> VideoFrame *;
+    auto toAudioFrame() -> AudioFrame *;
 
     // Visit
     template <typename Fn>
@@ -254,18 +300,23 @@ inline auto Sample::setDts(std::optional<Timestamp> dts) -> void {
 inline auto Sample::clone() const -> Sample {
     const auto visitor = Overloads {
         [](std::monostate) { return Sample{}; },
-        [](const Frame &frame) { return Sample(frame.clone()); },
-        [](const Packet &packet) { return Sample(packet.clone()); },
+        [](const AudioFrame &frame) { return Sample{frame.clone()}; },
+        [](const VideoFrame &frame) { return Sample{frame.clone()}; },
+        [](const Packet &packet) { return Sample{packet.clone()}; },
     };
     return std::visit(visitor, mStorage);
 }
 
-inline auto Sample::toFrame() -> Frame * {
-    return std::get_if<Frame>(&mStorage);
-}
-
 inline auto Sample::toPacket() -> Packet * {
     return std::get_if<Packet>(&mStorage);
+}
+
+inline auto Sample::toVideoFrame() -> VideoFrame * {
+    return std::get_if<VideoFrame>(&mStorage);
+}
+
+inline auto Sample::toAudioFrame() -> AudioFrame * {
+    return std::get_if<AudioFrame>(&mStorage);
 }
 
 } // namespace nekoav
@@ -274,15 +325,17 @@ inline auto Sample::toPacket() -> Packet * {
 // Formatter
 template <>
 struct std::formatter<nekoav::Sample> {
-    constexpr auto parse(auto &ctxt) {
+    constexpr auto parse(std::format_parse_context &ctxt) {
         return ctxt.begin();
     }
 
-    auto format(const nekoav::Sample &sample, auto &ctxt) const {
+    template <typename FormatContext>
+    auto format(const nekoav::Sample &sample, FormatContext &ctxt) const {
         const auto zero = nekoav::Timestamp {};
         const auto visitor = nekoav::Overloads {
             [&](std::monostate) { return std::format_to(ctxt.out(), "Sample(Null)"); },
-            [&](const nekoav::Frame &frame) { return std::format_to(ctxt.out(), "Sample(Frame(pts: {}))", frame.pts().value_or(zero)); },
+            [&](const nekoav::VideoFrame &frame) { return std::format_to(ctxt.out(), "Sample(VideoFrame(pts: {}))", frame.pts().value_or(zero)); },
+            [&](const nekoav::AudioFrame &frame) { return std::format_to(ctxt.out(), "Sample(AudioFrame(pts: {}))", frame.pts().value_or(zero)); },
             [&](const nekoav::Packet &packet) { return std::format_to(ctxt.out(), "Sample(Packet(pts: {}))", packet.pts().value_or(zero)); },
         };
         return std::visit(visitor, sample.mStorage);

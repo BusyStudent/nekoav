@@ -47,6 +47,11 @@ target("nekoav")
         add_defines("NEKOAV_USE_LOG")
         add_packages("spdlog")
     end
+
+    -- Unity build if release
+    if is_mode("release") then
+        add_rules("c++.unity_build") 
+    end
 target_end()
 
 -- Testing

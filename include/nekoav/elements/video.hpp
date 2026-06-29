@@ -19,7 +19,7 @@ public:
 
     virtual ~VideoRenderer() = default;
     virtual auto init() -> IoTask<void> = 0;
-    virtual auto render(Frame frame) -> IoTask<void> = 0;
+    virtual auto render(VideoFrame frame) -> IoTask<void> = 0;
     virtual auto shutdown() -> IoTask<void> = 0;
     virtual auto pixelFormats() const -> std::vector<PixelFormat> = 0;
 };
@@ -34,7 +34,7 @@ public:
     ~NullVideoRenderer() = default;
 
     auto init() -> IoTask<void> override;
-    auto render(Frame frame) -> IoTask<void> override;
+    auto render(VideoFrame frame) -> IoTask<void> override;
     auto shutdown() -> IoTask<void> override;
     auto pixelFormats() const -> std::vector<PixelFormat> override;
 };
@@ -67,7 +67,7 @@ private:
     // auto onStop() -> IoTask<void> override;
     auto onStop() -> IoTask<void> override;
     auto onPush(Pad &, Sample sample) -> IoTask<void>;
-    auto init(Frame *frame) -> IoResult<void>;
+    auto init(VideoFrame *frame) -> IoResult<void>;
 
     struct Impl;
     std::unique_ptr<Impl> d;

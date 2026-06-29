@@ -38,7 +38,7 @@ auto NullVideoRenderer::init() -> IoTask<void> {
     co_return {};
 }
 
-auto NullVideoRenderer::render(Frame frame) -> IoTask<void> {
+auto NullVideoRenderer::render(VideoFrame frame) -> IoTask<void> {
     NEKOAV_INFO("[NullVideoRenderer] Render frame: {}", frame.pts().value_or(Timestamp {}));
     co_return {};
 }
@@ -145,10 +145,10 @@ auto VideoSink::onPadPush(Pad &, Sample sample) -> IoTask<void> {
     if (!sample) { // EOF
         co_return {};
     }
-    if (!sample.isFrame()) {
+    if (!sample.isVideoFrame()) {
         co_return Err(Error::SampleTypeNotSupported);
     }
-    auto frame = sample.toFrame();
+    auto frame = sample.toVideoFrame();
     auto pts = frame->pts().value_or(Timestamp {});
     auto time = clock()->time(); // Get the master clock time
 
@@ -233,10 +233,10 @@ auto VideoConverter::onPush(Pad &, Sample sample) -> IoTask<void> {
     if (!sample) { // Forward EOF
         co_return co_await mOutput.push(std::move(sample));
     }
-    if (!sample.isFrame()) {
+    if (!sample.isVideoFrame()) {
         co_return Err(Error::SampleTypeNotSupported);
     }
-    auto frame = sample.toFrame();
+    auto frame = sample.toVideoFrame();
     if (!d) { // Lazy init
         if (auto res = init(frame); !res) {
             co_return Err(res.error());
@@ -276,10 +276,10 @@ auto VideoConverter::onPush(Pad &, Sample sample) -> IoTask<void> {
     av_frame_copy_props(output, frame->get());
 
     // Send it
-    co_return co_await mOutput.push(Frame::from(output, frame->timeBase()));
+    co_return co_await mOutput.push(VideoFrame {output, frame->timeBase()});
 }
 
-auto VideoConverter::init(Frame *frame) -> IoResult<void> {
+auto VideoConverter::init(VideoFrame *frame) -> IoResult<void> {
     if (d) {
         return {};
     }

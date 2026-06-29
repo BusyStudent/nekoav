@@ -264,7 +264,8 @@ auto UrlSource::readWorker() -> Task<void> {
         auto pak = av_packet_alloc();
         av_packet_move_ref(pak, packet);
 
-        auto sample = Packet::from(pak, timeBase);
+
+        Packet sample {pak, timeBase};
         if (auto res = co_await ilias::unstoppable(pad->push(std::move(sample))); !res) {
             NEKOAV_ERROR("[UrlSource] '{}' push {} packet failed: {}", name(), pad->name(), res.error().message());
             co_return;

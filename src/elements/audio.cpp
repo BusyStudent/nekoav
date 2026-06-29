@@ -38,16 +38,16 @@ struct AudioSink::Impl final : public Clock { // Implementation the ClockSource
     bool       deviceInited  = false;
 
     // Send the Frame to the device callback
-    ilias::mpsc::Sender<Frame>   frameSender {};
+    ilias::mpsc::Sender<AudioFrame> frameSender {};
 
     // Access by the Callback, multithreaded
-    ilias::mpsc::Receiver<Frame> frameReceiver {};
-    std::optional<Frame>         currentFrame {};
-    size_t                       currentFrameOffset = 0;
-    std::atomic<int64_t>         currentPts {}; // int64_t on Timestamp unit
+    ilias::mpsc::Receiver<AudioFrame> frameReceiver {};
+    std::optional<AudioFrame>         currentFrame {};
+    size_t                            currentFrameOffset = 0;
+    std::atomic<int64_t>              currentPts {}; // int64_t on Timestamp unit
 
     Impl() {
-        auto [sender, receiver] = ilias::mpsc::channel<Frame>(20); // Cache 20 frames ?, I think it's enough
+        auto [sender, receiver] = ilias::mpsc::channel<AudioFrame>(20); // Cache 20 frames ?, I think it's enough
         frameSender = std::move(sender);
         frameReceiver = std::move(receiver);
     }
@@ -147,10 +147,10 @@ auto AudioSink::onPush(Pad &pad, Sample sample) -> IoTask<void> {
     if (!sample) { // EOF
         co_return {};
     }
-    if (!sample.isFrame()) {
+    if (!sample.isAudioFrame()) {
         co_return Err(Error::SampleTypeNotSupported);
     }
-    auto frame = sample.toFrame();
+    auto frame = sample.toAudioFrame();
 
     // Lazy init the device
     if (!d->deviceInited) {
@@ -190,7 +190,7 @@ auto AudioSink::onEvent(Pad &pad, Event event) -> IoTask<void> {
     co_return {};
 }
 
-auto AudioSink::initDevice(Frame *frame) -> IoResult<void> {
+auto AudioSink::initDevice(AudioFrame *frame) -> IoResult<void> {
     auto config = ma_device_config_init(ma_device_type_playback);
     config.pUserData = d.get();
     config.sampleRate = frame->sampleRate();

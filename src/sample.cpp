@@ -44,18 +44,6 @@ auto Frame::dts() const -> std::optional<Timestamp> {
     return time::fromFFmpeg(mFrame->pkt_dts, AVRational {.num = mTimeBase.num, .den = mTimeBase.den});
 }
 
-auto Frame::pixelFormat() const -> PixelFormat {
-    return pixfmt::fromFFmpeg(AVPixelFormat(mFrame->format));
-}
-
-auto Frame::height() const -> int {
-    return mFrame->height;
-}
-
-auto Frame::width() const -> int {
-    return mFrame->width;
-}
-
 auto Frame::data(int plane) -> void * {
     assert(plane >= 0 && plane < AV_NUM_DATA_POINTERS);
     return mFrame->data[plane];
@@ -66,19 +54,31 @@ auto Frame::linesize(int plane) -> int {
     return mFrame->linesize[plane];
 }
 
-auto Frame::sampleFormat() const -> SampleFormat {
+auto VideoFrame::pixelFormat() const -> PixelFormat {
+    return pixfmt::fromFFmpeg(AVPixelFormat(mFrame->format));
+}
+
+auto VideoFrame::height() const -> int {
+    return mFrame->height;
+}
+
+auto VideoFrame::width() const -> int {
+    return mFrame->width;
+}
+
+auto AudioFrame::sampleFormat() const -> SampleFormat {
     return sample_fmt::fromFFmpeg(AVSampleFormat(mFrame->format));
 }
 
-auto Frame::channels() const -> int {
+auto AudioFrame::channels() const -> int {
     return mFrame->ch_layout.nb_channels;
 }
 
-auto Frame::samples() const -> int {
+auto AudioFrame::samples() const -> int {
     return mFrame->nb_samples;
 }
 
-auto Frame::sampleRate() const -> int {
+auto AudioFrame::sampleRate() const -> int {
     return mFrame->sample_rate;
 }
 
@@ -94,16 +94,12 @@ auto Frame::makeWritable() -> IoResult<void> {
     return {};
 }
 
-auto Frame::clone() const -> Frame {
-    return from(av_frame_clone(mFrame.get()), mTimeBase);
+auto VideoFrame::clone() const -> VideoFrame {
+    return VideoFrame{av_frame_clone(mFrame.get()), mTimeBase};
 }
 
-auto Frame::from(AVFrame *avframe, Rational timeBase) -> Frame {
-    assert(avframe);
-    Frame frame;
-    frame.mFrame.reset(avframe);
-    frame.mTimeBase = timeBase;
-    return frame;
+auto AudioFrame::clone() const -> AudioFrame {
+    return AudioFrame{av_frame_clone(mFrame.get()), mTimeBase};
 }
 
 // Packet
@@ -156,15 +152,7 @@ auto Packet::isKeyFrame() const -> bool {
 
 // Other
 auto Packet::clone() const -> Packet {
-    return from(av_packet_clone(mPacket.get()), mTimeBase);
-}
-
-auto Packet::from(AVPacket *avpacket, Rational timeBase) -> Packet {
-    assert(avpacket);
-    Packet packet;
-    packet.mPacket.reset(avpacket);
-    packet.mTimeBase = timeBase;
-    return packet;
+    return Packet{av_packet_clone(mPacket.get()), mTimeBase};
 }
 
 } // namespace nekoav

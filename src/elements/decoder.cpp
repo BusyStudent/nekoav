@@ -133,9 +133,7 @@ auto Decoder::onPadPush(Pad &pad, Sample sample) -> IoTask<void> {
         if (!reply) {
             co_return Err(Error::InvalidState);
         }
-        if (auto res = co_await init(reply->toCaps().caps); !res) {
-            co_return Err(res.error());
-        }
+        ILIAS_CO_TRYV(co_await init(reply->toCaps().caps));
     }
     if (!sample.isPacket()) {
         co_return Err(Error::SampleTypeNotSupported);
@@ -173,9 +171,25 @@ auto Decoder::onPadPush(Pad &pad, Sample sample) -> IoTask<void> {
         }
 
         // Create new frame
-        auto frame = Frame::from(av_frame_clone(d->frame), packet->timeBase());
-        if (auto res = co_await mOutput.push(std::move(frame)); !res) {
-            co_return Err(res.error());
+        if (d->ctxt->codec_type == AVMEDIA_TYPE_VIDEO) {
+            ILIAS_CO_TRYV(co_await mOutput.push(
+                VideoFrame {
+                    av_frame_clone(d->frame),
+                    packet->timeBase()
+                }
+            ));
+        }
+        else if (d->ctxt->codec_type == AVMEDIA_TYPE_AUDIO) {
+            ILIAS_CO_TRYV(co_await mOutput.push(
+                AudioFrame {
+                    av_frame_clone(d->frame),
+                    packet->timeBase()
+                }
+            ));
+        }
+        else {
+            // ???
+            assert(false);
         }
     }
     co_return {};
