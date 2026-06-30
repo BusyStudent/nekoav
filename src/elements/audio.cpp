@@ -3,7 +3,7 @@
 #include <ilias/sync/mpsc.hpp>
 #include <queue>
 #include <mutex>
-#include "internal.hpp"
+#include "ffmpeg.hpp"
 
 // Import miniaudio
 #if !defined(NDEBUG)
@@ -288,7 +288,7 @@ auto AudioSink::Impl::audioUpdateClock() -> void {
     if (!bus) {
         return;
     }
-    auto res = bus.trySend(Event::ClockUpdate {
+    auto res = bus.trySend(Message::ClockUpdate {
         .clock = Clock::Ptr { self->shared_from_this(), this },
         .time = Timestamp { currentPts.load() },
     });

@@ -1,6 +1,6 @@
 #include <nekoav/elements/video.hpp>
-#include "internal.hpp"
 #include <ranges>
+#include "ffmpeg.hpp"
 
 #if defined(_WIN32)
     #include <d3d11.h>

@@ -4,8 +4,9 @@
 #include <nekoav/elements/queue.hpp>
 #include <nekoav/elements/audio.hpp>
 #include <nekoav/elements/video.hpp>
+#include <nekoav/error.hpp>
 #include <ilias/task.hpp> // finally
-#include "internal.hpp"
+#include "log.hpp"
 
 namespace nekoav {
     

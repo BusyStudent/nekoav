@@ -1,6 +1,6 @@
 #include <nekoav/sample.hpp>
 #include <stdexcept>
-#include "internal.hpp"
+#include "ffmpeg.hpp"
 
 namespace nekoav {
 

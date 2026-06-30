@@ -1,5 +1,5 @@
 #include <nekoav/context.hpp>
-#include "internal.hpp"
+#include "log.hpp"
 
 namespace nekoav {
 

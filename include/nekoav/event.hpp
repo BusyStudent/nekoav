@@ -1,3 +1,13 @@
+/**
+ * @file event.hpp
+ * @author BusyStudent (fyw90mc@gmail.com)
+ * @brief The control event used to send between elements
+ * @version 0.1
+ * @date 2026-06-30
+ * 
+ * @copyright Copyright (c) 2026
+ * 
+ */
 #pragma once
 
 #include <nekoav/defines.hpp>
@@ -38,33 +48,6 @@ public:
     Caps caps;
 };
 
-class ErrorEvent {
-public:
-    std::error_code error;
-    std::string     message;
-};
-
-/**
- * @brief The time of the clock has been updated
- * 
- */
-class ClockUpdateEvent {
-public:
-    Clock::Ptr clock;
-    Timestamp  time;
-};
-
-/**
- * @brief The media has been loaded
- * 
- */
-class MediaLoadedEvent {
-public:
-    // The media info
-    Timestamp startTime;
-    Duration  duration;
-};
-
 /**
  * @brief The Event class
  * 
@@ -76,10 +59,7 @@ public:
     using FlushEnd     = FlushEndEvent;
     using EndOfStream  = EndOfStreamEvent;
     using Caps         = CapsEvent;
-    using Error        = ErrorEvent;
-    using ClockUpdate  = ClockUpdateEvent;
-    using MediaLoaded  = MediaLoadedEvent;
-    using Storage      = std::variant<Seek, FlushBegin, FlushEnd, EndOfStream, Caps, Error, ClockUpdate, MediaLoaded>;
+    using Storage      = std::variant<Seek, FlushBegin, FlushEnd, EndOfStream, Caps>;
     using Ref          = Event &;
 
     Event(const Event &) = default;
@@ -95,17 +75,11 @@ public:
     auto isFlushBegin() const noexcept { return std::holds_alternative<FlushBegin>(mStorage); }
     auto isFlushEnd() const noexcept { return std::holds_alternative<FlushEnd>(mStorage); }
     auto isCaps () const noexcept { return std::holds_alternative<Caps>(mStorage); }
-    auto isError() const noexcept { return std::holds_alternative<Error>(mStorage); }
-    auto isClockUpdate() const noexcept { return std::holds_alternative<ClockUpdate>(mStorage); }
-    auto isMediaLoaded() const noexcept { return std::holds_alternative<MediaLoaded>(mStorage); }
 
     auto toSeek() const noexcept { return std::get<Seek>(mStorage); }
     auto toFlushBegin() const noexcept { return std::get<FlushBegin>(mStorage); }
     auto toFlushEnd() const noexcept { return std::get<FlushEnd>(mStorage); }
     auto toCaps() const noexcept { return std::get<Caps>(mStorage); }
-    auto toError() const noexcept { return std::get<Error>(mStorage); }
-    auto toClockUpdate() const noexcept { return std::get<ClockUpdate>(mStorage); }
-    auto toMediaLoaded() const noexcept { return std::get<MediaLoaded>(mStorage); }
 
     // Visit
     template <typename Fn>
@@ -137,9 +111,9 @@ struct std::formatter<nekoav::Event> {
             [&](const nekoav::Event::FlushEnd &) { return std::format_to(ctxt.out(), "Event(FlushEnd)"); },
             [&](const nekoav::Event::EndOfStream &eos) { return std::format_to(ctxt.out(), "Event(EndOfStream({}))", eos.streamIndex); },
             [&](const nekoav::Event::Caps &caps) { return std::format_to(ctxt.out(), "Event(Caps({}))", caps.caps); },
-            [&](const nekoav::Event::Error &error) { return std::format_to(ctxt.out(), "Event(Error({}))", error.message); },
-            [&](const nekoav::Event::ClockUpdate &clock) { return std::format_to(ctxt.out(), "Event(ClockUpdate({}: {}))", clock.clock->category(), clock.time); },
-            [&](const nekoav::Event::MediaLoaded &loaded) { return std::format_to(ctxt.out(), "Event(MediaLoaded({}))", loaded.duration); },
+            // [&](const nekoav::Event::Error &error) { return std::format_to(ctxt.out(), "Event(Error({}))", error.message); },
+            // [&](const nekoav::Event::ClockUpdate &clock) { return std::format_to(ctxt.out(), "Event(ClockUpdate({}: {}))", clock.clock->category(), clock.time); },
+            // [&](const nekoav::Event::MediaLoaded &loaded) { return std::format_to(ctxt.out(), "Event(MediaLoaded({}))", loaded.duration); },
         };
         return event.visit(visitor);
     }

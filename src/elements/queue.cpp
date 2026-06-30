@@ -1,8 +1,8 @@
 #include <nekoav/elements/queue.hpp>
+#include "log.hpp"
 #include <ilias/task.hpp>
 #include <ilias/sync.hpp>
 #include <deque>
-#include "internal.hpp"
 
 namespace nekoav {
 

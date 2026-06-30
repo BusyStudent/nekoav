@@ -8,7 +8,7 @@
 #include <unordered_map>
 #include <stop_token>
 #include <ranges>
-#include "internal.hpp"
+#include "ffmpeg.hpp"
 
 namespace nekoav {
 
@@ -146,7 +146,7 @@ auto UrlSource::onPrepare() -> IoTask<void> {
 
     // Notify the bus, media is ready
     if (auto bus = pipelineBus(); bus) {
-        auto _ = co_await bus.send(Event::MediaLoaded {
+        auto _ = co_await bus.send(Message::MediaLoaded {
             .startTime = time::fromFFmpeg(d->ctxt->start_time, AV_TIME_BASE_Q),
             .duration = time::fromFFmpeg(d->ctxt->duration, AV_TIME_BASE_Q),
         });

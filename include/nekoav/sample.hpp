@@ -24,7 +24,6 @@ namespace nekoav {
 class NEKOAV_API Frame {
 public:
     Frame(Frame &&) = default;
-    ~Frame() = default;
 
     // Setter
     auto setPts(std::optional<Timestamp> pts) -> void;
@@ -88,7 +87,7 @@ protected:
     };
 
     std::unique_ptr<AVFrame, Deleter> mFrame; // Placeholder for AVFrame*
-    Rational                          mTimeBase = {0, 1};
+    Rational                          mTimeBase {0, 1};
 };
 
 /**
@@ -100,7 +99,6 @@ public:
     explicit AudioFrame(AVFrame *ptr, Rational timeBase) : Frame(ptr, timeBase) {}
     AudioFrame(AudioFrame &&) = default;
     AudioFrame() = default;
-    ~AudioFrame() = default;
 
     // Audio specific
     auto sampleFormat() const -> SampleFormat;
@@ -129,7 +127,6 @@ public:
     explicit VideoFrame(AVFrame *ptr, Rational timeBase) : Frame(ptr, timeBase) {}
     VideoFrame(VideoFrame &&) = default;
     VideoFrame() = default;
-    ~VideoFrame() = default;
 
     // Video specific
     auto pixelFormat() const -> PixelFormat;
@@ -161,9 +158,8 @@ public:
      * @param timeBase The time base of the packet
      */
     explicit Packet(AVPacket *ptr, Rational timeBase) : mPacket(ptr), mTimeBase(timeBase) { assert(ptr); }
-    Packet() = default;
     Packet(Packet &&) = default;
-    ~Packet() = default;
+    Packet() = default;
 
     // Setter
     auto setPts(std::optional<Timestamp> pts) -> void;
@@ -210,11 +206,10 @@ class NEKOAV_API Sample final {
 public:
     using Storage = std::variant<std::monostate, VideoFrame, AudioFrame, Packet>;
 
-    Sample() = default;
     Sample(std::nullptr_t) noexcept : mStorage(std::monostate()) {}
     Sample(const Sample &) noexcept = delete;
     Sample(Sample &&) noexcept = default;
-    ~Sample() = default;
+    Sample() = default;
 
     // Construct inner
     template <typename T> requires(std::is_constructible_v<Storage, T>)

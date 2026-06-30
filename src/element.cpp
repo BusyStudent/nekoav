@@ -1,39 +1,43 @@
+#include <nekoav/elements/pipeline.hpp>
+#include <nekoav/elements/bin.hpp>
 #include <nekoav/element.hpp>
 #include <nekoav/error.hpp>
+#include "log.hpp"
 #include <ilias/task.hpp>
 #include <unordered_map>
 #include <algorithm>
 #include <ranges>
 #include <queue>
 #include <print>
-#include "internal.hpp"
 
 namespace nekoav {
 
 // Some internals
 namespace {
-    auto stateChangeOf(State cur, State target) -> StateChange {
-        if (cur == State::Null && target == State::Ready) {
-            return StateChange::Initialize;
-        }
-        else if (cur == State::Ready && target == State::Paused) {
-            return StateChange::Prepare;
-        }
-        else if (cur == State::Paused && target == State::Running) {
-            return StateChange::Run;
-        }
-        else if (cur == State::Running && target == State::Paused) {
-            return StateChange::Pause;
-        }
-        else if (cur == State::Paused && target == State::Ready) {
-            return StateChange::Stop;
-        }
-        else if (cur == State::Ready && target == State::Null) {
-            return StateChange::Teardown;
-        }
-        NEKOAV_ERROR("Invalid state transition from {} to {}", cur, target);
-        ::abort(); // Invalid state transition
+
+auto stateChangeOf(State cur, State target) -> StateChange {
+    if (cur == State::Null && target == State::Ready) {
+        return StateChange::Initialize;
     }
+    else if (cur == State::Ready && target == State::Paused) {
+        return StateChange::Prepare;
+    }
+    else if (cur == State::Paused && target == State::Running) {
+        return StateChange::Run;
+    }
+    else if (cur == State::Running && target == State::Paused) {
+        return StateChange::Pause;
+    }
+    else if (cur == State::Paused && target == State::Ready) {
+        return StateChange::Stop;
+    }
+    else if (cur == State::Ready && target == State::Null) {
+        return StateChange::Teardown;
+    }
+    NEKOAV_ERROR("Invalid state transition from {} to {}", cur, target);
+    ::abort(); // Invalid state transition
+}
+
 } // namespace
 
 // MARK: Pad
@@ -290,24 +294,23 @@ auto Element::setErrorState(std::error_code errc) -> void {
     NEKOAV_ERROR("[Element] set error state: {}", errc.message());
     mError = errc;
     if (mPipelineBus) {
-        auto _ = mPipelineBus.trySend(Event::Error {errc});
+        auto _ = mPipelineBus.trySend(Message::Error {errc});
     }
-}
-
-auto Element::pipeline() const -> const Pipeline * {
-    auto cur = this;
-    while (cur) {
-        if (cur->mIsPipeline) {
-            return static_cast<const Pipeline *>(cur);
-        }
-        cur = cur->mParent;
-    }
-    return nullptr;
 }
 
 auto Element::context() const -> Context * {
-    if (auto pipeline = this->pipeline(); pipeline) {
-        return pipeline->mContext.get();
+    auto pipeline = [this]() -> const Pipeline * {
+        auto cur = this;
+        while (cur) {
+            if (cur->mIsPipeline) {
+                return static_cast<const Pipeline *>(cur);
+            }
+            cur = cur->mParent;
+        }
+        return nullptr;
+    };
+    if (auto p = pipeline(); p) {
+        return p->mContext.get();
     }
     return nullptr;
 }
@@ -322,7 +325,7 @@ auto Element::setClock(Clock::Ptr clock) -> void {
     }
 }
 
-auto Element::setPipelineBus(ilias::mpsc::Sender<Event> bus) -> void {
+auto Element::setPipelineBus(ilias::mpsc::Sender<Message> bus) -> void {
     mPipelineBus = bus;
     if (mIsBin) {
         for (auto &child : static_cast<Bin *>(this)->mChildren) {
@@ -378,378 +381,6 @@ auto Element::dumpInfoInternal(FILE *where, int level) -> void {
         }
     }
 }
-
-// MARK: Bin
-Bin::Bin(std::string_view name) : Element(name) {
-    mIsBin = true;
-}
-
-Bin::~Bin() {
-
-}
-
-// Emm? maybe we should make setState to virtual ?
-auto Bin::addElement(Element::Ptr element) -> void {
-    if (!element) {
-        return;
-    }
-    assert(!element->mIsPipeline); // Can't add an pipeline to a bin
-    // Set the member belong the bin
-    element->mParent = this;
-    element->setClock(clock());
-    element->setPipelineBus(pipelineBus());
-    mChildren.emplace_back(std::move(element));
-    mSorted = false;
-}
-
-auto Bin::addElementSync(Element::Ptr element) -> IoTask<void> {
-    if (!element) {
-        co_return Err(Error::InvalidArguments);
-    }
-    addElement(element);
-    // Async state here
-    if (auto res = co_await element->setState(state()); !res) {
-        removeElement(element);
-        co_return Err(res.error());
-    }
-    co_return {};
-}
-
-auto Bin::removeElement(Element::Ptr element) -> bool {
-    if (!element) {
-        return false;
-    }
-    auto it = std::ranges::find(mChildren, element);
-    if (it == mChildren.end()) {
-        return false;
-    }
-    // Remove the member belong the bin
-    (*it)->mParent = nullptr;
-    (*it)->setClock({});
-    (*it)->setPipelineBus({});
-    mChildren.erase(it);
-    mSorted = false;
-    return true;
-}
-
-auto Bin::syncElements() -> IoTask<void> {
-    return setChildrenState(state());
-}
-
-auto Bin::clear() -> IoTask<void> {
-    auto res = co_await setChildrenState(State::Null);
-    mChildren.clear();
-    co_return res;
-}
-
-auto Bin::sendEvent(Event event) -> IoTask<void> {
-    std::vector<IoTask<void> > tasks {};
-    for (auto &child : mChildren) {
-        tasks.emplace_back(child->sendEvent(event));
-    }
-    auto res = co_await ilias::whenAll(std::move(tasks));
-    auto it = std::ranges::find_if(res, [](auto &r) { return !r; });
-    if (it != res.end()) {
-        co_return Err(it->error());
-    }
-    co_return {};
-}
-
-auto Bin::dumpInfoInternal(FILE * where, int level) -> void {
-    Element::dumpInfoInternal(where, level);
-    ::fprintf(where, "%*s  Children:\n", level, "");
-    for (auto &child : mChildren) {
-        child->dumpInfoInternal(where, level + 4);
-    }
-}
-
-auto Bin::onInitialize() -> IoTask<void> {
-    NEKOAV_INFO("[Bin] '{}' initializing children", name());
-    return setChildrenState(State::Ready);
-}
-
-auto Bin::onPrepare() -> IoTask<void> {
-    NEKOAV_INFO("[Bin] '{}' preparing children", name());
-    return setChildrenState(State::Paused);
-}
-
-auto Bin::onRun() -> IoTask<void> {
-    NEKOAV_INFO("[Bin] '{}' running children", name());
-    return setChildrenState(State::Running);
-}
-
-auto Bin::onPause() -> IoTask<void> {
-    NEKOAV_INFO("[Bin] '{}' pausing children", name());
-    return setChildrenState(State::Paused);
-}
-
-auto Bin::onStop() -> IoTask<void> {
-    NEKOAV_INFO("[Bin] '{}' stopping children", name());
-    return setChildrenState(State::Ready);
-}
-
-auto Bin::onTeardown() -> IoTask<void> {
-    NEKOAV_INFO("[Bin] '{}' tearing down children", name());
-    return setChildrenState(State::Null);
-}
-
-auto Bin::setChildrenState(State newState) -> IoTask<void> {
-    // Check if we need to sort
-    if (!mSorted) {
-        if (!topologicalSort()) {
-            co_return Err(Error::InvalidTopology);
-        }
-        mSorted = true;
-        NEKOAV_INFO("[Bin] '{}' topological sort done", name());
-    }
-    // Check we are init(forward) or shutdown(backword)
-    static_assert(std::to_underlying(State::Running) > std::to_underlying(State::Null));
-    bool forward = std::to_underlying(newState) > std::to_underlying(state());
-    if (forward) { // Forward
-        for (auto &child : mChildren | std::views::reverse) { // From sink to source
-            if (auto res = co_await child->setState(newState); !res) {
-                co_return Err(res.error());
-            }
-        }
-    }
-    else { // Backward
-        for (auto &child : mChildren) { // From source to sink
-            if (auto res = co_await child->setState(newState); !res) { // Backward will ignore the error
-                NEKOAV_WARN("[Bin] '{}' child '{}' failed to set state to '{}', error: {}", name(), child->name(), newState, res.error().message());
-            }
-        }
-    }
-    co_return {};
-}
-
-auto Bin::topologicalSort() -> bool {
-    if (mChildren.empty()) {
-        return true; // No children, no-op
-    }
-
-    // Init inDegrees...
-    auto inDegrees = std::unordered_map<Element *, size_t>{};
-    for (auto &child : mChildren) {
-        inDegrees[child.get()] = 0;
-    }
-
-    for (auto &child : mChildren) {
-        for (auto &output : child->outputs()) {
-            if (output.isLinked()) {
-                inDegrees[output.peerElement()] += 1;
-            }
-        }
-    }
-
-    // Topological sort
-    auto sorted = std::vector<Element::Ptr>{};
-    auto queue = std::queue<Element *>{};
-    for (auto &[element, degree] : inDegrees) {
-        if (degree == 0) {
-            queue.push(element);
-        }
-    }
-
-    while (!queue.empty()) {
-        auto curElement = queue.front();
-        queue.pop();
-
-        sorted.push_back(curElement->shared_from_this());
-        for (auto &output : curElement->outputs()) {
-            if (!output.isLinked()) {
-                continue;
-            }
-            auto peerElement = output.peerElement();
-            auto &peerInDegree = inDegrees[peerElement];
-            peerInDegree -= 1;
-            if (peerInDegree == 0) {
-                queue.push(peerElement);
-            }
-        }
-    }
-
-    // Check
-    if (sorted.size() != mChildren.size()) {
-        NEKOAV_ERROR("[Bin] '{}' topological sort failed, cycle detected", name());
-        return false; // Circle detected
-    }
-    else {
-        mChildren = std::move(sorted);
-        return true;
-    }
-}
-
-// MARK: Pipeline
-struct Pipeline::Impl final : public Clock { // Impl the ClockSource
-    // Clock interface
-    auto time() const -> Timestamp override { 
-        if (clockPaused) { // Paused, use the last time
-            return clockTime;
-        }
-        return std::chrono::duration_cast<Timestamp>(std::chrono::steady_clock::now() - clockEpoch);
-    }
-
-    auto category() const -> ClockCategory override { 
-        return ClockCategory::System;
-    }
-
-    // Bus
-    auto watchBus(ilias::mpsc::Receiver<Event> receiver) -> Task<void>;
-
-    // To Reference pipeline
-    Pipeline                             *self = nullptr;
-
-    // Clock field
-    std::chrono::steady_clock::time_point clockEpoch {};
-    std::chrono::nanoseconds              clockTime {};
-    bool                                  clockPaused = true;
-    ilias::WaitHandle<void>               clockTicking {}; // Used when the master clock is self, used to generate the clock update event
-
-    // Bus field
-    ilias::WaitHandle<void>               busMonitor {};
-    ilias::mpsc::Sender<Event>            eventSender {}; // Use this field to send event to the (user)
-    ilias::mpsc::Receiver<Event>          eventReceiver {};
-};
-
-Pipeline::Pipeline(std::string_view name) : Bin(name), d(std::make_unique<Impl>()), mContext(std::make_unique<Context>()) {
-    // Initialize the self
-    auto [sender, receiver] = ilias::mpsc::channel<Event>();
-    d->eventSender = std::move(sender);
-    d->eventReceiver = std::move(receiver);
-    d->self = this;
-
-    // Mark the typeinfo
-    mIsPipeline = true;
-}
-
-Pipeline::~Pipeline() {
-
-}
-
-auto Pipeline::readEvent() -> Task<Event> {
-    // This recv should never fail because we only close it when destroy the Pipeline
-    co_return (co_await d->eventReceiver.recv()).value();
-}
-
-auto Pipeline::onInitialize() -> IoTask<void> {
-    // pipelineBus initialize onInitialize, cleanup onTeardown
-    assert(!d->busMonitor);
-    auto [sender, receiver] = ilias::mpsc::channel<Event>();
-    d->busMonitor = ilias::spawn(d->watchBus(std::move(receiver)));
-    setPipelineBus(sender);// Set the bus to self and all children
-    co_return co_await Bin::onInitialize();
-}
-
-auto Pipeline::onTeardown() -> IoTask<void> {
-    assert(d->busMonitor);
-    d->busMonitor.stop();
-    co_await std::exchange(d->busMonitor, {});
-    setPipelineBus({}); // Clear the bus
-    co_return co_await Bin::onTeardown();
-}
-
-auto Pipeline::onRun() -> IoTask<void> {
-    if (!mSorted) { // Topological changed, the clock may change
-        mClocks.clear();
-    }
-    if (mClocks.empty()) {
-        // Get all children who provide clock
-        auto forEach = [&](auto self, Bin *bin) -> void {
-            for (auto &child : bin->mChildren) {
-                if (auto res = child->sendQuery(Query::ClockSource {}); res) {
-                    auto [clock] = res->toClockSource();
-                    assert(clock);
-                    mClocks.emplace_back(std::move(clock));
-                }
-                if (child->mIsBin) {
-                    self(self, static_cast<Bin*>(child.get()));
-                }
-            }
-        };
-        forEach(forEach, this);
-
-        // Add self's clock, using alias
-        Clock::Ptr self {shared_from_this(), d.get()};
-        mClocks.emplace_back(std::move(self));
-
-        // Sort it by category
-        std::ranges::sort(mClocks, [](const auto &lhs, const auto &rhs) { return std::to_underlying(lhs->category()) < std::to_underlying(rhs->category()); });
-
-        // Set clock to the children
-        setClock(mClocks.front());
-    }
-    if (mClocks.front().get() == d.get()) { // Use system as clock
-        NEKOAV_INFO("[Pipeline] '{}' use system clock", name());
-        d->clockTicking = ilias::spawn([this] -> Task<void> {
-            while (true) {
-                auto _ = co_await pipelineBus().send(Event::ClockUpdate {
-                    .clock = clock(),
-                    .time = d->time(),
-                });
-                co_await ilias::sleep(std::chrono::seconds {1});
-            }
-        });
-    }
-
-    // Ok, start the bin
-    if (auto res = co_await Bin::onRun(); !res) {
-        co_return Err(res.error());
-    }
-
-    // Update the self clock
-    auto time = d->clockTime;
-    d->clockEpoch = std::chrono::steady_clock::now() - time;
-    d->clockPaused = false;
-    NEKOAV_INFO("[Pipeline] '{}' started, master clock: {}, num clocks source: {}", name(), mClocks.front()->time(), mClocks.size());
-    co_return {};
-}
-
-auto Pipeline::onPause() -> IoTask<void> {
-    auto time = d->clockTime;
-    if (!mClocks.empty() && mClocks.front().get() != d.get()) {
-        time = mClocks.front()->time(); // Sync the clock to master （if master is not self)
-    }
-    if (d->clockTicking) { // Stop the ticking 
-        d->clockTicking.stop();
-        co_await std::exchange(d->clockTicking, {});
-    }
-    d->clockEpoch = {};
-    d->clockTime = time;
-    d->clockPaused = true;
-    NEKOAV_INFO("[Pipeline] '{}' paused", name());
-    co_return co_await Bin::onPause();
-}
-
-auto Pipeline::onStop() -> IoTask<void> {
-    auto res = co_await Bin::onStop();
-    // Clear the clock
-    d->clockTime = {};
-    d->clockEpoch = {};
-    d->clockPaused = true;
-    NEKOAV_INFO("[Pipeline] '{}' stopped", name());
-    mClocks.clear();
-    setClock({});
-    co_return res;
-}
-
-auto Pipeline::Impl::watchBus(ilias::mpsc::Receiver<Event> receiver) -> Task<void> {
-    while (auto res = co_await receiver.recv()) {
-        auto &event = *res;
-        // Handle it...
-        // NEKOAV_INFO("[Pipeline] '{}' received event: {}", self->name(), event);
-#if !defined(NDEBUG)
-        // if (event.isClockUpdate()) { // Dump the all clocks
-        //     for (auto &clock : self->mClocks) {
-        //         NEKOAV_INFO("[Pipeline] '{}' clock: {}", self->name(), clock->time());
-        //     }
-        // }
-#endif
-
-        // Put it to the user
-        auto _ = co_await eventSender.send(std::move(event));
-    }
-}
-
 
 // MARK: Utils
 auto linkElement(Element &src, std::string_view srcPadName, Element &dst, std::string_view dstPadName) -> bool {

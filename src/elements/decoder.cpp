@@ -1,6 +1,6 @@
 #include <nekoav/elements/decoder.hpp>
 #include <algorithm>
-#include "internal.hpp"
+#include "ffmpeg.hpp"
 
 #if defined(_WIN32)
     #include <d3d11.h>
@@ -138,6 +138,7 @@ auto Decoder::onPadPush(Pad &pad, Sample sample) -> IoTask<void> {
     if (!sample.isPacket()) {
         co_return Err(Error::SampleTypeNotSupported);
     }
+
     // Begin process
     auto packet = sample.toPacket();
     auto packetSent = false;
@@ -213,7 +214,7 @@ auto Decoder::init(const Caps &caps) -> IoTask<void> {
     auto inner = std::make_unique<Impl>();
 
     // Common part
-    auto createContext = [&](AVCodecParameters *params, const Value &value) -> IoResult<void>{
+    auto createContext = [&](AVCodecParameters *params, const Value &value) -> IoResult<void> {
         codec = avcodec_find_decoder_by_name(value[Caps::Codec].toString().c_str());
         if (!codec) {
             return Err(Error::NoCodec);
@@ -241,7 +242,7 @@ auto Decoder::init(const Caps &caps) -> IoTask<void> {
     };
 
     // Convert the info
-    auto params = std::unique_ptr<AVCodecParameters, ParamsDeleter>{ avcodec_parameters_alloc() };
+    std::unique_ptr<AVCodecParameters, ParamsDeleter> params { avcodec_parameters_alloc() };
     if (auto &video = caps.find(Caps::VideoPacket); video.isMap()) {
         if (auto res = createContext(params.get(), video); !res) {
             co_return Err(res.error());

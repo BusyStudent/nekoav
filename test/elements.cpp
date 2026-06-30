@@ -1,8 +1,10 @@
-#include <nekoav/elements/queue.hpp>
 #include <nekoav/elements/url_source.hpp>
+#include <nekoav/elements/pipeline.hpp>
+#include <nekoav/elements/queue.hpp>
 #include <nekoav/elements/decoder.hpp>
 #include <nekoav/elements/video.hpp>
 #include <nekoav/elements/audio.hpp>
+#include <nekoav/elements/bin.hpp>
 #include <ilias/platform.hpp>
 #include <ilias/testing.hpp>
 #include "testing_element.hpp"

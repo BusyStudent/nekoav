@@ -1,3 +1,4 @@
+#include <nekoav/elements/pipeline.hpp>
 #include <nekoav/elements/playbin.hpp>
 #include <nekoav/elements/video.hpp>
 #include <nekoav/element.hpp>
@@ -9,6 +10,7 @@
 #include <QMessageBox>
 #include <QMainWindow>
 #include <QFileDialog>
+#include <QInputDialog>
 #include <QKeyEvent>
 #include "ui_player.h"
 
@@ -29,10 +31,15 @@ public:
             if (file.isEmpty()) {
                 return;
             }
-            if (mHandle) {
-                mHandle.stop();
+            play(file);
+        });
+
+        connect(ui.actionOpenURL, &QAction::triggered, [this] {
+            auto file = QInputDialog::getText(this, "Open media", "URL", QLineEdit::Normal, "");
+            if (file.isEmpty()) {
+                return;
             }
-            mHandle = ilias::spawn(mediaTask(file));
+            play(file);
         });
 
         // When the play button clicked
@@ -87,6 +94,13 @@ protected:
         }
     }
 private:
+    auto play(QString url) -> void {
+        if (mHandle) {
+            mHandle.stop();
+        }
+        mHandle = ilias::spawn(mediaTask(url));
+    }
+
     auto mediaTask(QString url) -> ilias::Task<void> {
         auto pipeline = std::make_shared<nekoav::Pipeline>();
         auto playbin = std::make_shared<nekoav::PlayBin>("PlayBin");
@@ -97,12 +111,9 @@ private:
         playbin->setRenderer(ui.videoWidget->renderer());
 
         // Then, start it
-        auto cleanup = [&]() -> ilias::Task<void> {
-            co_await pipeline->setState(nekoav::State::Null);
-        };
         co_await ilias::finally(
-            ilias::whenAll(main(pipeline), watchEvent(pipeline)),
-            cleanup
+            ilias::whenAll(main(pipeline), watchMessage(pipeline)),
+            [&]() { return pipeline->setState(nekoav::State::Null); } // Finally stop it
         );
     }
 
@@ -114,24 +125,24 @@ private:
         }
     }
     
-    auto watchEvent(nekoav::Pipeline::Ptr pipeline) -> ilias::Task<void> {
+    auto watchMessage(nekoav::Pipeline::Ptr pipeline) -> ilias::Task<void> {
         while (true) {
-            auto event = co_await pipeline->readEvent();
-            if (event.isClockUpdate()) {
-                auto clock = event.toClockUpdate();
+            auto msg = co_await pipeline->readMessage();
+            if (msg.isClockUpdate()) {
+                auto clock = msg.toClockUpdate();
                 auto s = std::chrono::duration_cast<std::chrono::milliseconds>(clock.time);
                 if (!mSliderPressing) {
                     ui.progressSlider->setValue(s.count());
                 }
             }
-            if (event.isMediaLoaded()) {
-                auto media = event.toMediaLoaded();
+            if (msg.isMediaLoaded()) {
+                auto media = msg.toMediaLoaded();
                 auto startTime = std::chrono::duration_cast<std::chrono::milliseconds>(media.startTime);
                 auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(media.duration);
                 ui.progressSlider->setRange(startTime.count(), duration.count());
             }
-            if (event.isError()) {
-                auto error = event.toError();
+            if (msg.isError()) {
+                auto error = msg.toError();
                 ui.statusbar->showMessage(error.message.c_str());
             }
         }

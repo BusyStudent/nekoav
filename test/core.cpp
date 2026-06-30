@@ -1,3 +1,5 @@
+#include <nekoav/elements/pipeline.hpp>
+#include <nekoav/elements/bin.hpp>
 #include <nekoav/element.hpp>
 #include <nekoav/context.hpp>
 #include <nekoav/sample.hpp>
@@ -6,7 +8,7 @@
 #include <ilias/platform.hpp>
 #include <ilias/testing.hpp>
 #include "testing_element.hpp"
-#include "../src/internal.hpp"
+#include "../src/ffmpeg.hpp"
 
 using namespace std::literals;
 using namespace nekoav;

@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include <nekoav/message.hpp>
 #include <nekoav/defines.hpp>
 #include <nekoav/context.hpp>
 #include <nekoav/sample.hpp>
@@ -417,13 +418,6 @@ public:
     auto clock() const -> const Clock::Ptr & { return mClock; }
 
     /**
-     * @brief Get the root pipeline
-     * 
-     * @return Pipeline * 
-     */
-    auto pipeline() const -> const Pipeline *;
-
-    /**
      * @brief Get the pipeline context for query / set interface
      * 
      * @return Context * 
@@ -499,7 +493,7 @@ protected:
      * 
      * @return The bus used to send message to pipeline 
      */
-    auto pipelineBus() -> ilias::mpsc::Sender<Event> & { return mPipelineBus; }
+    auto pipelineBus() -> ilias::mpsc::Sender<Message> & { return mPipelineBus; }
 private:
     // Interface for pipeline and bin to use
     /**
@@ -510,11 +504,11 @@ private:
     auto setClock(Clock::Ptr clock) -> void;
 
     /**
-     * @brief Set the Pipeline Bus that send an event to pipeline
+     * @brief Set the Pipeline Bus that send an message to pipeline
      * 
      * @param bus 
      */
-    auto setPipelineBus(ilias::mpsc::Sender<Event> bus) -> void;
+    auto setPipelineBus(ilias::mpsc::Sender<Message> bus) -> void;
 
     // Pads
     PadList mInputs;
@@ -528,7 +522,7 @@ private:
     // Filed used for topological
     Bin            *mParent = nullptr;
     Clock::Ptr      mClock = nullptr;
-    ilias::mpsc::Sender<Event> mPipelineBus {};
+    ilias::mpsc::Sender<Message> mPipelineBus {};
 
     // avoid to use RTTI, use bool is faster
     bool            mIsPipeline = false;
@@ -539,142 +533,6 @@ private:
 friend class Pipeline;
 friend class Bin;
 friend class Pad;
-};
-
-// MARK: Bin
-/**
- * @brief The Bin element can contain multiple child elements and manage them as a single unit.
- * 
- */
-class NEKOAV_API Bin : public Element {
-public:
-    using Ptr = std::shared_ptr<Bin>;
-
-    Bin(std::string_view name = {});
-    ~Bin();
-
-    /**
-     * @brief Add an element to the bin
-     * 
-     * @param element The shared_ptr of the element (if nullptr, no-op)
-     */
-    auto addElement(Element::Ptr element) -> void;
-
-    /**
-     * @brief Add many elements to the bin
-     * 
-     * @tparam Args 
-     * @param elements 
-     */
-    template <typename ...Args>
-    auto addElements(Args &&...elements) -> void {
-        (addElement(std::forward<Args>(elements)), ...);
-    }
-
-    /**
-     * @brief Add an element to the bin and sync the new Element to the bin state
-     * 
-     * @param element The shared_ptr of the element (if nullptr, no-op)
-     * @return IoTask<void> 
-     */
-    auto addElementSync(Element::Ptr element) -> IoTask<void>;
-
-    /**
-     * @brief Remove an element from the bin
-     * 
-     * @param element The shared_ptr of the element (if nullptr, no-op)
-     * @return true We successfully removed the element
-     * @return false Not removed (maybe the element is not in the bin)
-     */
-    auto removeElement(Element::Ptr element) -> bool;
-
-    /**
-     * @brief Sync the state of all child elements to the current state of the bin.
-     * 
-     * @return IoTask<void> 
-     */
-    auto syncElements() -> IoTask<void>;
-
-    /**
-     * @brief Set all child elements to the Null state and clear all child elements
-     * 
-     * @return IoTask<void> 
-     */
-    auto clear() -> IoTask<void>;
-
-    /**
-     * @brief Send the event to all child elements
-     * 
-     * @param event The event to be sent
-     * @return IoTask<void> 
-     */
-    auto sendEvent(Event event) -> IoTask<void> override;
-
-    /**
-     * @brief Check the bin is empty
-     * 
-     * @return true 
-     * @return false 
-     */
-    auto empty() const -> bool { return mChildren.empty(); }
-protected:
-    // Sort, return false on Cycle detected
-    auto topologicalSort() -> bool;
-
-    // State management
-    auto onInitialize() -> IoTask<void> override;
-    auto onPrepare() -> IoTask<void> override;
-    auto onRun() -> IoTask<void> override;
-    auto onPause() -> IoTask<void> override;
-    auto onStop() -> IoTask<void> override;
-    auto onTeardown() -> IoTask<void> override;
-private:
-    // Dump
-    auto dumpInfoInternal(FILE *where, int level) -> void override;
-    auto setChildrenState(State newState) -> IoTask<void>;
-
-    // Child elements
-    // from Source -> Sink
-    std::vector<Element::Ptr> mChildren;
-    bool                      mSorted = false;
-friend class Pipeline;
-friend class Element;
-friend class Pad;
-};
-
-// MARK: Pipeline
-/**
- * @brief The top level bin, manage the global resource
- * 
- */
-class NEKOAV_API Pipeline final : public Bin {
-public:
-    using Ptr = std::shared_ptr<Pipeline>;
-
-    Pipeline(std::string_view name = {});
-    ~Pipeline();
-
-    /**
-     * @brief Read the event from the pipeline bus
-     * 
-     * @return Task<Event> 
-     */
-    auto readEvent() -> Task<Event>;
-private:
-    // Collect clock before run
-    auto onInitialize() -> IoTask<void> override;
-    auto onRun() -> IoTask<void> override;
-    auto onPause() -> IoTask<void> override;
-    auto onStop() -> IoTask<void> override;
-    auto onTeardown() -> IoTask<void> override;
-
-    struct Impl;
-
-    // All clocks in the pipeline, sort by priority
-    std::unique_ptr<Context> mContext; // The context of the pipeline
-    std::vector<Clock::Ptr>  mClocks;
-    std::unique_ptr<Impl>    d;
-friend class Element;
 };
 
 // Utils function

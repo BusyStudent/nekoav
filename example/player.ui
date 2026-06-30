@@ -52,6 +52,7 @@
      <string>File</string>
     </property>
     <addaction name="actionOpen"/>
+    <addaction name="actionOpenURL"/>
    </widget>
    <addaction name="menuFile"/>
   </widget>
@@ -59,6 +60,11 @@
   <action name="actionOpen">
    <property name="text">
     <string>Open</string>
+   </property>
+  </action>
+  <action name="actionOpenURL">
+   <property name="text">
+    <string>OpenURL</string>
    </property>
   </action>
  </widget>
