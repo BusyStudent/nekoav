@@ -15,6 +15,7 @@
 #include <nekoav/clock.hpp>
 #include <nekoav/caps.hpp>
 #include <variant>
+#include <chrono>
 
 namespace nekoav {
 
@@ -46,6 +47,18 @@ public:
 };
 
 /**
+ * @brief The pipeline begin to seek
+ * 
+ */
+class SeekBeginMessage {};
+
+/**
+ * @brief The pipeline finished seeking
+ * 
+ */
+class SeekEndMessage {};
+
+/**
  * @brief The event class
  * 
  */
@@ -54,7 +67,9 @@ public:
     using Error       = ErrorMessage;
     using ClockUpdate = ClockUpdateMessage;
     using MediaLoaded = MediaLoadedMessage;
-    using Storage = std::variant<Error, ClockUpdate, MediaLoaded>;
+    using SeekBegin   = SeekBeginMessage;
+    using SeekEnd     = SeekEndMessage;
+    using Storage = std::variant<Error, ClockUpdate, MediaLoaded, SeekBegin, SeekEnd>;
 
     Message(const Message &) = default;
     Message(Message &&) = default;
@@ -62,15 +77,20 @@ public:
 
     // Direct construct inner
     template <typename T> requires (std::is_constructible_v<Storage, T>)
-    Message(T &&message) : mStorage(std::forward<T>(message)) {}
+    Message(T &&message) : mStorage(std::forward<T>(message)), mTimestamp(std::chrono::steady_clock::now()) {}
 
     auto isError() const noexcept { return std::holds_alternative<Error>(mStorage); }
     auto isClockUpdate() const noexcept { return std::holds_alternative<ClockUpdate>(mStorage); }
     auto isMediaLoaded() const noexcept { return std::holds_alternative<MediaLoaded>(mStorage); }
+    auto isSeekBegin() const noexcept { return std::holds_alternative<SeekBegin>(mStorage); }
+    auto isSeekEnd() const noexcept { return std::holds_alternative<SeekEnd>(mStorage); }
 
     auto toError() const noexcept { return std::get<Error>(mStorage); }
     auto toClockUpdate() const noexcept { return std::get<ClockUpdate>(mStorage); }
     auto toMediaLoaded() const noexcept { return std::get<MediaLoaded>(mStorage); }
+
+    // Get the timestamp when the message was created
+    auto timestamp() const noexcept { return mTimestamp; }
 
     // Visit
     template <typename Fn>
@@ -82,6 +102,7 @@ public:
     auto operator =(Message &&) -> Message & = default;
 private:
     Storage mStorage;
+    std::chrono::steady_clock::time_point mTimestamp; // When the message was created
 };
 
 

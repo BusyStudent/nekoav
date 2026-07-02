@@ -19,10 +19,19 @@ public:
 
     /**
      * @brief Read the message from the pipeline bus
+     * @note This method can be called in any thread, MT-SAFE
      * 
      * @return Task<Message> 
      */
     auto readMessage() -> Task<Message>;
+
+    /**
+     * @brief Send an control event to the pipeline
+     * 
+     * @param event 
+     * @return IoTask<void> 
+     */
+    auto sendEvent(Event event) -> IoTask<void> override;
 private:
     // Collect clock before run
     auto onInitialize() -> IoTask<void> override;

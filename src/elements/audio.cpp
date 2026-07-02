@@ -37,19 +37,21 @@ struct AudioSink::Impl final : public Clock { // Implementation the ClockSource
     bool       contextInited = false;
     bool       deviceInited  = false;
 
-    // Send the Frame to the device callback
-    ilias::mpsc::Sender<AudioFrame> frameSender {};
-
     // Access by the Callback, multithreaded
-    ilias::mpsc::Receiver<AudioFrame> frameReceiver {};
-    std::optional<AudioFrame>         currentFrame {};
-    size_t                            currentFrameOffset = 0;
-    std::atomic<int64_t>              currentPts {}; // int64_t on Timestamp unit
+    struct {
+        // Send the Frame to the device callback
+        ilias::mpsc::Sender<AudioFrame>   frameSender {};
+        ilias::mpsc::Receiver<AudioFrame> frameReceiver {};
+        std::optional<AudioFrame>         currentFrame {};
+        size_t                            currentFrameOffset = 0;
+        std::atomic<int64_t>              currentPts {}; // int64_t on Timestamp unit
+        Timestamp                         currentPtsInternal; // The pts of the current frame
+    } callback;
 
     Impl() {
         auto [sender, receiver] = ilias::mpsc::channel<AudioFrame>(20); // Cache 20 frames ?, I think it's enough
-        frameSender = std::move(sender);
-        frameReceiver = std::move(receiver);
+        callback.frameSender = std::move(sender);
+        callback.frameReceiver = std::move(receiver);
     }
 
     ~Impl() {
@@ -63,7 +65,7 @@ struct AudioSink::Impl final : public Clock { // Implementation the ClockSource
 
     // Clock Interface
     auto time() const -> Timestamp override {
-        return Timestamp { currentPts.load() };
+        return Timestamp { callback.currentPts.load() };
     }
 
     auto category() const -> ClockCategory override {
@@ -162,7 +164,7 @@ auto AudioSink::onPush(Pad &pad, Sample sample) -> IoTask<void> {
 
     // Ok, push the frame to the queue
     // assert(ma_device_is_started(&d->device));
-    auto _ = co_await d->frameSender.send(std::move(*frame));
+    auto _ = co_await d->callback.frameSender.send(std::move(*frame));
     co_return {};
 }
 
@@ -181,7 +183,7 @@ auto AudioSink::onEvent(Pad &pad, Event event) -> IoTask<void> {
     }
 
     // Drain the queue
-    while (d->frameReceiver.tryRecv()) {}
+    while (d->callback.frameReceiver.tryRecv()) {}
 
     // Restore if needed
     if (started) {
@@ -217,12 +219,14 @@ auto AudioSink::initDevice(AudioFrame *frame) -> IoResult<void> {
 }
 
 auto AudioSink::Impl::audioCallback(ma_device *device, std::byte *output, const std::byte *input, ma_uint32 frameCount) -> void {
+    auto &state = this->callback;
     while (frameCount > 0) {
-        if (!currentFrame) {
-            if (auto frame = frameReceiver.tryRecv(); frame) {
-                currentFrameOffset = 0;
-                currentFrame = std::move(*frame);
-                currentPts = currentFrame->pts().value_or(Timestamp {}).count();
+        if (!state.currentFrame) {
+            if (auto frame = state.frameReceiver.tryRecv(); frame) {
+                state.currentFrameOffset = 0;
+                state.currentFrame = std::move(*frame);
+                state.currentPtsInternal = state.currentFrame->pts().value_or(Timestamp {});
+                state.currentPts = state.currentPtsInternal.count();
                 // NEKOAV_INFO("[AudioSink] Got a new frame with {} samples, pts {}", currentFrame->samples(), currentPts.load());
                 audioUpdateClock();
             }
@@ -233,19 +237,19 @@ auto AudioSink::Impl::audioCallback(ma_device *device, std::byte *output, const 
         }
 
         // Begin fill it
-        auto format = currentFrame->sampleFormat();
+        auto format = state.currentFrame->sampleFormat();
         auto perSample = bytesPerSample(format);
-        auto sampleRate = currentFrame->sampleRate();
-        auto channels = currentFrame->channels();
-        auto samples = currentFrame->samples();
+        auto sampleRate = state.currentFrame->sampleRate();
+        auto channels = state.currentFrame->channels();
+        auto samples = state.currentFrame->samples();
 
-        auto numToCopy = std::min(samples - currentFrameOffset, size_t {frameCount});
+        auto numToCopy = std::min(samples - state.currentFrameOffset, size_t {frameCount});
         auto bytesToCopy = numToCopy * perSample * channels;
         if (isPlanarFormat(format)) { // Current is planar, convert it to packed
             for (size_t i = 0; i < numToCopy; ++i) {
                 for (size_t j = 0; j < channels; ++j) {
                     auto dst = output + (i * channels + j) * perSample;
-                    auto src = static_cast<const std::byte *>(currentFrame->data(j)) + (currentFrameOffset + i) * perSample;
+                    auto src = static_cast<const std::byte *>(state.currentFrame->data(j)) + (state.currentFrameOffset + i) * perSample;
                     switch (format) {
                         case SampleFormat::U8P: *reinterpret_cast<uint8_t *>(dst) = *reinterpret_cast<const uint8_t *>(src); break;
                         case SampleFormat::S16P: *reinterpret_cast<int16_t *>(dst) = *reinterpret_cast<const int16_t *>(src); break;
@@ -257,24 +261,24 @@ auto AudioSink::Impl::audioCallback(ma_device *device, std::byte *output, const 
             }
         }
         else { // packed
-            auto src = static_cast<const std::byte *>(currentFrame->data(0)) + currentFrameOffset * perSample * channels;
+            auto src = static_cast<const std::byte *>(state.currentFrame->data(0)) + state.currentFrameOffset * perSample * channels;
             ::memcpy(output, src, bytesToCopy);
         }
 
         // Calc the time offset, advance the currentPts (timestamp is in nanoseconds)
-        int64_t pts = currentPts.load();
+        int64_t pts = state.currentPts.load();
         int64_t offsetTime = numToCopy * 1000'000'000 / sampleRate;
         int64_t newPts = pts + offsetTime;
         if (newPts > pts) {
-            currentPts.store(newPts);
+            state.currentPts.store(newPts);
         }
 
         // Update
         output += bytesToCopy;
         frameCount -= numToCopy;
-        currentFrameOffset += numToCopy;
-        if (currentFrameOffset == samples) {
-            currentFrame.reset();
+        state.currentFrameOffset += numToCopy;
+        if (state.currentFrameOffset == samples) {
+            state.currentFrame.reset();
         }
     }
     
@@ -290,7 +294,7 @@ auto AudioSink::Impl::audioUpdateClock() -> void {
     }
     auto res = bus.trySend(Message::ClockUpdate {
         .clock = Clock::Ptr { self->shared_from_this(), this },
-        .time = Timestamp { currentPts.load() },
+        .time = Timestamp { callback.currentPts.load() },
     });
     if (!res) {
         NEKOAV_ERROR("[AudioSink] Failed to send clock update event");

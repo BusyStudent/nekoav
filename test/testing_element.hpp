@@ -8,7 +8,7 @@ using namespace std::literals;
 
 struct FirstElement : Element {
     FirstElement() {
-        mOut.mutableCaps().insert("shit/test_data", Value {114514});
+        mOut.mutableCaps().insertOrAssign("shit/test_data", Value {114514});
     }
 
     auto onRun() -> IoTask<void> override {

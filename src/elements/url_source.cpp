@@ -113,7 +113,7 @@ auto UrlSource::onPrepare() -> IoTask<void> {
                     { std::string{Caps::Bitrate}, stream->codecpar->bit_rate },
                 });
                 pad = &createOutputPad("video/" + std::to_string(videoIdx++));
-                pad->mutableCaps().insert(Caps::VideoPacket, std::move(info));
+                pad->mutableCaps().insertOrAssign(Caps::VideoPacket, std::move(info));
                 break;
             }
             case AVMEDIA_TYPE_AUDIO: {
@@ -128,7 +128,7 @@ auto UrlSource::onPrepare() -> IoTask<void> {
                     { std::string{Caps::Bitrate}, stream->codecpar->bit_rate },
                 });
                 pad = &createOutputPad("audio/" + std::to_string(audioIdx++));
-                pad->mutableCaps().insert(Caps::AudioPacket, std::move(info));
+                pad->mutableCaps().insertOrAssign(Caps::AudioPacket, std::move(info));
                 break;
             }
             case AVMEDIA_TYPE_SUBTITLE: {
@@ -296,12 +296,22 @@ auto UrlSource::doSeek() -> IoTask<void> {
         co_return Err(error::fromFFmpeg(res));
     }
 
+    // Notify the pipeline that seek begin
+    if (auto bus = pipelineBus(); bus) {
+        auto _ = co_await bus.send(Message::SeekBegin {});
+    }
+    
     // Notify all the downstream that flush the buffer
     for (auto &pad : outputs()) {
         auto _ = co_await pad.pushEvent(Event::FlushBegin {});
     }
     for (auto &pad : outputs()) {
         auto _ = co_await pad.pushEvent(Event::FlushEnd {});
+    }
+
+    // Notify the pipeline that seek done
+    if (auto bus = pipelineBus(); bus) {
+        auto _ = co_await bus.send(Message::SeekEnd {});
     }
     NEKOAV_INFO("[UrlSource] '{}' seek done", name());
     co_return {};

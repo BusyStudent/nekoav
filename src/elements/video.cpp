@@ -17,7 +17,7 @@ namespace nekoav {
 
 namespace {
 
-static auto getCopybackFormats(AVFrame *frame) -> std::vector<AVPixelFormat> {
+auto getCopybackFormats(AVFrame *frame) -> std::vector<AVPixelFormat> {
     std::vector<AVPixelFormat> vec {};
     AVPixelFormat *tmp = nullptr;
     if (av_hwframe_transfer_get_formats(frame->hw_frames_ctx, AV_HWFRAME_TRANSFER_DIRECTION_FROM, &tmp, 0) >= 0) {
@@ -87,7 +87,7 @@ struct VideoSink::Impl {
 VideoSink::VideoSink(std::string_view name) : Element(name), mInput(createInputPad("in")) {
     mInput.setPushCallback<&VideoSink::onPadPush>(this);
     mInput.setQueryCallback<&VideoSink::onPadQuery>(this);
-    mInput.mutableCaps().insert(Caps::VideoRaw, Value::Map {});
+    mInput.mutableCaps().insertOrAssign(Caps::VideoRaw, Value::Map {});
 }
 
 VideoSink::~VideoSink() {
@@ -103,8 +103,7 @@ auto VideoSink::onStop() -> IoTask<void> {
         NEKOAV_WARN("Failed to shutdown the renderer: {}", res.error().message());
     }
     // Set to empty caps
-    mInput.mutableCaps().erase(Caps::VideoRaw);
-    mInput.mutableCaps().insert(Caps::VideoRaw, Value::Map {});
+    mInput.mutableCaps().insertOrAssign(Caps::VideoRaw, Value::Map {});
     d.reset();
     co_return {};
 }
@@ -133,8 +132,7 @@ auto VideoSink::onPrepare() -> IoTask<void> {
     values.emplace(Caps::PixelFormat, std::move(list));
 
     // Set it to the input pad
-    mInput.mutableCaps().erase(Caps::VideoRaw);
-    mInput.mutableCaps().insert(Caps::VideoRaw, std::move(values));
+    mInput.mutableCaps().insertOrAssign(Caps::VideoRaw, std::move(values));
     d = std::make_unique<Impl>();
     co_return {};
 }
@@ -155,11 +153,9 @@ auto VideoSink::onPadPush(Pad &, Sample sample) -> IoTask<void> {
     // Sync here
     if (pts > time) {
         auto waitTime = pts - time;
-        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(waitTime);
-
         if (waitTime > 1ms && waitTime < 500ms) {
-            NEKOAV_INFO("[VideoSink] Waiting for {}", ms);
-            co_await ilias::sleep(ms);
+            NEKOAV_INFO("[VideoSink] Waiting for {}", std::chrono::duration_cast<std::chrono::milliseconds>(waitTime));
+            co_await ilias::sleep(waitTime);
         }
         if (waitTime > 500ms) { // What, we are too fast?
             NEKOAV_WARN("Frame is too far ahead: {}ns", waitTime.count());

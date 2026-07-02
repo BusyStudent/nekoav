@@ -91,14 +91,14 @@ Decoder::Decoder(std::string_view name) :
     mOutput(createOutputPad("out")) 
 {
     // Input accept both audio and video
-    mInput.mutableCaps().insert(Caps::AudioPacket, {});
-    mInput.mutableCaps().insert(Caps::VideoPacket, {});
+    mInput.mutableCaps().insertOrAssign(Caps::AudioPacket, {});
+    mInput.mutableCaps().insertOrAssign(Caps::VideoPacket, {});
     mInput.setPushCallback<&Decoder::onPadPush>(this);
     mInput.setEventCallback<&Decoder::onPadEvent>(this);
 
     // Output
-    mOutput.mutableCaps().insert(Caps::AudioRaw, {});
-    mOutput.mutableCaps().insert(Caps::VideoRaw, {});
+    mOutput.mutableCaps().insertOrAssign(Caps::AudioRaw, {});
+    mOutput.mutableCaps().insertOrAssign(Caps::VideoRaw, {});
 }
 
 Decoder::~Decoder() {

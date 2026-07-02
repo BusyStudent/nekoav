@@ -1,3 +1,13 @@
+/**
+ * @file caps.hpp
+ * @author BusyStudent (fyw90mc@gmail.com)
+ * @brief The properties system for multimedia
+ * @version 0.1
+ * @date 2026-06-30
+ * 
+ * @copyright Copyright (c) 2026
+ * 
+ */
 #pragma once
 
 #include <nekoav/defines.hpp>
@@ -11,23 +21,24 @@
 
 namespace nekoav {
 
-// For ”“sv;
-using std::literals::operator ""sv;
-
 /**
  * @brief The value for multimedia
  * 
  */
 class Value {
 public:
+    using Null    = std::monostate;
+    using String  = std::string;
+    using Integer = int64_t;
+    using Double  = double;
     using List    = std::vector<Value>;
     using Map     = std::map<std::string, Value, std::less<> >;
     using Bytes   = std::vector<std::byte>;
     using Storage = std::variant<
-        std::monostate,
-        std::string,
-        int64_t,
-        double,
+        Null,
+        String,
+        Integer,
+        Double,
         PixelFormat,
         ColorRange,
         ColorPrimaries,
@@ -41,6 +52,10 @@ public:
         Map
     >;
 
+    // Empty tags
+    NEKOAV_API
+    static const Value null;
+
     Value(const Value &) = default;
     Value(Value &&) = default;
     Value() = default;
@@ -50,10 +65,10 @@ public:
     Value(T &&value) : mStorage(std::forward<T>(value)) {}
 
     // Checked conversions
-    auto isNull() const noexcept { return std::holds_alternative<std::monostate>(mStorage); }
-    auto isString() const noexcept { return std::holds_alternative<std::string>(mStorage); }
-    auto isInteger() const noexcept { return std::holds_alternative<int64_t>(mStorage); }
-    auto isDouble() const noexcept { return std::holds_alternative<double>(mStorage); }
+    auto isNull() const noexcept { return std::holds_alternative<Null>(mStorage); }
+    auto isString() const noexcept { return std::holds_alternative<String>(mStorage); }
+    auto isInteger() const noexcept { return std::holds_alternative<Integer>(mStorage); }
+    auto isDouble() const noexcept { return std::holds_alternative<Double>(mStorage); }
     auto isPixelFormat() const noexcept { return std::holds_alternative<PixelFormat>(mStorage); }
     auto isColorRange() const noexcept { return std::holds_alternative<ColorRange>(mStorage); }
     auto isColorPrimaries() const noexcept { return std::holds_alternative<ColorPrimaries>(mStorage); }
@@ -67,9 +82,9 @@ public:
     auto isMap() const noexcept { return std::holds_alternative<Map>(mStorage); }
 
     // Conversions
-    auto toString() const -> const std::string & { return std::get<std::string>(mStorage); }
-    auto toInteger() const -> int64_t { return std::get<int64_t>(mStorage); }
-    auto toDouble() const -> double { return std::get<double>(mStorage); }
+    auto toString() const -> const std::string & { return std::get<String>(mStorage); }
+    auto toInteger() const -> int64_t { return std::get<Integer>(mStorage); }
+    auto toDouble() const -> double { return std::get<Double>(mStorage); }
     auto toPixelFormat() const -> PixelFormat { return std::get<PixelFormat>(mStorage); }
     auto toColorRange() const -> ColorRange { return std::get<ColorRange>(mStorage); }
     auto toColorPrimaries() const -> ColorPrimaries { return std::get<ColorPrimaries>(mStorage); }
@@ -96,9 +111,8 @@ public:
     // Access
     template <char = 0>
     auto operator [](std::string_view name) const -> const Value & {
-        static constinit Value null;
         auto map = std::get_if<Map>(&mStorage);
-        if (!map) { return null;}
+        if (!map) return null;
         if (auto it = map->find(name); it != map->end()) {
             auto &[_, value] = *it;
             return value;
@@ -116,18 +130,15 @@ private:
     Storage mStorage;
 };
 
-/**
- * @brief The single capability
- * 
- */
-class Cap {
-public:
-    std::string key;
-    Value       value;
-
-    auto operator <=>(const Cap &other) const noexcept = default;
-};
-
+// Caps: [
+//  { Caps::Any, Null },
+//  { Caps::VideoPacket, Maps {} },
+//  { Caps::VideoRaw, Maps {} },
+//  { Caps::AudioPacket, Maps {} },
+//  { Caps::AudioRaw, Maps {} },
+//  { Caps::SubtitlePacket, Maps {} },
+// ]
+//
 /**
  * @brief The capabilities of a media stream, used for negotiation between elements.
  * 
@@ -135,37 +146,37 @@ public:
 class Caps {
 public:
     // Some builtin types
-    static constexpr auto VideoPacket = "video/packet"sv;
-    static constexpr auto VideoRaw = "video/raw"sv;
-    static constexpr auto AudioPacket = "audio/packet"sv;
-    static constexpr auto AudioRaw = "audio/raw"sv;
-    static constexpr auto SubtitlePacket = "subtitle/packet";
-    static constexpr auto Any = "any"sv;
+    static constexpr std::string_view VideoPacket = "video/packet";
+    static constexpr std::string_view VideoRaw = "video/raw";
+    static constexpr std::string_view AudioPacket = "audio/packet";
+    static constexpr std::string_view AudioRaw = "audio/raw";
+    static constexpr std::string_view SubtitlePacket = "subtitle/packet";
+    static constexpr std::string_view Any = "any";
 
     // Somple builtin name
     // Video
-    static constexpr auto Width = "width"sv;
-    static constexpr auto Height = "height"sv;
-    static constexpr auto PixelFormat = "pixelFormat"sv;
-    static constexpr auto ColorRange = "colorRange"sv;
-    static constexpr auto ColorPrimaries = "colorPrimaries"sv;
-    static constexpr auto ColorTransfer = "colorTransfer"sv;
-    static constexpr auto ColorSpace = "colorSpace"sv;
+    static constexpr std::string_view Width = "width";
+    static constexpr std::string_view Height = "height";
+    static constexpr std::string_view PixelFormat = "pixelFormat";
+    static constexpr std::string_view ColorRange = "colorRange";
+    static constexpr std::string_view ColorPrimaries = "colorPrimaries";
+    static constexpr std::string_view ColorTransfer = "colorTransfer";
+    static constexpr std::string_view ColorSpace = "colorSpace";
 
     // Audio
-    static constexpr auto SampleFormat = "sampleFormat"sv;
-    static constexpr auto Channels = "channels"sv;
-    static constexpr auto ChannelMask = "channelMask"sv;
-    static constexpr auto SampleRate = "sampleRate"sv;
+    static constexpr std::string_view SampleFormat = "sampleFormat";
+    static constexpr std::string_view Channels = "channels";
+    static constexpr std::string_view ChannelMask = "channelMask";
+    static constexpr std::string_view SampleRate = "sampleRate";
     
     // Common
-    static constexpr auto Duration = "duration"sv;
-    static constexpr auto TimeBase = "timeBase"sv;
-    static constexpr auto Codec = "codec"sv;
-    static constexpr auto CodecTag = "codecTag"sv;
-    static constexpr auto CodecExtraData = "codecExtraData"sv;
-    static constexpr auto Bitrate = "bitrate"sv;
-    static constexpr auto FrameRate = "frameRate"sv;
+    static constexpr std::string_view Duration = "duration";
+    static constexpr std::string_view TimeBase = "timeBase";
+    static constexpr std::string_view Codec = "codec";
+    static constexpr std::string_view CodecTag = "codecTag";
+    static constexpr std::string_view CodecExtraData = "codecExtraData";
+    static constexpr std::string_view Bitrate = "bitrate";
+    static constexpr std::string_view FrameRate = "frameRate";
 
     Caps(const Caps &) = default;
     Caps(Caps &&) = default;
@@ -173,43 +184,62 @@ public:
 
     auto begin() const { return mCaps.begin(); }
     auto end() const { return mCaps.end(); }
-    auto clear() { mCaps.clear(); }
-    auto size() const { return mCaps.size(); }
+    auto clear() -> void { mCaps.clear(); }
+    auto size() const -> size_t { return mCaps.size(); }
 
-    // Insert an item to the vaps
-    auto insert(std::string_view type, Value value) -> void { mCaps.emplace_back(Cap { .key = std::string {type}, .value = std::move(value) }); }
+    /**
+     * @brief Insert an item into the Caps, it will overwrite the old item if it exists
+     * 
+     * @param type The type of the item
+     * @param value The value of the item
+     */
+    auto insertOrAssign(std::string_view type, Value value) -> void {
+        mCaps.insert_or_assign(std::string{type}, std::move(value));
+    }
 
-    // Check
-    auto empty() const noexcept { return mCaps.empty(); }
-    auto isAny() const noexcept { return mCaps.size() == 1 && mCaps.front().key == Any; }
-
-    // Find
+    /**
+     * @brief Find the item in the Caps
+     * 
+     * @param type 
+     * @return const Value &, If not found, return a null value
+     */
     auto find(std::string_view type) const -> const Value & {
-        static constinit Value null;
-        auto it = std::find_if(mCaps.begin(), mCaps.end(), [&](auto &v) { return v.key == type; });
-        if (it == mCaps.end()) {
-            return null;
-        }
-        auto &[_, value] = *it;
-        return value;
+        auto it = mCaps.find(type);
+        if (it == mCaps.end()) return Value::null;
+        return it->second;
     }
 
-    // Erase
-    auto erase(std::string_view type) -> void {
-        auto it = std::find_if(mCaps.begin(), mCaps.end(), [&](auto &v) { return v.key == type; });
-        if (it != mCaps.end()) {
-            mCaps.erase(it);
-        }
-    }
+    /**
+     * @brief Check the Caps is empty ?
+     * 
+     * @return true 
+     * @return false 
+     */
+    auto empty() const noexcept -> bool { return mCaps.empty(); }
 
-    auto operator [](std::string_view type) const -> const Value & { return find(type); }
+    /**
+     * @brief Check if the Caps contains the type
+     * 
+     * @param type 
+     * @return true 
+     * @return false 
+     */
+    auto contains(std::string_view type) const noexcept -> bool { return mCaps.contains(type); }
 
-    // Compare
+    /**
+     * @brief Check if the Caps contains any type
+     * 
+     * @return true 
+     * @return false 
+     */
+    auto containsAny() const noexcept -> bool { return mCaps.contains(Caps::Any); }
+
+    // Operators
     auto operator <=>(const Caps &other) const noexcept = default;
     auto operator =(const Caps &other) -> Caps & = default;
     auto operator =(Caps &&other) -> Caps & = default;
 private:
-    std::vector<Cap> mCaps;
+    std::map<std::string, Value, std::less<> > mCaps;
 };
 
 } // namespace nekoav
@@ -255,18 +285,6 @@ struct std::formatter<nekoav::Value> {
             }
         };
         return value.visit(visitor);
-    }
-};
-
-template <>
-struct std::formatter<nekoav::Cap> {
-    constexpr auto parse(std::format_parse_context &ctxt) {
-        return ctxt.begin();
-    }
-
-    template <typename FormatContext>
-    auto format(const nekoav::Cap &cap, FormatContext &ctxt) const {
-        return std::format_to(ctxt.out(), "\"{}\": {}", cap.key, cap.value);
     }
 };
 

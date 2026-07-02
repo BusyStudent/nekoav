@@ -28,6 +28,10 @@ Queue::Queue(std::string_view name) : Element(name), d(std::make_unique<Impl>())
     auto &in = createInputPad("in");
     auto &out = createOutputPad("out");
 
+    // Set capacity
+    in.mutableCaps().insertOrAssign(Caps::Any, {});
+    out.mutableCaps().insertOrAssign(Caps::Any, {});
+
     // Bind it
     in.setPushCallback<&Queue::onPush>(this);
     in.setEventCallback<&Queue::onEvent>(this);

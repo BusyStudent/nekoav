@@ -35,6 +35,7 @@ struct Pipeline::Impl final : public Clock { // Impl the ClockSource
     ilias::WaitHandle<void>               clockTicking {}; // Used when the master clock is self, used to generate the clock update message
 
     // Bus field
+    bool                                  seeking = false; // Did the pipeline handle seeking ?, use atomic?
     ilias::WaitHandle<void>               busMonitor {};
     ilias::mpsc::Sender<Message>          messageSender {}; // Use this field to send message to the (user)
     ilias::mpsc::Receiver<Message>        messageReceiver {};
@@ -57,7 +58,25 @@ Pipeline::~Pipeline() {
 
 auto Pipeline::readMessage() -> Task<Message> {
     // This recv should never fail because we only close it when destroy the Pipeline
-    co_return (co_await d->messageReceiver.recv()).value();
+    while (true) {
+        auto msg = (co_await d->messageReceiver.recv()).value();
+        if (msg.isClockUpdate() & d->seeking) { // Discard out of date clock update message
+            continue;
+        }
+        else if (msg.isSeekEnd()) { // Seek is done
+            NEKOAV_INFO("[Pipeline] '{}', seek end", name());
+            d->seeking = false;
+        }
+        co_return msg;
+    }
+}
+
+auto Pipeline::sendEvent(Event event) -> IoTask<void> {
+    if (event.isSeek()) {
+        NEKOAV_INFO("[Pipeline] '{}' seek begin", name());
+        d->seeking = true;
+    }
+    co_return co_await Bin::sendEvent(std::move(event));
 }
 
 auto Pipeline::onInitialize() -> IoTask<void> {
@@ -65,6 +84,7 @@ auto Pipeline::onInitialize() -> IoTask<void> {
     assert(!d->busMonitor);
     auto [sender, receiver] = ilias::mpsc::channel<Message>();
     d->busMonitor = ilias::spawn(d->watchBus(std::move(receiver)));
+    d->seeking = false;
     setPipelineBus(sender);// Set the bus to self and all children
     co_return co_await Bin::onInitialize();
 }
@@ -166,13 +186,13 @@ auto Pipeline::Impl::watchBus(ilias::mpsc::Receiver<Message> receiver) -> Task<v
         auto &event = *res;
         // Handle it...
         // NEKOAV_INFO("[Pipeline] '{}' received event: {}", self->name(), event);
-#if !defined(NDEBUG)
-        // if (event.isClockUpdate()) { // Dump the all clocks
-        //     for (auto &clock : self->mClocks) {
-        //         NEKOAV_INFO("[Pipeline] '{}' clock: {}", self->name(), clock->time());
-        //     }
-        // }
-#endif
+// #if !defined(NDEBUG)
+//         if (event.isClockUpdate()) {
+//             for (auto &clock : self->mClocks) {
+//                 NEKOAV_INFO("[Pipeline] '{}' clock: {}", self->name(), clock->time());
+//             }
+//         }
+// #endif
 
         // Put it to the user
         auto _ = co_await messageSender.send(std::move(event));
