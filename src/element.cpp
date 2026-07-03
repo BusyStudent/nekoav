@@ -51,6 +51,7 @@ auto Pad::unlink() -> void {
     // Mark Topology is changed
     if (mElement.mParent) {
         mElement.mParent->mSorted = false;
+        mElement.mParent->onTopologyChange();
     }
     if (mElement.mState == State::Running) {
         NEKOAV_ERROR("[Pad] Topology changed while element '{}' is running, this may cause undefined behavior", mElement.name());
@@ -70,6 +71,7 @@ auto Pad::link(Pad &peer) -> bool {
     // Mark Topology is changed
     if (mElement.mParent) {
         mElement.mParent->mSorted = false;
+        mElement.mParent->onTopologyChange();
     }
     if (mElement.mState == State::Running) {
         NEKOAV_ERROR("[Pad] Topology changed while element '{}' is running, this may cause undefined behavior", mElement.name());
@@ -89,36 +91,22 @@ auto Pad::push(Sample sample) -> IoTask<void> {
 }
 
 auto Pad::pushEvent(Event event) -> IoTask<void> {
-    auto walkToUp = mType == PadType::Input; // If self is input pad, we walk upstream
     auto cur = peer();
     if (!cur) {
         co_return Err(Error::NotLinked);
     }
     auto &element = cur->mElement;
     NEKOAV_INFO("[Pad] push event '{}' to element '{}', pad '{}'", event, element.name(), cur->name());
-    if (cur->mEventCallback) {
+    if (cur->mEventCallback) { 
         if (auto res = co_await cur->mEventCallback(*cur, event); !res) {
             NEKOAV_ERROR("Failed to push event to pad '{}': {}", cur->name(), res.error().message());
             co_return Err(res.error());
         }
         co_return {};
     }
-    // Continue walk to find an handler
-    if (walkToUp) {
-        for (auto &pad : element.inputs()) {
-            if (auto res = co_await pad.pushEvent(event); !res) {
-                co_return Err(res.error());
-            }
-        }
+    else { // fallback to the default implementation
+        co_return co_await element.forwardEvent(*cur, event);
     }
-    else {
-        for (auto &pad : element.outputs()) {
-            if (auto res = co_await pad.pushEvent(event); !res) {
-                co_return Err(res.error());
-            }
-        }
-    }
-    co_return {};
 }
 
 auto Pad::sendQuery(Query query) -> std::optional<Reply> {
@@ -298,6 +286,26 @@ auto Element::setErrorState(std::error_code errc) -> void {
     }
 }
 
+auto Element::forwardEvent(Pad &pad, Event event) -> IoTask<void> {
+    auto walkToUp = pad.type() == PadType::Output; // If we come from the output pad, we walk upstream
+    // Continue walk to find an handler
+    if (walkToUp) {
+        for (auto &pad : inputs()) {
+            if (auto res = co_await pad.pushEvent(event); !res) {
+                co_return Err(res.error());
+            }
+        }
+    }
+    else {
+        for (auto &pad : outputs()) {
+            if (auto res = co_await pad.pushEvent(event); !res) {
+                co_return Err(res.error());
+            }
+        }
+    }
+    co_return {};
+}
+
 auto Element::context() const -> Context * {
     auto pipeline = [this]() -> const Pipeline * {
         auto cur = this;
@@ -335,10 +343,6 @@ auto Element::setPipelineBus(ilias::mpsc::Sender<Message> bus) -> void {
 }
 
 auto Element::dumpInfoInternal(FILE *where, int level) -> void {
-    auto indent = [level](int extra = 0) {
-        return std::string(level + extra, ' '); 
-    };
-
     auto dumpCaps = [&](const Caps &caps, int lv) {
         if (caps.empty()) return;
         for (const auto &[name, value] : caps) {

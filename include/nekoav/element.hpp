@@ -72,6 +72,16 @@ enum class PadType {
     Output,
 };
 
+/**
+ * @brief The type of the Element
+ * 
+ */
+enum class ElementType {
+    Source,    // The source, it has no input pad, 1 or more output pad
+    Sink,      // The sink, it has 1 or more input pad, no output pad
+    Transform, // The transform, it has 1 or more input pad, 1 or more output pad
+};
+
 // MARK: Pad
 /**
  * @brief Represents a connection point on an Element for linking to other Elements.
@@ -88,6 +98,11 @@ public:
     // Get the name of the pad
     auto name() const -> std::string_view {
         return mName;
+    }
+
+    // Get the type of the pad
+    auto type() const -> PadType {
+        return mType;
     }
 
     // Check the pad is linked?
@@ -494,6 +509,21 @@ protected:
      * @return The bus used to send message to pipeline 
      */
     auto pipelineBus() -> ilias::mpsc::Sender<Message> & { return mPipelineBus; }
+
+    /**
+     * @brief Forward the control event to downstream or upstream
+     * 
+     * @code 
+     * auto MyElement::onPadPush(Pad &pad, Event event) -> IoTask<void> {
+     *    co_return co_await forwardEvent(pad, std::move(event));
+     * }
+     * @endcode 
+     * 
+     * @param pad Where did the event come from
+     * @param event The event to be forwarded
+     * @return IoTask<void> 
+     */
+    auto forwardEvent(Pad &pad, Event event) -> IoTask<void>;
 private:
     // Interface for pipeline and bin to use
     /**

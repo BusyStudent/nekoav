@@ -97,6 +97,7 @@ private:
     auto play(QString url) -> void {
         if (mHandle) {
             mHandle.stop();
+            mHandle.wait();
         }
         mHandle = ilias::spawn(mediaTask(url));
     }
@@ -113,7 +114,11 @@ private:
         // Then, start it
         co_await ilias::finally(
             ilias::whenAll(main(pipeline), watchMessage(pipeline)),
-            [&]() { return pipeline->setState(nekoav::State::Null); } // Finally stop it
+            [&]() -> ilias::Task<void> { // Finally stop it
+                auto _ = co_await pipeline->setState(nekoav::State::Null); 
+                ui.playButton->setText("Play");
+                ui.statusbar->showMessage("Stopped");
+            }
         );
     }
 
@@ -121,7 +126,6 @@ private:
         if (co_await pipeline->setState(nekoav::State::Running)) {
             mPipeline = pipeline;
             ui.playButton->setText("Pause");
-            co_await ilias::sleep(1000s);
         }
     }
     
@@ -144,6 +148,12 @@ private:
             if (msg.isError()) {
                 auto error = msg.toError();
                 ui.statusbar->showMessage(error.message.c_str());
+            }
+            if (msg.isEndOfStream()) {
+                // Done
+                if (mHandle) {
+                    mHandle.stop();
+                }
             }
         }
     }

@@ -3,7 +3,9 @@
 #include <nekoav/element.hpp>
 #include <ilias/sync.hpp>
 #include <algorithm>
+#include <optional>
 #include <ranges>
+#include <set>
 #include "log.hpp"
 
 namespace nekoav {
@@ -35,10 +37,13 @@ struct Pipeline::Impl final : public Clock { // Impl the ClockSource
     ilias::WaitHandle<void>               clockTicking {}; // Used when the master clock is self, used to generate the clock update message
 
     // Bus field
-    bool                                  seeking = false; // Did the pipeline handle seeking ?, use atomic?
     ilias::WaitHandle<void>               busMonitor {};
     ilias::mpsc::Sender<Message>          messageSender {}; // Use this field to send message to the (user)
     ilias::mpsc::Receiver<Message>        messageReceiver {};
+
+    // State
+    std::optional<std::set<Element::Ptr> > sinksNotEos; // Sink element, when all of them eos, pipeline eos, nullopt on not initialized
+    bool                                   seeking = false; // Did the pipeline handle seeking ?, use atomic?
 };
 
 Pipeline::Pipeline(std::string_view name) : Bin(name), d(std::make_unique<Impl>()), mContext(std::make_unique<Context>()) {
@@ -75,6 +80,7 @@ auto Pipeline::sendEvent(Event event) -> IoTask<void> {
     if (event.isSeek()) {
         NEKOAV_INFO("[Pipeline] '{}' seek begin", name());
         d->seeking = true;
+        d->sinksNotEos = std::nullopt;
     }
     co_return co_await Bin::sendEvent(std::move(event));
 }
@@ -181,6 +187,10 @@ auto Pipeline::onStop() -> IoTask<void> {
     co_return res;
 }
 
+auto Pipeline::onTopologyChange() -> void {
+    d->sinksNotEos = std::nullopt; // Clear the cached sinks
+}
+
 auto Pipeline::Impl::watchBus(ilias::mpsc::Receiver<Message> receiver) -> Task<void> {
     while (auto res = co_await receiver.recv()) {
         auto &event = *res;
@@ -193,6 +203,26 @@ auto Pipeline::Impl::watchBus(ilias::mpsc::Receiver<Message> receiver) -> Task<v
 //             }
 //         }
 // #endif
+        // Collection all sinks's eos message, if all eos message received, then send eos to bus
+        if (event.isEndOfStream()) {
+            // TODO:
+            auto [element] = event.toEndOfStream();
+            if (!sinksNotEos) { // Lazy initialize the sinks
+                auto s = self->sinks(); // Collect it
+                sinksNotEos.emplace(s.begin(), s.end());
+            }
+            sinksNotEos->erase(element);
+            NEKOAV_INFO("[Pipeline] '{}' received '{}' EOS, {} sinks left", self->name(), element->name(), sinksNotEos->size());
+            if (!sinksNotEos->empty()) {
+                continue;
+            }
+            sinksNotEos.reset();
+            NEKOAV_INFO("[Pipeline] '{}' all sinks received EOS, send EOS to bus", self->name());
+            auto _ = co_await messageSender.send(Message::EndOfStream {
+                .element = self->shared_from_this()
+            });
+            continue;
+        }
 
         // Put it to the user
         auto _ = co_await messageSender.send(std::move(event));

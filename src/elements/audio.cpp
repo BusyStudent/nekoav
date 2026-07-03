@@ -45,6 +45,7 @@ struct AudioSink::Impl final : public Clock { // Implementation the ClockSource
         std::optional<AudioFrame>         currentFrame {};
         size_t                            currentFrameOffset = 0;
         std::atomic<int64_t>              currentPts {}; // int64_t on Timestamp unit
+        std::atomic<bool>                 endOfStream {false};
         Timestamp                         currentPtsInternal; // The pts of the current frame
     } callback;
 
@@ -75,6 +76,7 @@ struct AudioSink::Impl final : public Clock { // Implementation the ClockSource
     // Other...
     auto audioCallback(ma_device *device, std::byte *output, const std::byte *input, ma_uint32 frameCount) -> void;
     auto audioUpdateClock() -> void;
+    auto audioNotifyEOS() -> void;
 };
 
 AudioSink::AudioSink(std::string_view name) : Element(name), mInput(createInputPad("in")) {
@@ -147,6 +149,7 @@ auto AudioSink::onRun() -> IoTask<void> {
 
 auto AudioSink::onPush(Pad &pad, Sample sample) -> IoTask<void> {
     if (!sample) { // EOF
+        d->callback.endOfStream = true; // Let the audioCallback generate the eos message to it
         co_return {};
     }
     if (!sample.isAudioFrame()) {
@@ -230,6 +233,10 @@ auto AudioSink::Impl::audioCallback(ma_device *device, std::byte *output, const 
                 // NEKOAV_INFO("[AudioSink] Got a new frame with {} samples, pts {}", currentFrame->samples(), currentPts.load());
                 audioUpdateClock();
             }
+            else if (auto eos = state.endOfStream.exchange(false); eos) {
+                audioNotifyEOS();
+                break;
+            }
             else { // No more frames
                 // NEKOAV_INFO("[AudioSink] No more frames, fill with silence");
                 break;
@@ -298,6 +305,20 @@ auto AudioSink::Impl::audioUpdateClock() -> void {
     });
     if (!res) {
         NEKOAV_ERROR("[AudioSink] Failed to send clock update event");
+    }
+}
+
+auto AudioSink::Impl::audioNotifyEOS() -> void {
+    NEKOAV_INFO("[AudioSink] End of stream");
+    auto &bus = self->pipelineBus();
+    if (!bus) {
+        return;
+    }
+    auto res = bus.trySend(Message::EndOfStream {
+        .element = self->shared_from_this(),
+    });
+    if (!res) {
+        NEKOAV_ERROR("[AudioSink] Failed to send end of stream event");
     }
 }
 

@@ -27,6 +27,7 @@ auto Bin::addElement(Element::Ptr element) -> void {
     element->setPipelineBus(pipelineBus());
     mChildren.emplace_back(std::move(element));
     mSorted = false;
+    onTopologyChange();
 }
 
 auto Bin::addElementSync(Element::Ptr element) -> IoTask<void> {
@@ -56,6 +57,7 @@ auto Bin::removeElement(Element::Ptr element) -> bool {
     (*it)->setPipelineBus({});
     mChildren.erase(it);
     mSorted = false;
+    onTopologyChange();
     return true;
 }
 
@@ -149,6 +151,26 @@ auto Bin::setChildrenState(State newState) -> IoTask<void> {
     co_return {};
 }
 
+auto Bin::sinks(FindChildren option) const -> std::vector<Element::Ptr> {
+    std::vector<Element::Ptr> sinks {};
+    auto findSinks = [&](auto self, const Bin *bin) -> void {
+        for (auto &child : bin->mChildren) {
+            if (child->outputs().empty() && child->inputs().size() >= 1) { // Has input but no output
+                sinks.push_back(child);
+            }
+            if (option != FindChildren::Recursively) {
+                continue;
+            }
+            if (!child->mIsBin) {
+                continue;
+            }
+            self(self, static_cast<const Bin *>(child.get()));
+        }
+    };
+    findSinks(findSinks, this);
+    return sinks;
+}
+
 auto Bin::topologicalSort() -> bool {
     if (mChildren.empty()) {
         return true; // No children, no-op
@@ -204,6 +226,10 @@ auto Bin::topologicalSort() -> bool {
         mChildren = std::move(sorted);
         return true;
     }
+}
+
+auto Bin::onTopologyChange() -> void {
+    
 }
 
 } // namespace nekoav

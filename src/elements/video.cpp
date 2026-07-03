@@ -141,6 +141,12 @@ auto VideoSink::onPadPush(Pad &, Sample sample) -> IoTask<void> {
     using namespace std::literals;
 
     if (!sample) { // EOF
+        if (auto &bus = pipelineBus(); bus) {
+            auto _ = bus.trySend(Message::EndOfStream {
+                .element = shared_from_this(),
+            });
+            NEKOAV_INFO("[VideoSink] '{}', End of stream", name());
+        }
         co_return {};
     }
     if (!sample.isVideoFrame()) {

@@ -206,6 +206,7 @@ auto UrlSource::readWorker() -> Task<void> {
     } guard { packet, this };
 
     while (true) {
+        // TODO: Maybe we put doSeek onSeekEvent arrive?
         if (d->seekEvent.isSet() && d->seekTime) {
             d->seekEvent.clear();
 
@@ -231,7 +232,7 @@ auto UrlSource::readWorker() -> Task<void> {
                     if (!pad.isLinked()) {
                         continue;
                     }
-                    if (auto res = co_await pad.push(nullptr); !res) {
+                    if (auto res = co_await ilias::unstoppable(pad.push(nullptr)); !res) {
                         setErrorState(res.error());
                         co_return;
                     }
@@ -326,7 +327,7 @@ auto UrlSource::setUrl(std::string_view url) -> void {
 }
 
 auto UrlSource::videoOutputs() -> std::vector<Pad *> {
-    auto vec = std::vector<Pad *> {};
+    std::vector<Pad *> vec{};
     for (auto &pad : std::views::filter(outputs(), [](auto &pad) { return pad.name().starts_with("video/"); })) {
         vec.push_back(&pad);
     }
@@ -334,7 +335,7 @@ auto UrlSource::videoOutputs() -> std::vector<Pad *> {
 }
 
 auto UrlSource::audioOutputs() -> std::vector<Pad *> {
-    auto vec = std::vector<Pad *> {};
+    std::vector<Pad *> vec{};
     for (auto &pad : std::views::filter(outputs(), [](auto &pad) { return pad.name().starts_with("audio/"); })) {
         vec.push_back(&pad);
     }
@@ -342,7 +343,7 @@ auto UrlSource::audioOutputs() -> std::vector<Pad *> {
 }
 
 auto UrlSource::subtitleOutputs() -> std::vector<Pad *> {
-    auto vec = std::vector<Pad *> {};
+    std::vector<Pad *> vec{};
     for (auto &pad : std::views::filter(outputs(), [](auto &pad) { return pad.name().starts_with("subtitle/"); })) {
         vec.push_back(&pad);
     }

@@ -6,6 +6,11 @@
 namespace nekoav {
 
 // MARK: Bin
+enum class FindChildren {
+    Recursively, // Contains children of children
+    Directly     // Only contains direct children
+};
+
 /**
  * @brief The Bin element can contain multiple child elements and manage them as a single unit.
  * 
@@ -81,6 +86,13 @@ public:
      * @return false 
      */
     auto empty() const -> bool { return mChildren.empty(); }
+
+    /**
+     * @brief Get all sinks child elements
+     * 
+     * @return std::vector<Element::Ptr> 
+     */
+    auto sinks(FindChildren option = FindChildren::Recursively) const -> std::vector<Element::Ptr>;
 protected:
     // Sort, return false on Cycle detected
     auto topologicalSort() -> bool;
@@ -92,6 +104,9 @@ protected:
     auto onPause() -> IoTask<void> override;
     auto onStop() -> IoTask<void> override;
     auto onTeardown() -> IoTask<void> override;
+
+    // When topology changes, this method will changed
+    virtual auto onTopologyChange() -> void;
 private:
     // Dump
     auto dumpInfoInternal(FILE *where, int level) -> void override;

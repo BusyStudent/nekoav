@@ -39,6 +39,7 @@ private:
     auto onPause() -> IoTask<void> override;
     auto onStop() -> IoTask<void> override;
     auto onTeardown() -> IoTask<void> override;
+    auto onTopologyChange() -> void override;
 
     struct Impl;
 

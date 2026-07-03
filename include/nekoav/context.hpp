@@ -12,8 +12,10 @@ namespace nekoav {
 
 template <typename T>
 concept Interface = requires(T &t) {
-    T::TypeId;
+    { T::TypeId } -> std::convertible_to<std::string_view>;
 };
+
+// Some bultin interface
 
 /**
  * @brief The interface storage for depending injection

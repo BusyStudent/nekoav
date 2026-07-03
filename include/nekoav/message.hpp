@@ -12,12 +12,14 @@
 #pragma once
 
 #include <nekoav/defines.hpp>
-#include <nekoav/clock.hpp>
-#include <nekoav/caps.hpp>
 #include <variant>
 #include <chrono>
 
 namespace nekoav {
+
+// Forward declaration
+class Clock;
+class Element;
 
 class ErrorMessage {
 public:
@@ -31,8 +33,8 @@ public:
  */
 class ClockUpdateMessage {
 public:
-    Clock::Ptr clock;
-    Timestamp  time;
+    std::shared_ptr<const Clock> clock;
+    Timestamp time;
 };
 
 /**
@@ -44,6 +46,15 @@ public:
     // The media info
     Timestamp startTime;
     Duration  duration;
+};
+
+/**
+ * @brief The 
+ * 
+ */
+class EndOfStreamMessage {
+public:
+    std::shared_ptr<Element> element; // Which element has finished?
 };
 
 /**
@@ -69,7 +80,8 @@ public:
     using MediaLoaded = MediaLoadedMessage;
     using SeekBegin   = SeekBeginMessage;
     using SeekEnd     = SeekEndMessage;
-    using Storage = std::variant<Error, ClockUpdate, MediaLoaded, SeekBegin, SeekEnd>;
+    using EndOfStream = EndOfStreamMessage;
+    using Storage = std::variant<Error, ClockUpdate, MediaLoaded, SeekBegin, SeekEnd, EndOfStream>;
 
     Message(const Message &) = default;
     Message(Message &&) = default;
@@ -84,10 +96,12 @@ public:
     auto isMediaLoaded() const noexcept { return std::holds_alternative<MediaLoaded>(mStorage); }
     auto isSeekBegin() const noexcept { return std::holds_alternative<SeekBegin>(mStorage); }
     auto isSeekEnd() const noexcept { return std::holds_alternative<SeekEnd>(mStorage); }
+    auto isEndOfStream() const noexcept { return std::holds_alternative<EndOfStream>(mStorage); }
 
     auto toError() const noexcept { return std::get<Error>(mStorage); }
     auto toClockUpdate() const noexcept { return std::get<ClockUpdate>(mStorage); }
     auto toMediaLoaded() const noexcept { return std::get<MediaLoaded>(mStorage); }
+    auto toEndOfStream() const noexcept { return std::get<EndOfStream>(mStorage); }
 
     // Get the timestamp when the message was created
     auto timestamp() const noexcept { return mTimestamp; }

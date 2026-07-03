@@ -11,7 +11,10 @@ namespace nekoav {
  * 
  */
 class AudioContext {
+public:
+    static constexpr std::string_view TypeId = "audioContext";
 
+    virtual ~AudioContext() = default;    
 };
 
 class NEKOAV_API AudioSink final : public Element {
