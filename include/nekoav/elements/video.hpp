@@ -13,7 +13,7 @@ namespace nekoav {
  */
 class VideoRenderer {
 public:
-    static constexpr auto TypeId = std::string_view {"videoRenderer"};
+    static constexpr std::string_view TypeId = "videoRenderer";
 
     using Ptr = std::shared_ptr<VideoRenderer>;
 
@@ -80,7 +80,7 @@ private:
  * @note If the renderer is not set, the sink will try to find it on the global context, if still not found, fallback to null renderer.
  * 
  */
-class NEKOAV_API VideoSink final : public Element {
+class NEKOAV_API VideoSink final : public Sink {
 public:
     VideoSink(std::string_view name = {});
     ~VideoSink();

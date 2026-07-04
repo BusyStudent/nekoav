@@ -155,7 +155,7 @@ auto Bin::sinks(FindChildren option) const -> std::vector<Element::Ptr> {
     std::vector<Element::Ptr> sinks {};
     auto findSinks = [&](auto self, const Bin *bin) -> void {
         for (auto &child : bin->mChildren) {
-            if (child->outputs().empty() && child->inputs().size() >= 1) { // Has input but no output
+            if (child->isSink()) { // Has input but no output
                 sinks.push_back(child);
             }
             if (option != FindChildren::Recursively) {

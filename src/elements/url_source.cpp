@@ -27,7 +27,7 @@ struct UrlSource::Impl {
     ilias::Event                   seekEvent;
 };
 
-UrlSource::UrlSource(std::string_view name) : Element(name) {}
+UrlSource::UrlSource(std::string_view name) : Source(name) {}
 
 UrlSource::~UrlSource() {
     assert(!d); // Should be cleanup on onTeardown

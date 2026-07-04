@@ -14,10 +14,23 @@ class AudioContext {
 public:
     static constexpr std::string_view TypeId = "audioContext";
 
-    virtual ~AudioContext() = default;    
+    virtual ~AudioContext() = default;
+    virtual auto backend() const -> std::string_view = 0;
+
+    /**
+     * @brief Create the AudioContext
+     * 
+     * @return std::shared_ptr<AudioContext> 
+     */
+    NEKOAV_API
+    static auto make() -> std::shared_ptr<AudioContext>;
 };
 
-class NEKOAV_API AudioSink final : public Element {
+/**
+ * @brief The AudioSink class, it accept raw audio data and play it
+ * 
+ */
+class NEKOAV_API AudioSink final : public Sink {
 public:
     AudioSink(std::string_view name = {});
     ~AudioSink();

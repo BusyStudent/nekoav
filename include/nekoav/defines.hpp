@@ -42,7 +42,7 @@
         }                                                                 \
     };
 
-#define KEKOAV_THROW(exp) throw exp
+#define NEKOAV_THROW(exp) throw exp
 
 namespace nekoav {
 

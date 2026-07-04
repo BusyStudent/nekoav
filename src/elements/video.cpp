@@ -84,7 +84,7 @@ struct VideoSink::Impl {
     Timestamp renderDuration {};
 };
 
-VideoSink::VideoSink(std::string_view name) : Element(name), mInput(createInputPad("in")) {
+VideoSink::VideoSink(std::string_view name) : Sink(name), mInput(createInputPad("in")) {
     mInput.setPushCallback<&VideoSink::onPadPush>(this);
     mInput.setQueryCallback<&VideoSink::onPadQuery>(this);
     mInput.mutableCaps().insertOrAssign(Caps::VideoRaw, Value::Map {});

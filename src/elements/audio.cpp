@@ -25,17 +25,48 @@
 
 namespace nekoav {
 
+namespace {
+
+class AudioContextImpl final : public AudioContext {
+public:
+    AudioContextImpl() {
+        ma_result result = ma_context_init(NULL, 0, NULL, &context);
+        if (result != MA_SUCCESS) {
+            NEKOAV_THROW(std::runtime_error{"Failed to initialize miniaudio context"});
+        }
+    }
+    ~AudioContextImpl() {
+        ma_context_uninit(&context);
+    }
+
+    // Method
+    auto backend() const -> std::string_view override {
+        return "miniaudio";
+    }
+
+    // Utils
+    auto get() -> ma_context * {
+        return &context;
+    }
+
+    ma_context context {};
+};
+
+} // namespace
+
+auto AudioContext::make() -> std::shared_ptr<AudioContext> {
+    return std::make_shared<AudioContextImpl>();
+}
+
 // MARK: AudioSink
-struct AudioSink::Impl final : public Clock { // Implementation the ClockSource
+class AudioSink::Impl final : public Clock { // Implementation the ClockSource
+public:
     // Self
     AudioSink  *self = nullptr;
 
     // Audio Context and Device
-    ma_context context {};
-    ma_device  device {};
-
-    bool       contextInited = false;
-    bool       deviceInited  = false;
+    std::shared_ptr<AudioContextImpl> context;
+    std::optional<ma_device>          device;
 
     // Access by the Callback, multithreaded
     struct {
@@ -56,11 +87,8 @@ struct AudioSink::Impl final : public Clock { // Implementation the ClockSource
     }
 
     ~Impl() {
-        if (deviceInited) {
-            ma_device_uninit(&device);
-        }
-        if (contextInited) {
-            ma_context_uninit(&context);            
+        if (device) {
+            ma_device_uninit(&*device);
         }
     }
 
@@ -79,7 +107,7 @@ struct AudioSink::Impl final : public Clock { // Implementation the ClockSource
     auto audioNotifyEOS() -> void;
 };
 
-AudioSink::AudioSink(std::string_view name) : Element(name), mInput(createInputPad("in")) {
+AudioSink::AudioSink(std::string_view name) : Sink(name), mInput(createInputPad("in")) {
     mInput.setPushCallback<&AudioSink::onPush>(this);
     mInput.setEventCallback<&AudioSink::onEvent>(this);
 }
@@ -100,15 +128,20 @@ auto AudioSink::sendQuery(Query query) -> std::optional<Reply> {
 auto AudioSink::onPrepare() -> IoTask<void> {
     auto impl = std::make_unique<Impl>();
     impl->self = this;
-    if (auto res = ma_context_init(nullptr, 0, nullptr, &impl->context); res != MA_SUCCESS) {
-        co_return Err(Error::External);
+
+    // Query the global audio context
+    if (auto ctxt = context(); ctxt) {
+        auto found = ctxt->find<AudioContext>();
+        impl->context = std::static_pointer_cast<AudioContextImpl>(found);
     }
-    impl->contextInited = true;
+    if (!impl->context) { // We can't get valid one, create a new one
+        impl->context = std::make_shared<AudioContextImpl>();
+    }
 
     // Try to enumerate devices and get the formats
     ma_device_info *info = nullptr;
     ma_uint32       count = 0;
-    if (auto res = ma_context_get_devices(&impl->context, &info, &count, nullptr, nullptr); res != MA_SUCCESS) {
+    if (auto res = ma_context_get_devices(impl->context->get(), &info, &count, nullptr, nullptr); res != MA_SUCCESS) {
         co_return Err(Error::External);
     }
 
@@ -134,15 +167,15 @@ auto AudioSink::onStop() -> IoTask<void> {
 }
 
 auto AudioSink::onPause() -> IoTask<void> {
-    if (d->deviceInited) {
-        ma_device_stop(&d->device);
+    if (d->device) {
+        ma_device_stop(&*d->device);
     }
     co_return {};
 }
 
 auto AudioSink::onRun() -> IoTask<void> {
-    if (d->deviceInited) {
-        ma_device_start(&d->device);
+    if (d->device) {
+        ma_device_start(&*d->device);
     }
     co_return {};
 }
@@ -158,11 +191,11 @@ auto AudioSink::onPush(Pad &pad, Sample sample) -> IoTask<void> {
     auto frame = sample.toAudioFrame();
 
     // Lazy init the device
-    if (!d->deviceInited) {
+    if (!d->device) {
         if (auto res = initDevice(frame); !res) {
             co_return res;
         }
-        auto _ = ma_device_start(&d->device);
+        auto _ = ma_device_start(&*d->device);
     }
 
     // Ok, push the frame to the queue
@@ -175,14 +208,14 @@ auto AudioSink::onEvent(Pad &pad, Event event) -> IoTask<void> {
     if (!event.isFlushBegin()) {
         co_return {};
     }
-    if (!d->deviceInited) { // Did we mutex with d->device?
+    if (!d->device) { // Did we mutex with d->device?
         co_return {};
     }
     // Do flush
     // Pause the device
-    bool started = ma_device_is_started(&d->device);
+    bool started = ma_device_is_started(&*d->device);
     if (started) {
-        ma_device_stop(&d->device);
+        ma_device_stop(&*d->device);
     }
 
     // Drain the queue
@@ -190,7 +223,7 @@ auto AudioSink::onEvent(Pad &pad, Event event) -> IoTask<void> {
 
     // Restore if needed
     if (started) {
-        ma_device_start(&d->device);
+        ma_device_start(&*d->device);
     }
     co_return {};
 }
@@ -214,10 +247,11 @@ auto AudioSink::initDevice(AudioFrame *frame) -> IoResult<void> {
         auto impl = static_cast<Impl*>(device->pUserData);
         return impl->audioCallback(device, static_cast<std::byte *>(output), static_cast<const std::byte *>(input), frameCount);
     };
-    if (auto res = ma_device_init(&d->context, &config, &d->device); res != MA_SUCCESS) {
+    d->device.emplace();
+    if (auto res = ma_device_init(d->context->get(), &config, &*d->device); res != MA_SUCCESS) {
+        d->device.reset(); // Clear it
         return Err(Error::External);
     }
-    d->deviceInited = true;
     return {};
 }
 

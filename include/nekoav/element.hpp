@@ -67,7 +67,7 @@ enum class StateChange {
  * @brief The type of the Pad
  * 
  */
-enum class PadType {
+enum class PadType : uint8_t {
     Input,
     Output,
 };
@@ -76,10 +76,11 @@ enum class PadType {
  * @brief The type of the Element
  * 
  */
-enum class ElementType {
+enum class ElementType : uint8_t {
     Source,    // The source, it has no input pad, 1 or more output pad
     Sink,      // The sink, it has 1 or more input pad, no output pad
     Transform, // The transform, it has 1 or more input pad, 1 or more output pad
+    Other,     // The other, the pad are unspecified
 };
 
 // MARK: Pad
@@ -319,6 +320,7 @@ private:
 };
 
 // MARK: Element
+// Core Elements: Element, Bin, Pipeline, Source, Sink, Transform
 /**
  * @brief Base class for all media processing elements.
  * 
@@ -455,6 +457,13 @@ public:
      */
     virtual auto sendEvent(Event event) -> IoTask<void>;
 
+    // RTTI
+    auto isBin() const -> bool { return false; }
+    auto isPipeline() const -> bool { return false; }
+    auto isSink() const -> bool { return mType == ElementType::Sink; }
+    auto isSource() const -> bool { return mType == ElementType::Source; }
+    auto isTransform() const -> bool { return mType == ElementType::Transform; }
+
     // No copy
     auto operator =(const Element &) = delete;
     auto operator =(Element &&) = delete;
@@ -464,7 +473,8 @@ protected:
      * 
      * @param name The name of the element (optional)
      */
-    Element(std::string_view name = {});
+    Element(ElementType type, std::string_view name = {});
+    Element(std::string_view name = {}) : Element(ElementType::Other, name) {}
 
     virtual auto dumpInfoInternal(FILE *where, int level) -> void;
 
@@ -540,10 +550,6 @@ private:
      */
     auto setPipelineBus(ilias::mpsc::Sender<Message> bus) -> void;
 
-    // Pads
-    PadList mInputs;
-    PadList mOutputs;
-
     // State / Parent / Clock
     State           mState = State::Null;
     bool            mStateChanging = false;
@@ -555,14 +561,56 @@ private:
     ilias::mpsc::Sender<Message> mPipelineBus {};
 
     // avoid to use RTTI, use bool is faster
+    ElementType     mType = ElementType::Other;
     bool            mIsPipeline = false;
     bool            mIsBin = false;
 
     // Name
     std::string mName;
+
+    // Pads
+    PadList mInputs;
+    PadList mOutputs;
 friend class Pipeline;
 friend class Bin;
 friend class Pad;
+};
+
+// MARK:
+/**
+ * @brief Sink base element, sink is a element that has only input pad
+ * 
+ */
+class NEKOAV_API Sink : public Element {
+public:
+    using Ptr = std::shared_ptr<Sink>;
+protected:
+    Sink(std::string_view name = {}) : Element(ElementType::Sink, name) {}
+    ~Sink();
+};
+
+/**
+ * @brief Source base element, source is a element that has only output pad
+ * 
+ */
+class NEKOAV_API Source : public Element {
+public:
+    using Ptr = std::shared_ptr<Source>;
+protected:
+    Source(std::string_view name = {}) : Element(ElementType::Source, name) {}
+    ~Source();
+};
+
+/**
+ * @brief Transform base element, transform is a element that has both input and output pads, (processing element or not)
+ * 
+ */
+class NEKOAV_API Transform : public Element {
+public:
+    using Ptr = std::shared_ptr<Transform>;
+protected:
+    Transform(std::string_view name = {}) : Element(ElementType::Transform, name) {}
+    ~Transform();
 };
 
 // Utils function
@@ -598,6 +646,14 @@ extern NEKOAV_API auto linkElement(Element &src, Element &dst) -> bool;
 extern NEKOAV_API auto toString(State state) -> std::string_view;
 
 /**
+ * @brief get the string representation of a ElementType enum value.
+ * 
+ * @param type 
+ * @return std::string_view 
+ */
+extern NEKOAV_API auto toString(ElementType type) -> std::string_view;
+
+/**
  * @brief Link the elements in the chain together.
  * 
  * @param ...elements (must be at least 2 elements)
@@ -620,3 +676,4 @@ inline bool linkChain(First &first, Second &second, Rest&... rest) {
 
 // Formatter
 NEKOAV_FORMATTER_4(nekoav::State);
+NEKOAV_FORMATTER_4(nekoav::ElementType);

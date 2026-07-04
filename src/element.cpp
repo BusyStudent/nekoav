@@ -55,6 +55,7 @@ auto Pad::unlink() -> void {
     }
     if (mElement.mState == State::Running) {
         NEKOAV_ERROR("[Pad] Topology changed while element '{}' is running, this may cause undefined behavior", mElement.name());
+        std::abort();
     }
 }
 
@@ -75,6 +76,7 @@ auto Pad::link(Pad &peer) -> bool {
     }
     if (mElement.mState == State::Running) {
         NEKOAV_ERROR("[Pad] Topology changed while element '{}' is running, this may cause undefined behavior", mElement.name());
+        std::abort();
     }
     return true;
 }
@@ -142,7 +144,7 @@ auto Pad::sendQuery(Query query) -> std::optional<Reply> {
 }
 
 // MARK: Element
-Element::Element(std::string_view name) : mName(name) {
+Element::Element(ElementType type, std::string_view name) : mType(type), mName(name) {
     if (mName.empty()) {
         mName = "#Element " + std::to_string(std::bit_cast<uintptr_t>(this));
     }
@@ -386,6 +388,11 @@ auto Element::dumpInfoInternal(FILE *where, int level) -> void {
     }
 }
 
+// MARK: Sink, Transform, Source dtor
+Sink::~Sink() {}
+Source::~Source() {}
+Transform::~Transform() {}
+
 // MARK: Utils
 auto linkElement(Element &src, std::string_view srcPadName, Element &dst, std::string_view dstPadName) -> bool {
     auto srcPad = std::ranges::find_if(src.outputs(), [&](auto &pad) { return pad.name() == srcPadName; });
@@ -407,6 +414,16 @@ auto toString(State state) -> std::string_view {
         case State::Paused:  return "Paused";
         case State::Running: return "Running";
         default:             return "Unknown"; // Impossible!
+    }
+}
+
+auto toString(ElementType type) -> std::string_view {
+    switch (type) {
+        case ElementType::Sink:      return "Sink";
+        case ElementType::Source:    return "Source";
+        case ElementType::Transform: return "Transform";
+        case ElementType::Other:     return "Other";
+        default:                     return "Unknown"; // Impossible!
     }
 }
 

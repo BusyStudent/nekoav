@@ -86,7 +86,7 @@ struct Decoder::Impl {
 };
 
 Decoder::Decoder(std::string_view name) : 
-    Element(name), 
+    Transform(name), 
     mInput(createInputPad("in")), 
     mOutput(createOutputPad("out")) 
 {

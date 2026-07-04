@@ -10,7 +10,7 @@ namespace nekoav {
  * @brief Decode the packet into a frame.
  * 
  */
-class NEKOAV_API Decoder final : public Element {
+class NEKOAV_API Decoder final : public Transform {
 public:
     enum Policy {
         Auto         = 0, // Use hardware if available

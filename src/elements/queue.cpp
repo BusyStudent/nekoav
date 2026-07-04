@@ -23,7 +23,7 @@ struct Queue::Impl {
     Pad *out = nullptr;
 };
 
-Queue::Queue(std::string_view name) : Element(name), d(std::make_unique<Impl>()) {
+Queue::Queue(std::string_view name) : Transform(name), d(std::make_unique<Impl>()) {
     
     auto &in = createInputPad("in");
     auto &out = createOutputPad("out");

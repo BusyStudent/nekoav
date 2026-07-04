@@ -12,7 +12,7 @@ namespace nekoav {
  * 
  * @note It wil load the media on Ready -> Pause (Prepare)
  */
-class NEKOAV_API UrlSource final : public Element {
+class NEKOAV_API UrlSource final : public Source {
 public:
     UrlSource(std::string_view name = {});
     ~UrlSource();
