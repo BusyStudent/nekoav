@@ -22,6 +22,14 @@
 namespace nekoav {
 
 /**
+ * @brief This class means it accept whole range of types, like "width": Any (I dn't care the width)
+ * 
+ */
+struct Any {
+    auto operator <=>(const Any &) const = default;
+};
+
+/**
  * @brief The value for multimedia
  * 
  */
@@ -31,6 +39,7 @@ public:
     using String  = std::string;
     using Integer = int64_t;
     using Double  = double;
+    using Any     = nekoav::Any;
     using List    = std::vector<Value>;
     using Map     = std::map<std::string, Value, std::less<> >;
     using Bytes   = std::vector<std::byte>;
@@ -49,6 +58,7 @@ public:
         Duration,
         Bytes,
         List,
+        Any,
         Map
     >;
 
@@ -66,6 +76,7 @@ public:
 
     // Checked conversions
     auto isNull() const noexcept { return std::holds_alternative<Null>(mStorage); }
+    auto isAny() const noexcept { return std::holds_alternative<Any>(mStorage); }
     auto isString() const noexcept { return std::holds_alternative<String>(mStorage); }
     auto isInteger() const noexcept { return std::holds_alternative<Integer>(mStorage); }
     auto isDouble() const noexcept { return std::holds_alternative<Double>(mStorage); }
@@ -120,7 +131,7 @@ public:
         return null;
     }
 
-    // Constructhelper
+    // Construct helper
     static auto fromString(std::string_view s) -> Value { return Value(std::string(s)); }
     static auto fromInteger(int64_t i) -> Value { return Value(i); }
     static auto fromDouble(double d) -> Value { return Value(d); }
@@ -131,7 +142,7 @@ private:
 };
 
 // Caps: [
-//  { Caps::Any, Null },
+//  { Caps::Any, Any },
 //  { Caps::VideoPacket, Maps {} },
 //  { Caps::VideoRaw, Maps {} },
 //  { Caps::AudioPacket, Maps {} },
@@ -246,8 +257,45 @@ private:
 
 // MARK: Formatter
 template <>
+struct std::formatter<nekoav::Any> {
+    constexpr auto parse(std::format_parse_context &ctxt) -> decltype(ctxt.begin()) {
+        return ctxt.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const nekoav::Any &, FormatContext &ctxt) const {
+        return std::format_to(ctxt.out(), "any");
+    }
+};
+
+// Using C++23 range formatter
+template <>
+struct std::formatter<nekoav::Value::List> {
+    constexpr auto parse(std::format_parse_context &ctxt) -> decltype(ctxt.begin()) {
+        return ctxt.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const nekoav::Value::List &l, FormatContext &ctxt) const {
+        return std::format_to(ctxt.out(), "{}", std::ranges::subrange(l.begin(), l.end()));
+    }
+};
+
+template <>
+struct std::formatter<nekoav::Value::Map> {
+    constexpr auto parse(std::format_parse_context &ctxt) -> decltype(ctxt.begin()) {
+        return ctxt.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const nekoav::Value::Map &m, FormatContext &ctxt) const {
+        return std::format_to(ctxt.out(), "{}", std::ranges::subrange(m.begin(), m.end()));
+    };
+};
+
+template <>
 struct std::formatter<nekoav::Value> {
-    constexpr auto parse(std::format_parse_context &ctxt){
+    constexpr auto parse(std::format_parse_context &ctxt) -> decltype(ctxt.begin()) {
         return ctxt.begin();
     }
 
@@ -256,26 +304,6 @@ struct std::formatter<nekoav::Value> {
         const auto visitor = nekoav::Overloads {
             [&](std::monostate) {
                 return std::format_to(ctxt.out(), "null");
-            },
-            [&](const nekoav::Value::List &l) {
-                auto out = std::format_to(ctxt.out(), "[");
-                bool first = true;
-                for (const auto& item : l) {
-                    if (!first) out = std::format_to(out, ", ");
-                    out = std::format_to(out, "{}", item);
-                    first = false;
-                }
-                return std::format_to(out, "]");
-            },
-            [&](const nekoav::Value::Map &m) {
-                auto out = std::format_to(ctxt.out(), "{{");
-                bool first = true;
-                for (const auto& [key, item] : m) {
-                    if (!first) out = std::format_to(out, ", ");
-                    out = std::format_to(out, "\"{}\": {}", key, item);
-                    first = false;
-                }
-                return std::format_to(out, "}}"); 
             },
             [&](const nekoav::Value::Bytes &b) {
                 return std::format_to(ctxt.out(), "bytes[{}]", b.size());
@@ -290,7 +318,7 @@ struct std::formatter<nekoav::Value> {
 
 template <>
 struct std::formatter<nekoav::Caps> {
-    constexpr auto parse(std::format_parse_context &ctxt) {
+    constexpr auto parse(std::format_parse_context &ctxt) -> decltype(ctxt.begin()) {
         return ctxt.begin();
     }
 

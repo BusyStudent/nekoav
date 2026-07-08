@@ -24,9 +24,6 @@ struct Pipeline::Impl final : public Clock { // Impl the ClockSource
         return ClockCategory::System;
     }
 
-    // Bus
-    auto watchBus(ilias::mpsc::Receiver<Message> receiver) -> Task<void>;
-
     // To Reference pipeline
     Pipeline                             *self = nullptr;
 
@@ -37,16 +34,22 @@ struct Pipeline::Impl final : public Clock { // Impl the ClockSource
     ilias::WaitHandle<void>               clockTicking {}; // Used when the master clock is self, used to generate the clock update message
 
     // Bus field
-    ilias::WaitHandle<void>               busMonitor {};
     ilias::mpsc::Sender<Message>          messageSender {}; // Use this field to send message to the (user)
     ilias::mpsc::Receiver<Message>        messageReceiver {};
+
+    // Children message filed
+    ilias::WaitHandle<void>               childrenMessageWatcher {}; // Used to watch the children message
+    ilias::mpsc::Sender<Message>          childrenMessageSender {}; // Used to send message to the watcher
 
     // State
     std::optional<std::set<Element::Ptr> > sinksNotEos; // Sink element, when all of them eos, pipeline eos, nullopt on not initialized
     bool                                   seeking = false; // Did the pipeline handle seeking ?, use atomic?
+
+    // Method
+    auto watchChildrenMessage(ilias::mpsc::Receiver<Message> receiver) -> Task<void>;
 };
 
-Pipeline::Pipeline(std::string_view name) : Bin(name), d(std::make_unique<Impl>()), mContext(std::make_unique<Context>()) {
+Pipeline::Pipeline(std::string_view name) : Bin(name), d(std::make_unique<Impl>()) {
     // Initialize the self
     auto [sender, receiver] = ilias::mpsc::channel<Message>();
     d->messageSender = std::move(sender);
@@ -54,7 +57,7 @@ Pipeline::Pipeline(std::string_view name) : Bin(name), d(std::make_unique<Impl>(
     d->self = this;
 
     // Mark the typeinfo
-    mIsPipeline = true;
+    this->mIsPipeline = true;
 }
 
 Pipeline::~Pipeline() {
@@ -86,21 +89,30 @@ auto Pipeline::sendEvent(Event event) -> IoTask<void> {
 }
 
 auto Pipeline::onInitialize() -> IoTask<void> {
-    // pipelineBus initialize onInitialize, cleanup onTeardown
-    assert(!d->busMonitor);
+    // Initialize the children channel
+    assert(!d->childrenMessageWatcher && !d->childrenMessageSender);
     auto [sender, receiver] = ilias::mpsc::channel<Message>();
-    d->busMonitor = ilias::spawn(d->watchBus(std::move(receiver)));
+    d->childrenMessageSender = std::move(sender);
+    d->childrenMessageWatcher = ilias::spawn(d->watchChildrenMessage(std::move(receiver)));
+    
+    // Check if user set the context
+    if (!context()) { // Create our own context
+        setContext(std::make_shared<Context>());
+    }
+
     d->seeking = false;
-    setPipelineBus(sender);// Set the bus to self and all children
     co_return co_await Bin::onInitialize();
 }
 
 auto Pipeline::onTeardown() -> IoTask<void> {
-    assert(d->busMonitor);
-    d->busMonitor.stop();
-    co_await std::exchange(d->busMonitor, {});
-    setPipelineBus({}); // Clear the bus
-    co_return co_await Bin::onTeardown();
+    assert(d->childrenMessageWatcher && d->childrenMessageSender);
+    auto res = co_await Bin::onTeardown();
+    
+    // Join the watcher
+    d->childrenMessageWatcher.stop();
+    co_await std::exchange(d->childrenMessageWatcher, {});
+    d->childrenMessageSender = {};
+    co_return res;
 }
 
 auto Pipeline::onRun() -> IoTask<void> {
@@ -116,7 +128,7 @@ auto Pipeline::onRun() -> IoTask<void> {
                     assert(clock);
                     mClocks.emplace_back(std::move(clock));
                 }
-                if (child->mIsBin) {
+                if (child->isBin()) {
                     self(self, static_cast<Bin*>(child.get()));
                 }
             }
@@ -137,7 +149,7 @@ auto Pipeline::onRun() -> IoTask<void> {
         NEKOAV_INFO("[Pipeline] '{}' use system clock", name());
         d->clockTicking = ilias::spawn([this] -> Task<void> {
             while (true) {
-                auto _ = co_await pipelineBus().send(Message::ClockUpdate {
+                onChildMessage(Message::ClockUpdate {
                     .clock = clock(),
                     .time = d->time(),
                 });
@@ -191,23 +203,28 @@ auto Pipeline::onTopologyChange() -> void {
     d->sinksNotEos = std::nullopt; // Clear the cached sinks
 }
 
-auto Pipeline::Impl::watchBus(ilias::mpsc::Receiver<Message> receiver) -> Task<void> {
+auto Pipeline::onChildMessage(Message message) -> void {
+    // Post the children message to the watcher
+    auto _ = d->messageSender.trySend(std::move(message));
+}
+
+auto Pipeline::Impl::watchChildrenMessage(ilias::mpsc::Receiver<Message> receiver) -> Task<void> {
+    // Handle it...
     while (auto res = co_await receiver.recv()) {
-        auto &event = *res;
-        // Handle it...
-        // NEKOAV_INFO("[Pipeline] '{}' received event: {}", self->name(), event);
-// #if !defined(NDEBUG)
-//         if (event.isClockUpdate()) {
-//             for (auto &clock : self->mClocks) {
-//                 NEKOAV_INFO("[Pipeline] '{}' clock: {}", self->name(), clock->time());
-//             }
-//         }
-// #endif
+        auto &message = *res;
+        // NEKOAV_INFO("[Pipeline] '{}' received message: {}", self->name(), message);
+#if !defined(NDEBUG)
+        // if (message.isClockUpdate()) {
+        //     for (auto &clock : self->mClocks) {
+        //         NEKOAV_INFO("[Pipeline] '{}' clock: {}", self->name(), clock->time());
+        //     }
+        // }
+#endif
         // Collection all sinks's eos message, if all eos message received, then send eos to bus
-        if (event.isEndOfStream()) {
+        if (message.isEndOfStream()) {
             // TODO:
-            auto [element] = event.toEndOfStream();
-            if (!sinksNotEos) { // Lazy initialize the sinks
+            auto [element] = message.toEndOfStream();
+            if (sinksNotEos) { // Lazy initialize the sinks
                 auto s = self->sinks(); // Collect it
                 sinksNotEos.emplace(s.begin(), s.end());
             }
@@ -218,15 +235,16 @@ auto Pipeline::Impl::watchBus(ilias::mpsc::Receiver<Message> receiver) -> Task<v
             }
             sinksNotEos.reset();
             NEKOAV_INFO("[Pipeline] '{}' all sinks received EOS, send EOS to bus", self->name());
-            auto _ = co_await messageSender.send(Message::EndOfStream {
+            auto _ =  co_await messageSender.send(Message::EndOfStream {
                 .element = self->shared_from_this()
             });
             continue;
         }
 
         // Put it to the user
-        auto _ = co_await messageSender.send(std::move(event));
+        auto _ = co_await messageSender.send(std::move(message));
     }
+    NEKOAV_WARN("The channel broken?");
 }
 
 } // namespace nekoav

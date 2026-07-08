@@ -23,7 +23,7 @@ concept Interface = requires(T &t) {
  */
 class NEKOAV_API Context {
 public:
-    using Ptr = Context *;
+    using Ptr = std::shared_ptr<Context>;
 
     Context();
     Context(const Context &) = delete;

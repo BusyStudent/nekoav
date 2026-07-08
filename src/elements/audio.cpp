@@ -329,31 +329,17 @@ auto AudioSink::Impl::audioCallback(ma_device *device, std::byte *output, const 
 }
 
 auto AudioSink::Impl::audioUpdateClock() -> void {
-    auto &bus = self->pipelineBus();
-    if (!bus) {
-        return;
-    }
-    auto res = bus.trySend(Message::ClockUpdate {
+    self->postMessage(Message::ClockUpdate {
         .clock = Clock::Ptr { self->shared_from_this(), this },
         .time = Timestamp { callback.currentPts.load() },
     });
-    if (!res) {
-        NEKOAV_ERROR("[AudioSink] Failed to send clock update event");
-    }
 }
 
 auto AudioSink::Impl::audioNotifyEOS() -> void {
     NEKOAV_INFO("[AudioSink] End of stream");
-    auto &bus = self->pipelineBus();
-    if (!bus) {
-        return;
-    }
-    auto res = bus.trySend(Message::EndOfStream {
+    self->postMessage(Message::EndOfStream {
         .element = self->shared_from_this(),
     });
-    if (!res) {
-        NEKOAV_ERROR("[AudioSink] Failed to send end of stream event");
-    }
 }
 
 

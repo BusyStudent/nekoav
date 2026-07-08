@@ -98,7 +98,7 @@ private:
 // Formatter
 template <>
 struct std::formatter<nekoav::Event> {
-    constexpr auto parse(std::format_parse_context &ctxt) {
+    constexpr auto parse(std::format_parse_context &ctxt) -> decltype(ctxt.begin()) {
         return ctxt.begin();
     }
 

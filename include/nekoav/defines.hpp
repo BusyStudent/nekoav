@@ -89,7 +89,9 @@ struct Overloads : Ts... { using Ts::operator()...; };
 // Formatter
 template <>
 struct std::formatter<nekoav::Rational> {
-    constexpr auto parse(std::format_parse_context &ctxt) { return ctxt.begin(); }
+    constexpr auto parse(std::format_parse_context &ctxt) -> decltype(ctxt.begin()) { 
+        return ctxt.begin(); 
+    }
 
     template <typename FormatContext>
     auto format(nekoav::Rational r, FormatContext &ctxt) const {

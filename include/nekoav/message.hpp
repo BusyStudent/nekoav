@@ -119,5 +119,17 @@ private:
     std::chrono::steady_clock::time_point mTimestamp; // When the message was created
 };
 
-
 } // namespace nekoav
+
+// template <>
+// struct std::formatter<nekoav::Message> {
+//     constexpr auto parse(std::format_parse_context &ctxt) -> decltype(ctxt.begin()) {
+//         return ctxt.begin();
+//     }
+
+//     auto format(const nekoav::Message &msg, std::format_context &ctxt) -> decltype(ctxt.out()) {
+//         return msg.visit([&ctxt](const auto &arg) {
+//             return std::format_to(ctxt.out(), "{}", arg);
+//         });
+//     }
+// };

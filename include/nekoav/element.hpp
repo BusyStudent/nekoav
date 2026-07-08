@@ -18,7 +18,6 @@
 #include <nekoav/query.hpp>
 #include <nekoav/clock.hpp>
 #include <nekoav/caps.hpp>
-#include <ilias/sync/mpsc.hpp>
 #include <ilias/task.hpp>
 #include <optional>
 #include <string>
@@ -80,6 +79,7 @@ enum class ElementType : uint8_t {
     Source,    // The source, it has no input pad, 1 or more output pad
     Sink,      // The sink, it has 1 or more input pad, no output pad
     Transform, // The transform, it has 1 or more input pad, 1 or more output pad
+    Bin,       // The bin, the pad is unspecified
     Other,     // The other, the pad are unspecified
 };
 
@@ -357,6 +357,13 @@ public:
     auto setState(State targetState) -> IoTask<void>;
 
     /**
+     * @brief Set the Context of the element, it will set the context to all child elements
+     * 
+     * @param context The context to set
+     */
+    auto setContext(Context::Ptr context) -> void;
+
+    /**
      * @brief Set the new name of the element
      * 
      * @param name if empty, we will set an unique name of it
@@ -437,9 +444,9 @@ public:
     /**
      * @brief Get the pipeline context for query / set interface
      * 
-     * @return Context * 
+     * @return Context::Ptr (nullptr on not exist)
      */
-    auto context() const -> Context *;
+    auto context() const -> const Context::Ptr & { return mContext; }
 
     /**
      * @brief Send an sync query to the element
@@ -458,8 +465,8 @@ public:
     virtual auto sendEvent(Event event) -> IoTask<void>;
 
     // RTTI
-    auto isBin() const -> bool { return false; }
-    auto isPipeline() const -> bool { return false; }
+    auto isPipeline() const -> bool { return mIsPipeline; }
+    auto isBin() const -> bool { return mType == ElementType::Bin; }
     auto isSink() const -> bool { return mType == ElementType::Sink; }
     auto isSource() const -> bool { return mType == ElementType::Source; }
     auto isTransform() const -> bool { return mType == ElementType::Transform; }
@@ -514,11 +521,13 @@ protected:
     auto setErrorState(std::error_code errc) -> void;
 
     /**
-     * @brief Get the bus object
+     * @brief Post an message to parent element
+     * @note This method is MT safe, can be called from any thread
      * 
-     * @return The bus used to send message to pipeline 
+     * @param message 
+     * @return 
      */
-    auto pipelineBus() -> ilias::mpsc::Sender<Message> & { return mPipelineBus; }
+    auto postMessage(Message message) -> bool;
 
     /**
      * @brief Forward the control event to downstream or upstream
@@ -543,13 +552,6 @@ private:
      */
     auto setClock(Clock::Ptr clock) -> void;
 
-    /**
-     * @brief Set the Pipeline Bus that send an message to pipeline
-     * 
-     * @param bus 
-     */
-    auto setPipelineBus(ilias::mpsc::Sender<Message> bus) -> void;
-
     // State / Parent / Clock
     State           mState = State::Null;
     bool            mStateChanging = false;
@@ -558,12 +560,11 @@ private:
     // Filed used for topological
     Bin            *mParent = nullptr;
     Clock::Ptr      mClock = nullptr;
-    ilias::mpsc::Sender<Message> mPipelineBus {};
+    Context::Ptr    mContext = nullptr;
 
     // avoid to use RTTI, use bool is faster
     ElementType     mType = ElementType::Other;
     bool            mIsPipeline = false;
-    bool            mIsBin = false;
 
     // Name
     std::string mName;

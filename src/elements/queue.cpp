@@ -29,8 +29,8 @@ Queue::Queue(std::string_view name) : Transform(name), d(std::make_unique<Impl>(
     auto &out = createOutputPad("out");
 
     // Set capacity
-    in.mutableCaps().insertOrAssign(Caps::Any, {});
-    out.mutableCaps().insertOrAssign(Caps::Any, {});
+    in.mutableCaps().insertOrAssign(Caps::Any, Value::Any{});
+    out.mutableCaps().insertOrAssign(Caps::Any, Value::Any{});
 
     // Bind it
     in.setPushCallback<&Queue::onPush>(this);

@@ -2,6 +2,7 @@
 
 #include <nekoav/elements/bin.hpp>
 #include <nekoav/element.hpp>
+#include <ilias/sync/mpsc.hpp>
 
 namespace nekoav {
 
@@ -40,13 +41,13 @@ private:
     auto onStop() -> IoTask<void> override;
     auto onTeardown() -> IoTask<void> override;
     auto onTopologyChange() -> void override;
+    auto onChildMessage(Message msg) -> void override;
 
     struct Impl;
 
     // All clocks in the pipeline, sort by priority
-    std::unique_ptr<Context> mContext; // The context of the pipeline
-    std::vector<Clock::Ptr>  mClocks;
-    std::unique_ptr<Impl>    d;
+    std::vector<Clock::Ptr> mClocks;
+    std::unique_ptr<Impl>   d;
 friend class Element;
 };
 

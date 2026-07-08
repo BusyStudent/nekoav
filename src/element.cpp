@@ -283,9 +283,18 @@ auto Element::createOutputPad(std::string_view name) -> Pad & {
 auto Element::setErrorState(std::error_code errc) -> void {
     NEKOAV_ERROR("[Element] set error state: {}", errc.message());
     mError = errc;
-    if (mPipelineBus) {
-        auto _ = mPipelineBus.trySend(Message::Error {errc});
+    postMessage(Message::Error {
+        .error = errc
+    });
+}
+
+auto Element::postMessage(Message message) -> bool {
+    if (!mParent) {
+        NEKOAV_ERROR("[Element] '{}' Failed to post message to parent, no parent exists", name());
+        return false;
     }
+    mParent->onChildMessage(std::move(message));
+    return true;
 }
 
 auto Element::forwardEvent(Pad &pad, Event event) -> IoTask<void> {
@@ -308,38 +317,23 @@ auto Element::forwardEvent(Pad &pad, Event event) -> IoTask<void> {
     co_return {};
 }
 
-auto Element::context() const -> Context * {
-    auto pipeline = [this]() -> const Pipeline * {
-        auto cur = this;
-        while (cur) {
-            if (cur->mIsPipeline) {
-                return static_cast<const Pipeline *>(cur);
-            }
-            cur = cur->mParent;
+// MARK: Set Context
+auto Element::setContext(Context::Ptr ctxt) -> void {
+    mContext = ctxt;
+    if (this->isBin()) {
+        auto self = static_cast<Bin *>(this);
+        for (auto &child : self->mChildren) {
+            child->setContext(ctxt);
         }
-        return nullptr;
-    };
-    if (auto p = pipeline(); p) {
-        return p->mContext.get();
     }
-    return nullptr;
 }
 
 // MARK: Set Clock
 auto Element::setClock(Clock::Ptr clock) -> void {
     mClock = clock;
-    if (mIsBin) {
+    if (this->isBin()) {
         for (auto &child : static_cast<Bin *>(this)->mChildren) {
             child->setClock(clock);
-        }
-    }
-}
-
-auto Element::setPipelineBus(ilias::mpsc::Sender<Message> bus) -> void {
-    mPipelineBus = bus;
-    if (mIsBin) {
-        for (auto &child : static_cast<Bin *>(this)->mChildren) {
-            child->setPipelineBus(bus);
         }
     }
 }
@@ -349,10 +343,10 @@ auto Element::dumpInfoInternal(FILE *where, int level) -> void {
         if (caps.empty()) return;
         for (const auto &[name, value] : caps) {
             if (value.isNull()) {
-                std::print(where, "{:{}}• {}\n", "", lv, name);
+                std::println(where, "{:{}}• {}", "", lv, name);
             }
             else {
-                std::print(where, "{:{}}• {}: {}\n", "", lv, name, value);
+                std::println(where, "{:{}}• {}: {}", "", lv, name, value);
             }
         }
     };
@@ -361,27 +355,27 @@ auto Element::dumpInfoInternal(FILE *where, int level) -> void {
         std::string_view arrow = isInput ? "<-" : "->";
         std::string_view linkState = pad.isLinked() ? "[Linked]" : "[Unlinked]";
         
-        std::print(where, "{:{}}{} '{}' {}\n", "", lv, arrow, pad.name(), linkState);
+        std::println(where, "{:{}}{} '{}' {}", "", lv, arrow, pad.name(), linkState);
         dumpCaps(pad.caps(), lv + 3); 
     };
 
     // Element ： [State] Name
     //   Clock
-    //   Bus
-    std::print(where, "{:{}}[{}] {}\n", "", level, mState, mName);
-    std::print(where, "{:{}}Clock: {}\n", "", level + 2, static_cast<const void*>(mClock.get()));
-    std::print(where, "{:{}}Bus: {}\n", "", level + 2, mPipelineBus ? "Have" : "None");
+    //   Context
+    std::println(where, "{:{}}[{}] {}", "", level, mState, mName);
+    std::println(where, "{:{}}Clock: {}", "", level + 2, static_cast<const void*>(mClock.get()));
+    std::println(where, "{:{}}Context: {}", "", level + 2, static_cast<const void*>(mContext.get()));
 
     //   Caps
     if (!mInputs.empty()) {
-        std::print(where, "{:{}}Inputs:\n", "", level + 2);
+        std::println(where, "{:{}}Inputs:", "", level + 2);
         for (auto &pad : mInputs) {
             dumpPad(pad, level + 4, true);
         }
     }
 
     if (!mOutputs.empty()) {
-        std::print(where, "{:{}}Outputs:\n", "", level + 2);
+        std::println(where, "{:{}}Outputs:", "", level + 2);
         for (auto &pad : mOutputs) {
             dumpPad(pad, level + 4, false);
         }

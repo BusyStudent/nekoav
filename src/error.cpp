@@ -24,6 +24,7 @@ auto ErrorCategory::message(int code) const -> std::string {
         arr[static_cast<size_t>(Error::InvalidArguments)]        = "Invalid arguments";
         arr[static_cast<size_t>(Error::InvalidState)]            = "Invalid state transition";
         arr[static_cast<size_t>(Error::InvalidContext)]          = "Invalid context";
+        arr[static_cast<size_t>(Error::InBusy)]                  = "This method can't be called cocurently";
 
         arr[static_cast<size_t>(Error::NoStream)]                = "No media stream found";
         arr[static_cast<size_t>(Error::NoCodec)]                 = "No codec found";

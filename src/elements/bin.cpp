@@ -7,8 +7,8 @@
 namespace nekoav {
 
 // MARK: Bin
-Bin::Bin(std::string_view name) : Element(name) {
-    mIsBin = true;
+Bin::Bin(std::string_view name) : Element(ElementType::Bin, name) {
+
 }
 
 Bin::~Bin() {
@@ -24,7 +24,7 @@ auto Bin::addElement(Element::Ptr element) -> void {
     // Set the member belong the bin
     element->mParent = this;
     element->setClock(clock());
-    element->setPipelineBus(pipelineBus());
+    element->setContext(context());
     mChildren.emplace_back(std::move(element));
     mSorted = false;
     onTopologyChange();
@@ -54,7 +54,7 @@ auto Bin::removeElement(Element::Ptr element) -> bool {
     // Remove the member belong the bin
     (*it)->mParent = nullptr;
     (*it)->setClock({});
-    (*it)->setPipelineBus({});
+    (*it)->setContext({});
     mChildren.erase(it);
     mSorted = false;
     onTopologyChange();
@@ -161,7 +161,7 @@ auto Bin::sinks(FindChildren option) const -> std::vector<Element::Ptr> {
             if (option != FindChildren::Recursively) {
                 continue;
             }
-            if (!child->mIsBin) {
+            if (!child->isBin()) {
                 continue;
             }
             self(self, static_cast<const Bin *>(child.get()));
@@ -230,6 +230,10 @@ auto Bin::topologicalSort() -> bool {
 
 auto Bin::onTopologyChange() -> void {
     
+}
+
+auto Bin::onChildMessage(Message message) -> void {
+    postMessage(std::move(message));
 }
 
 } // namespace nekoav

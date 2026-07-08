@@ -145,12 +145,10 @@ auto UrlSource::onPrepare() -> IoTask<void> {
     }
 
     // Notify the bus, media is ready
-    if (auto bus = pipelineBus(); bus) {
-        auto _ = co_await bus.send(Message::MediaLoaded {
-            .startTime = time::fromFFmpeg(d->ctxt->start_time, AV_TIME_BASE_Q),
-            .duration = time::fromFFmpeg(d->ctxt->duration, AV_TIME_BASE_Q),
-        });
-    }
+    postMessage(Message::MediaLoaded {
+        .startTime = time::fromFFmpeg(d->ctxt->start_time, AV_TIME_BASE_Q),
+        .duration = time::fromFFmpeg(d->ctxt->duration, AV_TIME_BASE_Q),
+    });
 
     // Start the worker
     d->readWorker = ilias::spawn(readWorker());
@@ -298,9 +296,7 @@ auto UrlSource::doSeek() -> IoTask<void> {
     }
 
     // Notify the pipeline that seek begin
-    if (auto bus = pipelineBus(); bus) {
-        auto _ = co_await bus.send(Message::SeekBegin {});
-    }
+    postMessage(Message::SeekBegin {});
     
     // Notify all the downstream that flush the buffer
     for (auto &pad : outputs()) {
@@ -311,9 +307,7 @@ auto UrlSource::doSeek() -> IoTask<void> {
     }
 
     // Notify the pipeline that seek done
-    if (auto bus = pipelineBus(); bus) {
-        auto _ = co_await bus.send(Message::SeekEnd {});
-    }
+    postMessage(Message::SeekEnd {});
     NEKOAV_INFO("[UrlSource] '{}' seek done", name());
     co_return {};
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <nekoav/element.hpp>
+#include <ilias/sync/mpsc.hpp>
 #include <vector>
 
 namespace nekoav {
@@ -104,6 +105,11 @@ protected:
     auto onPause() -> IoTask<void> override;
     auto onStop() -> IoTask<void> override;
     auto onTeardown() -> IoTask<void> override;
+
+    // When an message was post by children
+    // The default implementation is to post the message to the parent, override it if you want to filter it
+    // This methold implemented must be thread-safe
+    virtual auto onChildMessage(Message message) -> void;
 
     // When topology changes, this method will changed
     virtual auto onTopologyChange() -> void;

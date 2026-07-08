@@ -125,6 +125,7 @@ private:
     auto main(nekoav::Pipeline::Ptr pipeline) -> ilias::Task<void> {
         if (co_await pipeline->setState(nekoav::State::Running)) {
             mPipeline = pipeline;
+            mPipeline->dumpInfo();
             ui.playButton->setText("Pause");
         }
     }
