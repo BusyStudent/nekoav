@@ -211,7 +211,7 @@ auto Element::setState(State targetState) -> IoTask<void> {
             case StateChange::Stop:       task = onStop(); break; // Clear any clock and bus
             case StateChange::Teardown:   task = onTeardown(); break;
         }
-        NEKOAV_INFO("[Element] '{}' Change state from '{}' to '{}'", mName, cur, nextState(cur));
+        NEKOAV_DEBUG("[Element] '{}' Change state from '{}' to '{}'", mName, cur, nextState(cur));
         if (auto res = co_await std::move(task); !res && isForward) { // FORWARD, FAILED!!!
             mError = res.error();
             co_return Err(res.error());

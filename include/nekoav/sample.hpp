@@ -28,10 +28,12 @@ public:
     // Setter
     auto setPts(std::optional<Timestamp> pts) -> void;
     auto setDts(std::optional<Timestamp> dts) -> void;
+    auto setDuration(std::optional<Duration> duration) -> void;
 
     // Getters for AVFrame fields
     auto pts() const -> std::optional<Timestamp>;
     auto dts() const -> std::optional<Timestamp>;
+    auto duration() const -> std::optional<Duration>;
 
     auto data(int plane) -> void *;
     auto linesize(int plane) -> int;
@@ -111,7 +113,12 @@ public:
      * 
      * @return Frame 
      */
-    auto clone() const -> AudioFrame;
+    auto clone() const -> AudioFrame {
+        return AudioFrame {
+            Frame::clone(get()),
+            timeBase()
+        };
+    }
 
     // Operators
     auto operator =(AudioFrame &&) -> AudioFrame & = default;
@@ -138,7 +145,12 @@ public:
      * 
      * @return Frame 
      */
-    auto clone() const -> VideoFrame;
+    auto clone() const -> VideoFrame {
+        return VideoFrame {
+            Frame::clone(get()),
+            timeBase()
+        };
+    }
 
     // Operators
     auto operator =(VideoFrame &&) -> VideoFrame & = default;
@@ -320,7 +332,7 @@ inline auto Sample::toAudioFrame() -> AudioFrame * {
 // Formatter
 template <>
 struct std::formatter<nekoav::Sample> {
-    constexpr auto parse(std::format_parse_context &ctxt) {
+    constexpr auto parse(std::format_parse_context &ctxt) -> decltype(ctxt.begin()) {
         return ctxt.begin();
     }
 

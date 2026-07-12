@@ -58,7 +58,7 @@ public:
  * @brief Convert the frame's format to make it suitable for the next element.
  * 
  */
-class NEKOAV_API VideoConverter final : public Element {
+class NEKOAV_API VideoConverter final : public Transform {
 public:
     VideoConverter(std::string_view name = {});
     ~VideoConverter();

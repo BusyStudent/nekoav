@@ -1,6 +1,7 @@
 .vscode
 .xmake
 .cache
+.agents
 compile_commands.json
 *.pseudocode.*
 /build

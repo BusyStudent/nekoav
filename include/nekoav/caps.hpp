@@ -150,6 +150,31 @@ private:
 //  { Caps::SubtitlePacket, Maps {} },
 // ]
 //
+
+// Protocol
+
+// VideoRaw: Map {
+//  { Caps::Width, Integer {1920} or Null },
+//  { Caps::Height, Integer {1080} or Null },
+//  { Caps::PixelFormat, [PixelFormat::YUV420P, ...] },
+//  { Caps::ColorRange, ColorRange::Full or Null },
+//  { Caps::ColorPrimaries, ColorPrimaries::BT709 or Null },
+//  { Caps::ColorTransfer, ColorTransfer::SRGB or Null },
+//  { Caps::ColorSpace, ColorSpace::YUV or Null },
+// }
+
+// VideoPacket or AudioPacket
+// Map {
+//  { Caps::Codec, String {"codec_name"},
+//  { Caps::CodecTag, String {"codec_tag"},
+//  { Caps::CodecExtraData, Bytes {data} or Null },
+//  { Caps::Bitrate, Integer {bitrate} },
+//  { Caps::FrameRate, Rational {frame_rate} or Null },
+//  { Caps::Duration, Duration {duration} or Null },
+//  { Caps::TimeBase, Rational {time_base} or Null },
+//   ...
+// }
+//
 /**
  * @brief The capabilities of a media stream, used for negotiation between elements.
  * 
@@ -268,7 +293,7 @@ struct std::formatter<nekoav::Any> {
     }
 };
 
-// Using C++23 range formatter
+// Using C++23 range formatter if available
 template <>
 struct std::formatter<nekoav::Value::List> {
     constexpr auto parse(std::format_parse_context &ctxt) -> decltype(ctxt.begin()) {
@@ -277,7 +302,18 @@ struct std::formatter<nekoav::Value::List> {
 
     template <typename FormatContext>
     auto format(const nekoav::Value::List &l, FormatContext &ctxt) const {
+#if __cpp_lib_format_ranges
         return std::format_to(ctxt.out(), "{}", std::ranges::subrange(l.begin(), l.end()));
+#else // Impl by hand
+        auto it = std::format_to(ctxt.out(), "[");
+        auto first = true;
+        for (const auto &item : l) {
+            if (!first) it = std::format_to(it, ", ");
+            it = std::format_to(it, "{}", item);
+            first = false;
+        }
+        return std::format_to(it, "]");
+#endif // __cpp_lib_format_ranges
     }
 };
 
@@ -289,7 +325,18 @@ struct std::formatter<nekoav::Value::Map> {
 
     template <typename FormatContext>
     auto format(const nekoav::Value::Map &m, FormatContext &ctxt) const {
+#if __cpp_lib_format_ranges
         return std::format_to(ctxt.out(), "{}", std::ranges::subrange(m.begin(), m.end()));
+#else // Impl by hand
+        auto it = std::format_to(ctxt.out(), "[");
+        auto first = true;
+        for (const auto &[key, value] : m) {
+            if (!first) it = std::format_to(it, ", ");
+            it = std::format_to(it, "({}: {})", key, value);
+            first = false;
+        }
+        return std::format_to(it, "]");
+#endif // __cpp_lib_format_ranges
     };
 };
 
@@ -324,6 +371,17 @@ struct std::formatter<nekoav::Caps> {
 
     template <typename FormatContext>
     auto format(const nekoav::Caps &caps, FormatContext &ctxt) const {
+#if __cpp_lib_format_ranges
         return std::format_to(ctxt.out(), "{}", std::ranges::subrange(caps.begin(), caps.end()));
+#else
+        auto it = std::format_to(ctxt.out(), "[");
+        auto first = true;
+        for (const auto &[type, value] : caps) {
+            if (!first) it = std::format_to(it, ", ");
+            it = std::format_to(it, "({}: {})", type, value);
+            first = false;
+        }
+        return std::format_to(it, "]");
+#endif // __cpp_lib_format_ranges
     }
 };

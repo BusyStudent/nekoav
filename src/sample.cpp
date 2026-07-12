@@ -29,19 +29,35 @@ auto Frame::setDts(std::optional<Timestamp> dts) -> void {
     }
 }
 
+auto Frame::setDuration(std::optional<Duration> duration) -> void {
+    if (duration) {
+        mFrame->duration = time::toFFmpeg(*duration, AVRational{mTimeBase.num, mTimeBase.den});
+    }
+    else {
+        mFrame->duration = 0;
+    }
+}
+
 // Getters
 auto Frame::pts() const -> std::optional<Timestamp> {
     if (mFrame->pts == AV_NOPTS_VALUE) {
         return std::nullopt;
     }
-    return time::fromFFmpeg(mFrame->pts, AVRational {.num = mTimeBase.num, .den = mTimeBase.den});
+    return time::fromFFmpeg(mFrame->pts, AVRational{.num = mTimeBase.num, .den = mTimeBase.den});
 }
 
 auto Frame::dts() const -> std::optional<Timestamp> {
     if (mFrame->pkt_dts == AV_NOPTS_VALUE) {
         return std::nullopt;
     }
-    return time::fromFFmpeg(mFrame->pkt_dts, AVRational {.num = mTimeBase.num, .den = mTimeBase.den});
+    return time::fromFFmpeg(mFrame->pkt_dts, AVRational{.num = mTimeBase.num, .den = mTimeBase.den});
+}
+
+auto Frame::duration() const -> std::optional<Duration> {
+    if (mFrame->duration == 0) {
+        return std::nullopt;
+    }
+    return time::fromFFmpeg(mFrame->duration, AVRational{.num = mTimeBase.num, .den = mTimeBase.den});
 }
 
 auto Frame::data(int plane) -> void * {
@@ -54,6 +70,7 @@ auto Frame::linesize(int plane) -> int {
     return mFrame->linesize[plane];
 }
 
+// MARK: VideoFrame
 auto VideoFrame::pixelFormat() const -> PixelFormat {
     return pixfmt::fromFFmpeg(AVPixelFormat(mFrame->format));
 }
@@ -66,6 +83,7 @@ auto VideoFrame::width() const -> int {
     return mFrame->width;
 }
 
+// MARK: AudioFrame
 auto AudioFrame::sampleFormat() const -> SampleFormat {
     return sample_fmt::fromFFmpeg(AVSampleFormat(mFrame->format));
 }
@@ -94,12 +112,9 @@ auto Frame::makeWritable() -> IoResult<void> {
     return {};
 }
 
-auto VideoFrame::clone() const -> VideoFrame {
-    return VideoFrame{av_frame_clone(mFrame.get()), mTimeBase};
-}
-
-auto AudioFrame::clone() const -> AudioFrame {
-    return AudioFrame{av_frame_clone(mFrame.get()), mTimeBase};
+auto Frame::clone(AVFrame *f) -> AVFrame * {
+    assert(f);
+    return av_frame_clone(f);
 }
 
 // Packet

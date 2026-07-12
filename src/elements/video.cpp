@@ -22,9 +22,7 @@ auto getCopybackFormats(AVFrame *frame) -> std::vector<AVPixelFormat> {
     AVPixelFormat *tmp = nullptr;
     if (av_hwframe_transfer_get_formats(frame->hw_frames_ctx, AV_HWFRAME_TRANSFER_DIRECTION_FROM, &tmp, 0) >= 0) {
         size_t n = 0;
-        for (n = 0; tmp[n] != AV_PIX_FMT_NONE; ++n) {
-            
-        }
+        for (n = 0; tmp[n] != AV_PIX_FMT_NONE; ++n) {} // Get the number of formats
         vec.assign(tmp, tmp + n);
         av_freep(&tmp);
     }
@@ -158,7 +156,7 @@ auto VideoSink::onPadPush(Pad &, Sample sample) -> IoTask<void> {
     if (pts > time) {
         auto waitTime = pts - time;
         if (waitTime > 1ms && waitTime < 500ms) {
-            NEKOAV_INFO("[VideoSink] Waiting for {}", std::chrono::duration_cast<std::chrono::milliseconds>(waitTime));
+            NEKOAV_DEBUG("[VideoSink] Waiting for {}", std::chrono::duration_cast<std::chrono::milliseconds>(waitTime));
             co_await ilias::sleep(waitTime);
         }
         if (waitTime > 500ms) { // What, we are too fast?
@@ -213,7 +211,7 @@ struct VideoConverter::Impl {
 };
 
 VideoConverter::VideoConverter(std::string_view name) : 
-    Element(name), 
+    Transform(name), 
     mInput(createInputPad("in")), 
     mOutput(createOutputPad("out"))
 {
@@ -296,32 +294,34 @@ auto VideoConverter::init(VideoFrame *frame) -> IoResult<void> {
     }
 
     // Begin readthe properties
-    auto width = std::optional<int> {};
-    auto height = std::optional<int> {};
-    auto fmts = std::vector<AVPixelFormat> {};
-
     // Get the width and height (if unspecified, use the frame's width, useful when the downstream only need convert the format)
-    if (auto w = video[Caps::Width]; w.isInteger()) {
-        width = w.toInteger();
-    }
-    else {
-        width = frame->width();
-    }
-    if (auto h = video[Caps::Height]; h.isInteger()) {
-        height = h.toInteger();
-    }
-    else {
-        height = frame->height();
-    }
-    if (auto f = video[Caps::PixelFormat]; f.isList()) {
-        for (auto &item : f.toList()) {
-            auto fmt = item.toPixelFormat();
-            fmts.emplace_back(pixfmt::toFFmpeg(fmt));
-        }
-    }
-    else if (f.isPixelFormat()) {
-        fmts.push_back(pixfmt::toFFmpeg(f.toPixelFormat()));
-    }
+    auto width = video[Caps::Width].visit(Overloads {
+        [&](Value::Integer w) { return int(w); },   // If width is specified, use it
+        [&](auto &) { return frame->width(); }      // any?
+    });
+    
+    auto height = video[Caps::Height].visit(Overloads {
+        [&](Value::Integer h) { return int(h); }, // If height is specified, use it
+        [&](auto &) { return frame->height(); }   // any?
+    });
+
+    auto fmts = video[Caps::PixelFormat].visit(Overloads {
+        [&](const Value::List &list) {
+            std::vector<AVPixelFormat> vec;
+            for (auto &item : list) {
+                vec.emplace_back(pixfmt::toFFmpeg(item.toPixelFormat()));
+            }
+            return vec;
+        },
+        [&](PixelFormat fmt) {
+            std::vector<AVPixelFormat> v = {pixfmt::toFFmpeg(fmt)};
+            return v;
+        },
+        [&](auto &) { // Other, empty...
+            std::vector<AVPixelFormat> v;
+            return v;
+        },
+    });
 
     // Check....
     auto ffmt = pixfmt::toFFmpeg(frame->pixelFormat());
@@ -333,7 +333,6 @@ auto VideoConverter::init(VideoFrame *frame) -> IoResult<void> {
             return {};
         }
     }
-
     
     // Need to convert
     auto inFrame = frame->get();
@@ -367,13 +366,13 @@ auto VideoConverter::init(VideoFrame *frame) -> IoResult<void> {
         impl->swsScale = true;
         impl->swsCtxt = sws_getContext(
             inFrame->width, inFrame->height, static_cast<AVPixelFormat>(inFrame->format),
-            width.value(), height.value(), dstFormat,
+            width, height, dstFormat,
             SWS_BICUBIC, nullptr, nullptr, nullptr
         );
         if (!impl->swsCtxt) { // ?
             return Err(Error::OutOfMemory);
         }
-        NEKOAV_INFO("[VideoConverter] '{}' Sws scale to {}x{} format {}", name(), width.value(), height.value(), av_get_pix_fmt_name(dstFormat));
+        NEKOAV_INFO("[VideoConverter] '{}' Sws scale to {}x{} format {}", name(), width, height, av_get_pix_fmt_name(dstFormat));
     }
 
     impl->dstFormat = dstFormat;

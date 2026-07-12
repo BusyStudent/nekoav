@@ -205,7 +205,7 @@ auto Pipeline::onTopologyChange() -> void {
 
 auto Pipeline::onChildMessage(Message message) -> void {
     // Post the children message to the watcher
-    auto _ = d->messageSender.trySend(std::move(message));
+    auto _ = d->childrenMessageSender.trySend(std::move(message));
 }
 
 auto Pipeline::Impl::watchChildrenMessage(ilias::mpsc::Receiver<Message> receiver) -> Task<void> {
@@ -224,7 +224,7 @@ auto Pipeline::Impl::watchChildrenMessage(ilias::mpsc::Receiver<Message> receive
         if (message.isEndOfStream()) {
             // TODO:
             auto [element] = message.toEndOfStream();
-            if (sinksNotEos) { // Lazy initialize the sinks
+            if (!sinksNotEos) { // Lazy initialize the sinks
                 auto s = self->sinks(); // Collect it
                 sinksNotEos.emplace(s.begin(), s.end());
             }
