@@ -111,7 +111,7 @@ protected:
     // This methold implemented must be thread-safe
     virtual auto onChildMessage(Message message) -> void;
 
-    // When topology changes, this method will changed
+    // When topology changes, this method will be called
     virtual auto onTopologyChange() -> void;
 private:
     // Dump

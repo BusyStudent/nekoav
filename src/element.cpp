@@ -1,4 +1,3 @@
-#include <nekoav/elements/pipeline.hpp>
 #include <nekoav/elements/bin.hpp>
 #include <nekoav/element.hpp>
 #include <nekoav/error.hpp>

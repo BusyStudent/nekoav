@@ -17,7 +17,7 @@ Bin::~Bin() {
 
 // Emm? maybe we should make setState to virtual ?
 auto Bin::addElement(Element::Ptr element) -> void {
-    if (!element) {
+    if (!element || element->mParent) { // Didn't add an empty element or an element already in a bin
         return;
     }
     assert(!element->mIsPipeline); // Can't add an pipeline to a bin
@@ -31,7 +31,7 @@ auto Bin::addElement(Element::Ptr element) -> void {
 }
 
 auto Bin::addElementSync(Element::Ptr element) -> IoTask<void> {
-    if (!element) {
+    if (!element || element->mParent) {
         co_return Err(Error::InvalidArguments);
     }
     addElement(element);
@@ -51,6 +51,11 @@ auto Bin::removeElement(Element::Ptr element) -> bool {
     if (it == mChildren.end()) {
         return false;
     }
+    if ((*it)->state() != State::Null) {
+        NEKOAV_ERROR("[Bin] '{}' tried to remove an element not in Null state, please use setState to set it to Null state first", name());
+        return false;
+    }
+
     // Remove the member belong the bin
     (*it)->mParent = nullptr;
     (*it)->setClock({});
@@ -229,7 +234,7 @@ auto Bin::topologicalSort() -> bool {
 }
 
 auto Bin::onTopologyChange() -> void {
-    
+    NEKOAV_DEBUG("[Bin] '{}' topology changed", name());
 }
 
 auto Bin::onChildMessage(Message message) -> void {

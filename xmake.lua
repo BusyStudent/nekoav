@@ -28,6 +28,12 @@ option("log")
     set_showmenu(true)
 option_end()
 
+option("network_tests")
+    set_default(false)
+    set_description("Enable tests that access public network resources")
+    set_showmenu(true)
+option_end()
+
 if has_config("log") then
     add_requires("spdlog", {configs = {header_only = false, std_format = true} })
 end
@@ -55,18 +61,7 @@ target("nekoav")
 target_end()
 
 -- Testing
-target("test_core")
-    add_packages("ffmpeg")
-    add_packages("gtest")
-    set_kind("binary")
-    add_deps("nekoav")
-    add_files("test/core.cpp")
-
-target("test_elements")
-    add_packages("gtest")
-    set_kind("binary")
-    add_deps("nekoav")
-    add_files("test/elements.cpp")
+includes("./test")
 
 target("player")
     add_rules("qt.widgetapp")
