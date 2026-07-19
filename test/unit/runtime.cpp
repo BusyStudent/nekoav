@@ -44,17 +44,20 @@ ILIAS_TEST(ElementStateTest, CallsEachLifecycleHookInOrder) {
     co_return;
 }
 
-ILIAS_TEST(ElementStateTest, InjectsAConfiguredForwardFailureOnce) {
-    // Failing Prepare must stop the transition short of Running and leave Ready + error.
+ILIAS_TEST(ElementStateTest, RollbackOnFailure) {
+    // If state change fails, it should rollback to the original state.
     auto element = std::make_shared<ProbeElement>(ElementType::Other, "element");
     element->failStateChange(StateChange::Prepare, Error::Internal);
 
+    auto origin = element->state();
     auto result = co_await element->setState(State::Running);
+    EXPECT_EQ(origin, State::Null);
+    EXPECT_EQ(element->state(), origin);
 
     EXPECT_FALSE(result);
     EXPECT_EQ(result.error(), make_error_code(Error::Internal));
     EXPECT_TRUE(element->stateFailureTriggered());
-    EXPECT_EQ(element->state(), State::Ready);
+    EXPECT_EQ(element->state(), State::Null);
     EXPECT_EQ(element->error(), make_error_code(Error::Internal));
 
     EXPECT_TRUE(co_await element->setState(State::Null));

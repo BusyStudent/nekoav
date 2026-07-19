@@ -136,20 +136,50 @@ auto Bin::setChildrenState(State newState) -> IoTask<void> {
         mSorted = true;
         NEKOAV_INFO("[Bin] '{}' topological sort done", name());
     }
-    // Check we are init(forward) or shutdown(backword)
+    // Check invariants
     static_assert(std::to_underlying(State::Running) > std::to_underlying(State::Null));
-    bool forward = std::to_underlying(newState) > std::to_underlying(state());
-    if (forward) { // Forward
-        for (auto &child : mChildren | std::views::reverse) { // From sink to source
-            if (auto res = co_await child->setState(newState); !res) {
-                co_return Err(res.error());
+
+    const bool forward = std::to_underlying(newState) > std::to_underlying(state());
+    const auto origin = state(); // Store the origin state, for rollback when forward failed
+
+
+    // TODO: Rollback when cancelled
+    if (forward) { // Forward: sink -> source
+        std::vector<Element::Ptr> advanced;
+        advanced.reserve(mChildren.size());
+
+        for (auto &child : mChildren | std::views::reverse) {
+            auto res = co_await child->setState(newState);
+            if (res) { // Ok
+                advanced.push_back(child);
+                continue;
             }
+            
+            // Error Happened, rollback the advanced children
+            for (auto &done : advanced | std::views::reverse) {
+                if (auto rb = co_await done->setState(origin); !rb) {
+                    NEKOAV_WARN(
+                        "[Bin] '{}' failed to rollback child '{}' to '{}': {}",
+                        name(),
+                        done->name(),
+                        origin,
+                        rb.error().message()
+                    );
+                }
+            }
+            co_return Err(res.error());
         }
     }
-    else { // Backward
-        for (auto &child : mChildren) { // From source to sink
-            if (auto res = co_await child->setState(newState); !res) { // Backward will ignore the error
-                NEKOAV_WARN("[Bin] '{}' child '{}' failed to set state to '{}', error: {}", name(), child->name(), newState, res.error().message());
+    else { // Backward: source -> sink, best-effort
+        for (auto &child : mChildren) {
+            if (auto res = co_await child->setState(newState); !res) {
+                NEKOAV_WARN(
+                    "[Bin] '{}' child '{}' failed to set state to '{}', error: {}",
+                    name(),
+                    child->name(),
+                    newState,
+                    res.error().message()
+                );
             }
         }
     }

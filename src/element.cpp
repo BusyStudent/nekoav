@@ -37,6 +37,25 @@ auto stateChangeOf(State cur, State target) -> StateChange {
     ::abort(); // Invalid state transition
 }
 
+auto isSetStateForward(State cur, State target) -> bool {
+    return std::to_underlying(cur) < std::to_underlying(target);
+}
+
+// Get the next from the current state
+auto nextStateOf(State cur, State target) -> State {
+    assert(cur != target);
+
+    if (isSetStateForward(cur, target)) {
+        return static_cast<State>(std::to_underlying(cur) + 1);    
+    }
+    else {
+        return static_cast<State>(std::to_underlying(cur) - 1);
+    }
+}
+
+// Assert invariants
+static_assert(std::to_underlying(State::Null) < std::to_underlying(State::Running));
+
 } // namespace
 
 // MARK: Pad
@@ -161,73 +180,50 @@ auto Element::setState(State targetState) -> IoTask<void> {
     if (targetState == mState) { // Same state, no-op
         co_return {};
     }
-
-    // Check
-    if (mStateChanging) {
-        co_return Err(Error::InBusy);
-    }
-    struct Guard {
-        ~Guard() {
-            element.mStateChanging = false;
-        }
-
-        Element &element;
-    } guard {*this};
-    mStateChanging = true;
-    
-    // Do transations
-    // Check is forward (Null -> Running)
-    // Backward is (Running -> NUll)
-    auto isForward = std::to_underlying(targetState) > std::to_underlying(mState);
-    auto nextState = [&](State state) {
-        auto value = std::to_underlying(state);
-        if (isForward) {
-            value += 1;
-        }
-        else {
-            value -= 1;
-        }
-        return State {value};
-    };
-
-    // Check is error state
-    if (mError) {
-        if (isForward) { // Only allow backward to teardown
-            co_return Err(Error::InvalidState);
-        }
+    if (mError && isSetStateForward(mState, targetState)) { // Only allow backword transition when error state is set
+        NEKOAV_ERROR("[Element] '{}' Failed to set state to {}, error state is set, only allow backward transition", name(), targetState);
+        co_return Err(Error::InvalidState);
     }
 
-    // Do transation
-    for (auto cur = mState; cur != targetState; cur = nextState(cur)) {
-        auto change = stateChangeOf(cur, nextState(cur));
-        auto task = IoTask<void> {};
+    // Accquire the lock
+    const auto guard = co_await mStateMutex.lock();
+    const auto origin = mState;
 
-        switch (change) {
-            case StateChange::Initialize: task = onInitialize(); break;
-            case StateChange::Prepare:    task = onPrepare(); break;
-            case StateChange::Run:        task = onRun(); break;
-            case StateChange::Pause:      task = onPause(); break;
-            case StateChange::Stop:       task = onStop(); break; // Clear any clock and bus
-            case StateChange::Teardown:   task = onTeardown(); break;
-        }
-        NEKOAV_DEBUG("[Element] '{}' Change state from '{}' to '{}'", mName, cur, nextState(cur));
-        if (auto res = co_await std::move(task); !res && isForward) { // FORWARD, FAILED!!!
+    // TODO: Rollback when cancelled
+    while (mState != targetState) {
+        const auto nextState = nextStateOf(mState, targetState);
+        const auto selectTask = [&]() {
+            switch (stateChangeOf(mState, nextState)) {
+                case StateChange::Initialize: return onInitialize();
+                case StateChange::Prepare:    return onPrepare();
+                case StateChange::Run:        return onRun();
+                case StateChange::Pause:      return onPause();
+                case StateChange::Stop:       return onStop();
+                case StateChange::Teardown:   return onTeardown();
+                default: NEKOAV_ERROR("???"); ::abort();
+            }
+        };
+
+        NEKOAV_INFO("[Element] '{}' change state from {} to {}", name(), mState, nextState);
+
+        // Try execute it
+        if (auto res = co_await selectTask(); !res && isSetStateForward(mState, targetState)) { // Forward..., must rollback
+            NEKOAV_WARN("[Element] '{}' Failed to set state to {}, error state is set, begin rollback", name(), nextState);
             mError = res.error();
-            co_return Err(res.error());
+            targetState = origin;
+            continue;
         }
-        else if (!res) { // BACKWARD, FAILED!!!
-            mError = res.error();
-            NEKOAV_WARN("[Element] '{}' Failed to backward to state '{}': {}, ignore it", mName, nextState(cur), res.error().message());
+        else if (!res) { // Backward..., ignore it
+            NEKOAV_WARN("[Element] '{}' Failed to backward state from {} to {}, ignore it", name(), mState, nextState);
         }
 
-        // Done transation
-        mState = nextState(cur);
+        // Update state
+        mState = nextState;
     }
 
     // Done
-    mState = targetState;
-    if (mState == State::Null) {
-        mError.clear();
+    if (mError) {
+        co_return Err(mError);
     }
     co_return {};
 }

@@ -24,9 +24,11 @@ namespace nekoav::testing {
 inline auto makePacketSample(Timestamp pts) -> Sample {
     auto packet = av_packet_alloc();
     if (!packet) {
-        throw std::bad_alloc {};
+        throw std::bad_alloc{};
     }
-    auto sample = Sample {Packet {packet, Rational {1, 1000}}};
+    Sample sample {
+        Packet {packet, Rational{1, 1000}}
+    };
     sample.setPts(pts);
     return sample;
 }

@@ -33,9 +33,9 @@ Uses `ProbeElement` only:
 
 | Suite | Asserts |
 |-------|---------|
-| `ElementStateTest` | Lifecycle order; Prepare failure leaves `Ready` + error |
+| `ElementStateTest` | Lifecycle order; forward failure rolls back to call-time origin |
 | `PadTest` | Push / event / query delivery; error propagation; unlink |
-| `BinStateTest` | Children change state sink→source up, source→sink down |
+| `BinStateTest` | Children change state sink→source up, source→sink down; sibling rollback on failure |
 | `PipelineStateTest` | Context + clock shared while `Running` |
 
 ### `integration` — real elements, still offline

@@ -10,27 +10,24 @@
  */
 #pragma once
 
+#include <nekoav/defines.hpp> 
 #include <nekoav/message.hpp>
-#include <nekoav/defines.hpp>
 #include <nekoav/context.hpp>
-#include <nekoav/sample.hpp>
 #include <nekoav/event.hpp>
 #include <nekoav/query.hpp>
 #include <nekoav/clock.hpp>
-#include <nekoav/caps.hpp>
+#include <nekoav/pad.hpp>
+#include <ilias/sync/mutex.hpp>
 #include <ilias/task.hpp>
 #include <optional>
 #include <string>
 #include <vector>
 #include <array>
 #include <list>
-#include <bit>
 
 namespace nekoav {
 
 // Forward declare
-class Pipeline;
-class Element;
 class Bin;
 
 /**
@@ -46,29 +43,20 @@ class Bin;
  *  - Ready   -> Null     (Teardown)
  * 
  */
-enum class State {
+enum class State : uint8_t {
     Null    = 0,
     Ready   = 1,
     Paused  = 2,
     Running = 3,
 };
 
-enum class StateChange {
+enum class StateChange : uint8_t {
     Initialize = 1,
     Prepare    = 2,
     Run        = 3,
     Pause      = 4,
     Stop       = 5,
     Teardown   = 6,
-};
-
-/**
- * @brief The type of the Pad
- * 
- */
-enum class PadType : uint8_t {
-    Input,
-    Output,
 };
 
 /**
@@ -83,242 +71,6 @@ enum class ElementType : uint8_t {
     Other,     // The other, the pad are unspecified
 };
 
-// MARK: Pad
-/**
- * @brief Represents a connection point on an Element for linking to other Elements.
- * 
- * Pads are used to establish the data flow pipeline. An output pad of one element
- * can be linked to an input pad of another.
- */
-class NEKOAV_API Pad final {
-public:
-    Pad(Element &element, PadType type, std::string_view name) : mElement(element), mType(type), mName(name) {}
-    Pad(const Pad &) = delete;
-    ~Pad() { unlink(); }
-
-    // Get the name of the pad
-    auto name() const -> std::string_view {
-        return mName;
-    }
-
-    // Get the type of the pad
-    auto type() const -> PadType {
-        return mType;
-    }
-
-    // Check the pad is linked?
-    auto isLinked() const -> bool {
-        return mPeer != nullptr;
-    }
-
-    // Unlink the pad to its peer.
-    auto unlink() -> void;
-
-    /**
-     * @brief Link this pad to a peer pad
-     * 
-     * @param peer 
-     * @return true 
-     * @return false 
-     */
-    auto link(Pad &peer) -> bool;
-
-    /**
-     * @brief Get the peer pad
-     * 
-     * @return Pad* 
-     */
-    auto peer() const -> Pad * {
-        return mPeer;
-    }
-
-    /**
-     * @brief Get the peer element
-     * 
-     * @return Element* 
-     */
-    auto peerElement() const -> Element * {
-        return mPeer ? &mPeer->mElement : nullptr;
-    }
-
-    /**
-     * @brief Get the caps
-     * 
-     * @return Caps& 
-     */
-    auto caps() const -> const Caps & {
-        return mCaps;
-    }
-
-    /**
-     * @brief Get the mutable caps
-     * @note Only used it if you own the pad (like the element)
-     * 
-     * @return Caps& 
-     */
-    auto mutableCaps() -> Caps & {
-        return mCaps;
-    }
-
-    /**
-     * @brief Push the sample to the peer pad
-     * @note This method is not `CANCELLATION SAFE`, the push element should use unstoppable to protected it
-     * 
-     * @param sample The shared_ptr of the Sample
-     * @return IoTask<void> (Err on ublink or other element has error happened)
-     */
-    auto push(Sample sample) -> IoTask<void>;
-
-    /**
-     * @brief Push the event to the peer pad, 
-     *  it will automatically go upstream or downstream by the type (input for upstream, output for downstream)
-     * @note This method is not `CANCELLATION SAFE`, the push element should use unstoppable to protected it
-     * 
-     * @param event The event
-     * @return IoTask<void> 
-     */
-    auto pushEvent(Event event) -> IoTask<void>;
-
-    /**
-     * @brief Send an sync query to the peer pad and wait for the reply, 
-     *  it will automatically go upstream or downstream if element can't reply (input for upstream, output for downstream)
-     * 
-     * @param query 
-     * @return std::optional<Reply>
-     */
-    auto sendQuery(Query query) -> std::optional<Reply>;
-
-    /**
-     * @brief Set the callbak when the pad is pushed
-     * 
-     * @tparam Method 
-     * @tparam Object 
-     * @tparam Args 
-     * @param obj 
-     * @param args 
-     */
-    template <auto Method, typename Object, typename ...Args>
-        requires (std::is_base_of_v<Element, Object>)
-    auto setPushCallback(Object *obj, Args ...args) -> void {
-        assert(&mElement == obj && "The obj must be the element this pad belongs to");
-        auto callable = [args...](Pad &self, Sample sample) -> IoTask<void> {
-            auto &obj = static_cast<Object &>(self.mElement);
-            return (obj.*Method)(self, std::move(sample), args...);
-        };
-        typeEraseTo(callable, mPushUser);
-        mPushCallback = &Pad::pushProxy<decltype(callable)>;
-    }
-
-    /**
-     * @brief Set the callback when the event happened
-     * 
-     * @tparam Method 
-     * @tparam Object 
-     * @tparam Args 
-     */
-    template <auto Method, typename Object, typename ...Args>
-        requires (std::is_base_of_v<Element, Object>)
-    auto setEventCallback(Object *obj, Args ...args) -> void {
-        assert(&mElement == obj && "The obj must be the element this pad belongs to");
-        auto callable = [args...](Pad &self, Event &event) -> IoTask<void> {
-            auto &obj = static_cast<Object &>(self.mElement);
-            return (obj.*Method)(self, event, args...);
-        };
-        typeEraseTo(callable, mEventUser);
-        mEventCallback = &Pad::eventProxy<decltype(callable)>;
-    }
-
-    template <auto Method, typename Object, typename ...Args>
-        requires (std::is_base_of_v<Element, Object>)
-    auto setQueryCallback(Object *obj, Args ...args) -> void {
-        assert(&mElement == obj && "The obj must be the element this pad belongs to");
-        auto callable = [args...](Pad &self, Query &query) -> std::optional<Reply> {
-            auto &obj = static_cast<Object &>(self.mElement);
-            return (obj.*Method)(self, query, args...);
-        };
-        typeEraseTo(callable, mQueryUser);
-        mQueryCallback = &Pad::queryProxy<decltype(callable)>;
-    }
-
-    /**
-     * @brief Set the callback to nullptr, disable the callback
-     * 
-     */
-    auto setPushCallback(std::nullptr_t) -> void {
-        mPushCallback = nullptr;
-        mPushUser.fill(std::byte{0});
-    }
-
-    auto setEventCallback(std::nullptr_t) -> void {
-        mEventCallback = nullptr;
-        mEventUser.fill(std::byte{0});
-    }
-
-    auto setQueryCallback(std::nullptr_t) -> void {
-        mQueryCallback = nullptr;
-        mQueryUser.fill(std::byte{0});
-    }
-private:
-    // The callback when the pad is pushed or event happened
-    using QueryCallback = auto (*)(Pad &self, Query &query) -> std::optional<Reply>;
-    using EventCallback = auto (*)(Pad &self, Event &event) -> IoTask<void>;
-    using PushCallback = auto (*)(Pad &self, Sample sample) -> IoTask<void>;
-    using UserData = std::array<std::byte, sizeof(void*) * 3>; // Small size optimization for the callback
-
-    // Type erase utils
-    template <typename Callable>
-    static auto typeEraseTo(const Callable &callable, UserData &array) -> void {
-        static_assert(sizeof(callable) <= sizeof(UserData), "The callable is too large");
-        static_assert(std::is_trivially_copyable_v<Callable>, "The callable must be trivially copyable");
-        static_assert(std::is_trivially_destructible_v<Callable>, "The callable must be trivially destructible");
-        ::memcpy(array.data(), &callable, sizeof(Callable));
-    }
-
-    template <typename Callable>
-    static auto typeUnerase(const UserData &data) -> Callable {
-        auto array = std::array<std::byte, sizeof(Callable)>{};
-        ::memcpy(array.data(), data.data(), sizeof(Callable));
-        return std::bit_cast<Callable>(array);
-    }
-
-    // Proxy for push callback
-    template <typename Callable>
-    static auto pushProxy(Pad &self, Sample sample) -> IoTask<void> {
-        auto callable = typeUnerase<Callable>(self.mPushUser);
-        return callable(self, std::move(sample));
-    }
-
-    // Proxy for event callback
-    template <typename Callable>
-    static auto eventProxy(Pad &self, Event &event) -> IoTask<void> {
-        auto callable = typeUnerase<Callable>(self.mEventUser);
-        return callable(self, event);
-    }
-
-    template <typename Callable>
-    static auto queryProxy(Pad &self, Query &query) -> std::optional<Reply> {
-        auto callable = typeUnerase<Callable>(self.mQueryUser);
-        return callable(self, query);
-    }
-
-    // Datas
-    Element    &mElement; // The element this pad belongs to.
-    PadType     mType;
-    std::string mName;
-    Pad        *mPeer = nullptr; // The peer pad this pad is linked to.
-    Caps        mCaps;
-
-    // Callbacks
-    PushCallback mPushCallback = nullptr;
-    UserData     mPushUser = {};
-
-    EventCallback mEventCallback = nullptr;
-    UserData      mEventUser = {};
-
-    QueryCallback mQueryCallback = nullptr;
-    UserData      mQueryUser = {};
-};
-
 // MARK: Element
 // Core Elements: Element, Bin, Pipeline, Source, Sink, Transform
 /**
@@ -331,7 +83,6 @@ public:
     using PadList = std::list<Pad>;
 
     Element(const Element &) = delete;
-    Element(Element &&) = delete;
     virtual ~Element();
 
     /**
@@ -342,17 +93,22 @@ public:
 
     /**
      * @brief Asynchronously transitions the element to a new state.
-     * 
-     * The framework will automatically calculate the required intermediate state transitions.
-     * For example, to transition from `Null` to `Paused`, it will automatically execute
-     * the sequence `Null -> Ready -> Paused`.
-     * 
-     * Note: Users must transition the element to the `Null` state before destroying it
-     * to ensure proper resource cleanup.
-     * 
+     *
+     * Intermediate steps are applied automatically. Example: `Null -> Paused` runs
+     * `Null -> Ready -> Paused`.
+     *
+     * Forward transitions (`Null` toward `Running`) are transactional with respect to the
+     * call-time state (origin): each successful step is committed; if a later step fails,
+     * reverse lifecycle hooks run until the element is back at origin, and the original
+     * error is returned. Backward transitions are best-effort toward the target and do not
+     * roll upward on failure.
+     *
+     * Users must reach `Null` before destroying the element so resources can be released.
+     *
      * @param targetState The target state to transition to.
-     * @return IoTask<void> An asynchronous task that completes when the state transition is successful.
-     *         On failure, the element's error field is set, and the task returns an error.
+     * @return IoTask<void> Completes when the transition succeeds. On forward failure,
+     *         `error()` holds the failure and state is the call-time origin (if rollback
+     *         succeeded).
      */
     auto setState(State targetState) -> IoTask<void>;
 
@@ -369,6 +125,13 @@ public:
      * @param name if empty, we will set an unique name of it
      */
     auto setName(std::string_view name) -> void;
+
+    /**
+     * @brief Shutdown the element, equivalent to setState(State::Null)
+     * 
+     * @return IoTask<void> 
+     */
+    auto shutdown() -> IoTask<void> { return setState(State::Null); }
 
     /**
      * @brief Get the input pad list
@@ -554,7 +317,7 @@ private:
 
     // State / Parent / Clock
     State           mState = State::Null;
-    bool            mStateChanging = false;
+    ilias::Mutex    mStateMutex; // Mutex for setState
     std::error_code mError = {}; // If this is set, the element is in error
 
     // Filed used for topological

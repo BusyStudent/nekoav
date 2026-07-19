@@ -50,6 +50,10 @@ public:
         return mEntries;
     }
 
+    auto clear() -> void {
+        mEntries.clear();
+    }
+
 private:
     std::vector<StateTraceEntry> mEntries;
 };
