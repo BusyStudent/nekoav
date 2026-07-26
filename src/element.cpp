@@ -59,9 +59,19 @@ static_assert(std::to_underlying(State::Null) < std::to_underlying(State::Runnin
 } // namespace
 
 // MARK: Pad
-auto Pad::unlink() -> void {
+Pad::~Pad() {
+    if (!unlink()) {
+        NEKOAV_ERROR("Failed to unlink pad '{}'", name());
+    }
+}
+
+auto Pad::unlink() -> bool {
     if (!mPeer) {
-        return;
+        return true;
+    }
+    if (mElement.mState == State::Running) {
+        NEKOAV_ERROR("[Pad] Topology changed while element '{}' is running, this may cause undefined behavior", mElement.name());
+        return false;
     }
     mPeer->mPeer = nullptr;
     mPeer = nullptr;
@@ -71,11 +81,9 @@ auto Pad::unlink() -> void {
         mElement.mParent->mSorted = false;
         mElement.mParent->onTopologyChange();
     }
-    if (mElement.mState == State::Running) {
-        NEKOAV_ERROR("[Pad] Topology changed while element '{}' is running, this may cause undefined behavior", mElement.name());
-        std::abort();
-    }
+    return true;
 }
+
 
 auto Pad::link(Pad &peer) -> bool {
     if (isLinked() || peer.isLinked()) {
@@ -177,17 +185,15 @@ Element::~Element() {
 }
 
 auto Element::setState(State targetState) -> IoTask<void> {
+    // Accquire the lock
+    const auto guard = co_await mStateMutex.lock();
+
     if (targetState == mState) { // Same state, no-op
         co_return {};
     }
-    if (mError && isSetStateForward(mState, targetState)) { // Only allow backword transition when error state is set
-        NEKOAV_ERROR("[Element] '{}' Failed to set state to {}, error state is set, only allow backward transition", name(), targetState);
-        co_return Err(Error::InvalidState);
-    }
 
-    // Accquire the lock
-    const auto guard = co_await mStateMutex.lock();
     const auto origin = mState;
+    std::error_code forwardError; // Forward transition error
 
     // TODO: Rollback when cancelled
     while (mState != targetState) {
@@ -209,7 +215,7 @@ auto Element::setState(State targetState) -> IoTask<void> {
         // Try execute it
         if (auto res = co_await selectTask(); !res && isSetStateForward(mState, targetState)) { // Forward..., must rollback
             NEKOAV_WARN("[Element] '{}' Failed to set state to {}, error state is set, begin rollback", name(), nextState);
-            mError = res.error();
+            forwardError = res.error();
             targetState = origin;
             continue;
         }
@@ -222,8 +228,8 @@ auto Element::setState(State targetState) -> IoTask<void> {
     }
 
     // Done
-    if (mError) {
-        co_return Err(mError);
+    if (forwardError) {
+        co_return Err(forwardError);
     }
     co_return {};
 }

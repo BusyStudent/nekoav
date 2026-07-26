@@ -16,25 +16,43 @@ Bin::~Bin() {
 }
 
 // Emm? maybe we should make setState to virtual ?
-auto Bin::addElement(Element::Ptr element) -> void {
+auto Bin::addElement(Element::Ptr element) -> bool {
     if (!element || element->mParent) { // Didn't add an empty element or an element already in a bin
-        return;
+        return false;
     }
-    assert(!element->mIsPipeline); // Can't add an pipeline to a bin
-    // Set the member belong the bin
-    element->mParent = this;
-    element->setClock(clock());
-    element->setContext(context());
+    if (element->mIsPipeline) { // Can't add an pipeline to a bin
+        return false;
+    }
+    attach(element.get());
+
     mChildren.emplace_back(std::move(element));
     mSorted = false;
     onTopologyChange();
+    return true;
+}
+
+auto Bin::addElementsVector(std::vector<Element::Ptr> elements) -> bool {
+    std::vector<Element::Ptr> success {};
+    bool ok = true;
+    for (auto &element : elements) {
+        if (!addElement(element)) {
+            ok = false;
+            break;
+        }
+        success.emplace_back(std::move(element));
+    }
+    if (!ok) { // Rollback
+        for (auto &element : success) {
+            removeElement(element);
+        }
+    }
+    return ok;
 }
 
 auto Bin::addElementSync(Element::Ptr element) -> IoTask<void> {
-    if (!element || element->mParent) {
+    if (!addElement(element)) {
         co_return Err(Error::InvalidArguments);
     }
-    addElement(element);
     // Async state here
     if (auto res = co_await element->setState(state()); !res) {
         removeElement(element);
@@ -51,15 +69,13 @@ auto Bin::removeElement(Element::Ptr element) -> bool {
     if (it == mChildren.end()) {
         return false;
     }
-    if ((*it)->state() != State::Null) {
+    if (element->state() != State::Null) {
         NEKOAV_ERROR("[Bin] '{}' tried to remove an element not in Null state, please use setState to set it to Null state first", name());
         return false;
     }
 
-    // Remove the member belong the bin
-    (*it)->mParent = nullptr;
-    (*it)->setClock({});
-    (*it)->setContext({});
+    detach(element.get());
+
     mChildren.erase(it);
     mSorted = false;
     onTopologyChange();
@@ -72,12 +88,20 @@ auto Bin::syncElements() -> IoTask<void> {
 
 auto Bin::clear() -> IoTask<void> {
     auto res = co_await setChildrenState(State::Null);
+    for (auto &child : mChildren) {
+        detach(child.get());
+    }
+    
     mChildren.clear();
+    mSorted = false;
+    onTopologyChange();
     co_return res;
 }
 
 auto Bin::sendEvent(Event event) -> IoTask<void> {
     std::vector<IoTask<void> > tasks {};
+    tasks.reserve(mChildren.size());
+
     for (auto &child : mChildren) {
         tasks.emplace_back(child->sendEvent(event));
     }
@@ -95,6 +119,20 @@ auto Bin::dumpInfoInternal(FILE * where, int level) -> void {
     for (auto &child : mChildren) {
         child->dumpInfoInternal(where, level + 4);
     }
+}
+
+auto Bin::attach(Element *element) -> void {
+    // Set the member belong the bin
+    element->mParent = this;
+    element->setClock(clock());
+    element->setContext(context());
+}
+
+auto Bin::detach(Element *element) -> void {
+    // Remove the member belong the bin
+    element->mParent = nullptr;
+    element->setClock({});
+    element->setContext({});
 }
 
 auto Bin::onInitialize() -> IoTask<void> {

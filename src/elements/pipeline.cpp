@@ -101,7 +101,17 @@ auto Pipeline::onInitialize() -> IoTask<void> {
     }
 
     d->seeking = false;
-    co_return co_await Bin::onInitialize();
+
+    // Initialize the children
+    auto res = co_await Bin::onInitialize();
+    if (!res) {
+        NEKOAV_WARN("[Pipeline] '{}' initialize failed", name());
+        // Rollback
+        d->childrenMessageWatcher.stop();
+        co_await std::exchange(d->childrenMessageWatcher, {});
+        d->childrenMessageSender = {};
+    }
+    co_return res;
 }
 
 auto Pipeline::onTeardown() -> IoTask<void> {

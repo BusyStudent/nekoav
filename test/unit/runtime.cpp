@@ -55,10 +55,9 @@ ILIAS_TEST(ElementStateTest, RollbackOnFailure) {
     EXPECT_EQ(element->state(), origin);
 
     EXPECT_FALSE(result);
-    EXPECT_EQ(result.error(), make_error_code(Error::Internal));
+    EXPECT_EQ(result.error(), Error::Internal);
     EXPECT_TRUE(element->stateFailureTriggered());
     EXPECT_EQ(element->state(), State::Null);
-    EXPECT_EQ(element->error(), make_error_code(Error::Internal));
 
     EXPECT_TRUE(co_await element->setState(State::Null));
     EXPECT_EQ(element->state(), State::Null);

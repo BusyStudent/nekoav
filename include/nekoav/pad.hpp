@@ -32,7 +32,7 @@ class NEKOAV_API Pad final {
 public:
     Pad(Element &element, PadType type, std::string_view name) : mElement(element), mType(type), mName(name) {}
     Pad(const Pad &) = delete;
-    ~Pad() { unlink(); }
+    ~Pad();
 
     // Get the name of the pad
     auto name() const -> std::string_view {
@@ -49,8 +49,13 @@ public:
         return mPeer != nullptr;
     }
 
-    // Unlink the pad to its peer.
-    auto unlink() -> void;
+    /**
+     * @brief Unlink the peer pad, if the pad is already unlink (no-op, return true)
+     * 
+     * @return true Success
+     * @return false Fail, (maybe you unlink the pad when the element still running?)
+     */
+    auto unlink() -> bool;
 
     /**
      * @brief Link this pad to a peer pad

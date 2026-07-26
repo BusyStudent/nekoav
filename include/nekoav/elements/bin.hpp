@@ -26,20 +26,31 @@ public:
     /**
      * @brief Add an element to the bin
      * 
-     * @param element The shared_ptr of the element (if nullptr, no-op)
+     * @param element The shared_ptr of the element (if nullptr, return false)
+     * @return true We successfully added the element
+     * @return false Not added (maybe the element is already in the bin)
      */
-    auto addElement(Element::Ptr element) -> void;
+    auto addElement(Element::Ptr element) -> bool;
 
     /**
      * @brief Add many elements to the bin
      * 
      * @tparam Args 
-     * @param elements 
+     * @param elements The shared_ptr of the elements (if nullptr, return false)
      */
-    template <typename ...Args>
-    auto addElements(Args &&...elements) -> void {
-        (addElement(std::forward<Args>(elements)), ...);
+    template <typename ...Args> requires(sizeof...(Args) > 0)
+    auto addElements(Args &&...elements) -> bool {
+        return addElementsVector({std::forward<Args>(elements)...});
     }
+
+    /**
+     * @brief Add many elements to the bin, vector version
+     * 
+     * @param elements 
+     * @return true All elements are added
+     * @return false some or all elements failed to add, none of them are added
+     */
+    auto addElementsVector(std::vector<Element::Ptr> elements) -> bool;
 
     /**
      * @brief Add an element to the bin and sync the new Element to the bin state
@@ -117,6 +128,8 @@ private:
     // Dump
     auto dumpInfoInternal(FILE *where, int level) -> void override;
     auto setChildrenState(State newState) -> IoTask<void>;
+    auto attach(Element *element) -> void;
+    auto detach(Element *element) -> void;
 
     // Child elements
     // from Source -> Sink

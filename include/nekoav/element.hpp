@@ -248,6 +248,7 @@ protected:
 
     virtual auto dumpInfoInternal(FILE *where, int level) -> void;
 
+    // Forward, may failed
     /**
      * @brief Doing the initialize
      * 
@@ -256,6 +257,8 @@ protected:
     virtual auto onInitialize() -> IoTask<void>;
     virtual auto onPrepare() -> IoTask<void>;
     virtual auto onRun() -> IoTask<void>;
+
+    // Backward, should never failed
     virtual auto onPause() -> IoTask<void>;
     virtual auto onStop() -> IoTask<void>;
     virtual auto onTeardown() -> IoTask<void>;

@@ -331,6 +331,61 @@ inline auto Sample::toAudioFrame() -> AudioFrame * {
 
 // Formatter
 template <>
+struct std::formatter<nekoav::Packet> {
+    constexpr auto parse(std::format_parse_context &ctxt) -> decltype(ctxt.begin()) {
+        return ctxt.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const nekoav::Sample &sample, FormatContext &ctxt) const {
+        return std::format_to(
+            ctxt.out(),
+            "Packet(pts: {}, dts: {})",
+            sample.pts().value_or(nekoav::Timestamp{}),
+            sample.dts().value_or(nekoav::Timestamp{})
+        );
+    }
+};
+
+template <>
+struct std::formatter<nekoav::AudioFrame> {
+    constexpr auto parse(std::format_parse_context &ctxt) -> decltype(ctxt.begin()) {
+        return ctxt.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const nekoav::AudioFrame &frame, FormatContext &ctxt) const {
+        return std::format_to(
+            ctxt.out(),
+            "AudioFrame(pts: {}, sampleFormat: {}, sampleRate: {}, samples: {})",
+            frame.pts().value_or(nekoav::Timestamp{}),
+            frame.sampleFormat(),
+            frame.sampleRate(),
+            frame.samples()
+        );
+    }
+};
+
+template <>
+struct std::formatter<nekoav::VideoFrame> {
+    constexpr auto parse(std::format_parse_context &ctxt) -> decltype(ctxt.begin()) {
+        return ctxt.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const nekoav::VideoFrame &frame, FormatContext &ctxt) const {
+        return std::format_to(
+            ctxt.out(), 
+            "VideoFrame(pts: {}, pixelFormat: {}, width: {}, height: {})", 
+            frame.pts().value_or(nekoav::Timestamp{}),
+            frame.pixelFormat(),
+            frame.width(),
+            frame.height()
+        );
+    }
+};
+
+template <>
 struct std::formatter<nekoav::Sample> {
     constexpr auto parse(std::format_parse_context &ctxt) -> decltype(ctxt.begin()) {
         return ctxt.begin();
@@ -338,13 +393,12 @@ struct std::formatter<nekoav::Sample> {
 
     template <typename FormatContext>
     auto format(const nekoav::Sample &sample, FormatContext &ctxt) const {
-        const auto zero = nekoav::Timestamp {};
         const auto visitor = nekoav::Overloads {
             [&](std::monostate) { return std::format_to(ctxt.out(), "Sample(Null)"); },
-            [&](const nekoav::VideoFrame &frame) { return std::format_to(ctxt.out(), "Sample(VideoFrame(pts: {}))", frame.pts().value_or(zero)); },
-            [&](const nekoav::AudioFrame &frame) { return std::format_to(ctxt.out(), "Sample(AudioFrame(pts: {}))", frame.pts().value_or(zero)); },
-            [&](const nekoav::Packet &packet) { return std::format_to(ctxt.out(), "Sample(Packet(pts: {}))", packet.pts().value_or(zero)); },
+            [&](const nekoav::VideoFrame &frame) { return std::format_to(ctxt.out(), "Sample({})", frame); },
+            [&](const nekoav::AudioFrame &frame) { return std::format_to(ctxt.out(), "Sample({})", frame); },
+            [&](const nekoav::Packet &packet) { return std::format_to(ctxt.out(), "Sample({})", packet); },
         };
-        return std::visit(visitor, sample.mStorage);
+        return sample.visit(visitor);
     }
 };
