@@ -18,25 +18,52 @@
 namespace nekoav {
 
 /**
+ * @brief The flags of the events
+ * 
+ */
+enum class EventFlags : uint8_t {
+    None       = 0,
+    Serialized = 1 << 0, // The event is serialized with sample (in-bound)
+    Sticky     = 1 << 1, // The event is sticky
+};
+
+// Operator for flags
+constexpr auto operator|(EventFlags lhs, EventFlags rhs) -> EventFlags {
+    return static_cast<EventFlags>(std::to_underlying(lhs) | std::to_underlying(rhs) );
+}
+
+constexpr auto hasFlag(EventFlags value, EventFlags flag) -> bool {
+    return (std::to_underlying(value) & std::to_underlying(flag)) != 0;
+}
+
+/**
  * @brief Request to seek to a specific timestamp
  * 
  */
 class SeekEvent {
 public:
+    static auto flags() { return EventFlags::None; }
+
     Timestamp timestamp;
 };
 
 class FlushBeginEvent {
-
+public:
+    static auto flags() { return EventFlags::None; }
 };
 
 class FlushEndEvent {
-    
+public:
+    static auto flags() { return EventFlags::Serialized; }
 };
 
-class EndOfStreamEvent {
+/**
+ * @brief The stream has been end
+ * 
+ */
+class EosEvent {
 public:
-    int streamIndex = 0;
+    static auto flags() { return EventFlags::Serialized | EventFlags::Sticky;  }
 };
 
 /**
@@ -45,6 +72,8 @@ public:
  */
 class CapsEvent {
 public:
+    static auto flags() { return EventFlags::Serialized | EventFlags::Sticky; }
+
     Caps caps;
 };
 
@@ -57,9 +86,9 @@ public:
     using Seek         = SeekEvent;
     using FlushBegin   = FlushBeginEvent;
     using FlushEnd     = FlushEndEvent;
-    using EndOfStream  = EndOfStreamEvent;
+    using Eos          = EosEvent;
     using Caps         = CapsEvent;
-    using Storage      = std::variant<Seek, FlushBegin, FlushEnd, EndOfStream, Caps>;
+    using Storage      = std::variant<Seek, FlushBegin, FlushEnd, Eos, Caps>;
     using Ref          = Event &;
 
     Event(const Event &) = default;
@@ -75,11 +104,22 @@ public:
     auto isFlushBegin() const noexcept { return std::holds_alternative<FlushBegin>(mStorage); }
     auto isFlushEnd() const noexcept { return std::holds_alternative<FlushEnd>(mStorage); }
     auto isCaps () const noexcept { return std::holds_alternative<Caps>(mStorage); }
+    auto isEos() const noexcept { return std::holds_alternative<Eos>(mStorage); }
 
     auto toSeek() const noexcept { return std::get<Seek>(mStorage); }
     auto toFlushBegin() const noexcept { return std::get<FlushBegin>(mStorage); }
     auto toFlushEnd() const noexcept { return std::get<FlushEnd>(mStorage); }
     auto toCaps() const noexcept { return std::get<Caps>(mStorage); }
+
+    // Flags
+    auto flags() const noexcept -> EventFlags {
+        auto fn = [](const auto &t) {
+            return t.flags();
+        };
+        return std::visit(fn, mStorage);
+    }
+    auto isSerialzed() const noexcept { return hasFlag(flags(), EventFlags::Serialized); }
+    auto isSticky() const noexcept { return hasFlag(flags(), EventFlags::Sticky); }
 
     // Visit
     template <typename Fn>
@@ -109,7 +149,7 @@ struct std::formatter<nekoav::Event> {
             [&](const nekoav::Event::Seek &seek) { return std::format_to(ctxt.out(), "Event(Seek({}))", seek.timestamp); },
             [&](const nekoav::Event::FlushBegin &) { return std::format_to(ctxt.out(), "Event(FlushBegin)"); },
             [&](const nekoav::Event::FlushEnd &) { return std::format_to(ctxt.out(), "Event(FlushEnd)"); },
-            [&](const nekoav::Event::EndOfStream &eos) { return std::format_to(ctxt.out(), "Event(EndOfStream({}))", eos.streamIndex); },
+            [&](const nekoav::Event::Eos &eos) { return std::format_to(ctxt.out(), "Event(Eos)"); },
             [&](const nekoav::Event::Caps &caps) { return std::format_to(ctxt.out(), "Event(Caps({}))", caps.caps); },
             // [&](const nekoav::Event::Error &error) { return std::format_to(ctxt.out(), "Event(Error({}))", error.message); },
             // [&](const nekoav::Event::ClockUpdate &clock) { return std::format_to(ctxt.out(), "Event(ClockUpdate({}: {}))", clock.clock->category(), clock.time); },

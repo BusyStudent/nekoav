@@ -216,12 +216,11 @@ private:
  */
 class NEKOAV_API Sample final {
 public:
-    using Storage = std::variant<std::monostate, VideoFrame, AudioFrame, Packet>;
+    using Storage = std::variant<VideoFrame, AudioFrame, Packet>;
 
-    Sample(std::nullptr_t) noexcept : mStorage(std::monostate()) {}
     Sample(const Sample &) noexcept = delete;
     Sample(Sample &&) noexcept = default;
-    Sample() = default;
+    Sample() = delete;
 
     // Construct inner
     template <typename T> requires(std::is_constructible_v<Storage, T>)
@@ -246,7 +245,6 @@ public:
     auto isAudioFrame() const -> bool { return std::holds_alternative<AudioFrame>(mStorage); }
     auto isVideoFrame() const -> bool { return std::holds_alternative<VideoFrame>(mStorage); }
     auto isPacket() const -> bool { return std::holds_alternative<Packet>(mStorage); }
-    auto isNull() const -> bool { return std::holds_alternative<std::monostate>(mStorage); }
     
     auto toPacket() -> Packet *;
     auto toVideoFrame() -> VideoFrame *;
@@ -261,8 +259,6 @@ public:
     // Operators
     auto operator =(Sample &&) -> Sample & = default;
     auto operator <=>(const Sample &rhs) const noexcept = default;
-
-    explicit operator bool() const noexcept { return !isNull(); }
 private:
     Storage mStorage;
 };
@@ -270,7 +266,6 @@ private:
 // Impl
 inline auto Sample::pts() const -> std::optional<Timestamp> {
     const auto visitor = Overloads {
-        [](std::monostate) { return std::optional<Timestamp>{}; },
         [](const Frame &frame) { return frame.pts(); },
         [](const Packet &packet) { return packet.pts(); },
     };
@@ -279,7 +274,6 @@ inline auto Sample::pts() const -> std::optional<Timestamp> {
 
 inline auto Sample::dts() const -> std::optional<Timestamp> {
     const auto visitor = Overloads {
-        [](std::monostate) { return std::optional<Timestamp>{}; },
         [](const Frame &frame) { return frame.dts(); },
         [](const Packet &packet) { return packet.dts(); },
     };
@@ -288,7 +282,6 @@ inline auto Sample::dts() const -> std::optional<Timestamp> {
 
 inline auto Sample::setPts(std::optional<Timestamp> pts) -> void {
     const auto visitor = Overloads {
-        [](std::monostate) {},
         [&](Frame &frame) { frame.setPts(pts); },
         [&](Packet &packet) { packet.setPts(pts); },
     };
@@ -297,7 +290,6 @@ inline auto Sample::setPts(std::optional<Timestamp> pts) -> void {
 
 inline auto Sample::setDts(std::optional<Timestamp> dts) -> void {
     const auto visitor = Overloads {
-        [](std::monostate) {},
         [&](Frame &frame) { frame.setDts(dts); },
         [&](Packet &packet) { packet.setDts(dts); },
     };
@@ -306,7 +298,6 @@ inline auto Sample::setDts(std::optional<Timestamp> dts) -> void {
 
 inline auto Sample::clone() const -> Sample {
     const auto visitor = Overloads {
-        [](std::monostate) { return Sample{}; },
         [](const AudioFrame &frame) { return Sample{frame.clone()}; },
         [](const VideoFrame &frame) { return Sample{frame.clone()}; },
         [](const Packet &packet) { return Sample{packet.clone()}; },
@@ -394,7 +385,6 @@ struct std::formatter<nekoav::Sample> {
     template <typename FormatContext>
     auto format(const nekoav::Sample &sample, FormatContext &ctxt) const {
         const auto visitor = nekoav::Overloads {
-            [&](std::monostate) { return std::format_to(ctxt.out(), "Sample(Null)"); },
             [&](const nekoav::VideoFrame &frame) { return std::format_to(ctxt.out(), "Sample({})", frame); },
             [&](const nekoav::AudioFrame &frame) { return std::format_to(ctxt.out(), "Sample({})", frame); },
             [&](const nekoav::Packet &packet) { return std::format_to(ctxt.out(), "Sample({})", packet); },

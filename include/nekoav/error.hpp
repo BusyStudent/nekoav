@@ -5,14 +5,6 @@
 
 namespace nekoav {
 
-class ErrorCategory final : public std::error_category {
-public:
-    constexpr ErrorCategory() {}
-
-    auto name() const noexcept -> const char * override;
-    auto message(int code) const -> std::string override;
-};
-
 enum class Error : int {
     Ok = 0,                  //< No error
 

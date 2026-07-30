@@ -84,6 +84,7 @@ struct VideoSink::Impl {
 
 VideoSink::VideoSink(std::string_view name) : Sink(name), mInput(createInputPad("in")) {
     mInput.setPushCallback<&VideoSink::onPadPush>(this);
+    mInput.setEventCallback<&VideoSink::onPadEvent>(this);
     mInput.setQueryCallback<&VideoSink::onPadQuery>(this);
     mInput.mutableCaps().insertOrAssign(Caps::VideoRaw, Value::Map {});
 }
@@ -137,14 +138,6 @@ auto VideoSink::onPrepare() -> IoTask<void> {
 
 auto VideoSink::onPadPush(Pad &, Sample sample) -> IoTask<void> {
     using namespace std::literals;
-
-    if (!sample) { // EOF
-        postMessage(Message::EndOfStream {
-            .element = shared_from_this(),
-        });
-        NEKOAV_INFO("[VideoSink] '{}', End of stream", name());
-        co_return {};
-    }
     if (!sample.isVideoFrame()) {
         co_return Err(Error::SampleTypeNotSupported);
     }
@@ -180,6 +173,17 @@ auto VideoSink::onPadQuery(Pad &pad, Query query) -> std::optional<Reply> {
         return Reply::Caps { .caps = pad.caps() };
     }
     return std::nullopt;
+}
+
+auto VideoSink::onPadEvent(Pad &pad, Event event) -> IoTask<void> {
+    if (event.isEos()) { // EOS
+        postMessage(Message::EndOfStream {
+            .element = shared_from_this(),
+        });
+        NEKOAV_INFO("[VideoSink] '{}', End of stream", name());
+        co_return {};
+    }
+    co_return {};
 }
 
 // MARK: VideoConverter
@@ -228,9 +232,6 @@ auto VideoConverter::onStop() -> IoTask<void> {
 }
 
 auto VideoConverter::onPush(Pad &, Sample sample) -> IoTask<void> {
-    if (!sample) { // Forward EOF
-        co_return co_await mOutput.push(std::move(sample));
-    }
     if (!sample.isVideoFrame()) {
         co_return Err(Error::SampleTypeNotSupported);
     }

@@ -124,10 +124,10 @@ auto Decoder::onTeardown() -> IoTask<void> {
 }
 
 auto Decoder::onPadPush(Pad &pad, Sample sample) -> IoTask<void> {
-    if (!sample) { // Forward EOS
-        // TODO: We maybe need to flush the decoder
-        co_return co_await mOutput.push(std::move(sample));
-    }
+    // if (!sample) { // Forward EOS
+    //     // TODO: We maybe need to flush the decoder
+    //     co_return co_await mOutput.push(std::move(sample));
+    // }
     if (!d) { // The decoder is not initialize, try init now
         auto reply =  mInput.sendQuery(Query::Caps{});
         if (!reply) {

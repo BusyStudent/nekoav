@@ -3,7 +3,9 @@
 #include <nekoav/sample.hpp>
 #include <nekoav/query.hpp>
 #include <nekoav/caps.hpp>
+#include <ilias/sync/mutex.hpp>
 #include <concepts>
+#include <variant>
 #include <string>
 #include <bit>
 
@@ -219,7 +221,7 @@ private:
 
     template <typename Callable>
     static auto typeUnerase(const UserData &data) -> Callable {
-        auto array = std::array<std::byte, sizeof(Callable)>{};
+        std::array<std::byte, sizeof(Callable)> array{};
         ::memcpy(array.data(), data.data(), sizeof(Callable));
         return std::bit_cast<Callable>(array);
     }
@@ -250,6 +252,7 @@ private:
     std::string mName;
     Pad        *mPeer = nullptr; // The peer pad this pad is linked to.
     Caps        mCaps;
+    ilias::Mutex mMutex;
 
     // Callbacks
     PushCallback mPushCallback = nullptr;

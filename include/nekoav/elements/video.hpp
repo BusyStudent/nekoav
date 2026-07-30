@@ -96,6 +96,7 @@ private:
     auto onStop() -> IoTask<void> override;
     auto onPadPush(Pad &, Sample sample) -> IoTask<void>;
     auto onPadQuery(Pad &pad, Query query) -> std::optional<Reply>;
+    auto onPadEvent(Pad &pad, Event event) -> IoTask<void>;
 
     struct Impl;
 

@@ -181,10 +181,6 @@ auto AudioSink::onRun() -> IoTask<void> {
 }
 
 auto AudioSink::onPush(Pad &pad, Sample sample) -> IoTask<void> {
-    if (!sample) { // EOF
-        d->callback.endOfStream = true; // Let the audioCallback generate the eos message to it
-        co_return {};
-    }
     if (!sample.isAudioFrame()) {
         co_return Err(Error::SampleTypeNotSupported);
     }
@@ -205,6 +201,10 @@ auto AudioSink::onPush(Pad &pad, Sample sample) -> IoTask<void> {
 }
 
 auto AudioSink::onEvent(Pad &pad, Event event) -> IoTask<void> {
+    if (event.isEos()) { // Eos
+        d->callback.endOfStream = true; // Let the audioCallback generate the eos message to it
+        co_return {};
+    }
     if (!event.isFlushBegin()) {
         co_return {};
     }

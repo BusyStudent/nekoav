@@ -226,11 +226,12 @@ auto UrlSource::readWorker() -> Task<void> {
 
             case AVERROR_EXIT: co_return; // interruptCallback was request exit 
             case AVERROR_EOF: { // We are done, push the eof to all the pads
+                NEKOAV_INFO("[UrlSource] '{}' EOF", name());
                 for (auto &pad : outputs()) {
                     if (!pad.isLinked()) {
                         continue;
                     }
-                    if (auto res = co_await ilias::unstoppable(pad.push(nullptr)); !res) {
+                    if (auto res = co_await ilias::unstoppable(pad.pushEvent(EosEvent{})); !res) {
                         setErrorState(res.error());
                         co_return;
                     }

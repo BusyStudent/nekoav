@@ -115,6 +115,7 @@ auto Pad::push(Sample sample) -> IoTask<void> {
         NEKOAV_DEBUG("No push callback set on pad '{}'", mPeer->name());
         co_return Err(Error::NoPushCallback);
     }
+    auto guard = co_await mMutex.lock();
     co_return co_await mPeer->mPushCallback(*mPeer, std::move(sample));
 }
 
@@ -124,6 +125,10 @@ auto Pad::pushEvent(Event event) -> IoTask<void> {
         co_return Err(Error::NotLinked);
     }
     auto &element = cur->mElement;
+    auto guard = std::optional<ilias::MutexGuard>{};
+    if (event.isSerialzed()) { // We need serialized with push
+        guard.emplace(co_await mMutex.lock());
+    }
     NEKOAV_INFO("[Pad] push event '{}' to element '{}', pad '{}'", event, element.name(), cur->name());
     if (cur->mEventCallback) { 
         if (auto res = co_await cur->mEventCallback(*cur, event); !res) {

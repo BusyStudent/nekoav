@@ -1,19 +1,19 @@
 #include <nekoav/elements/queue.hpp>
-#include "log.hpp"
 #include <ilias/task.hpp>
 #include <ilias/sync.hpp>
 #include <deque>
+#include "log.hpp"
 
 namespace nekoav {
 
 struct Queue::Impl {
     // Data
-    std::deque<Sample> queue;
+    std::deque<std::variant<Sample, Event> > queue;
     size_t queueCapacity = 100;
 
     // Sync
     ilias::Event queueHasSpace {ilias::Event::AutoClear};
-    ilias::Event queueHasSample;
+    ilias::Event queueHasItem;
     ilias::Event pauseRequested;
 
     ilias::WaitHandle<void> pullWorker;
@@ -33,8 +33,8 @@ Queue::Queue(std::string_view name) : Transform(name), d(std::make_unique<Impl>(
     out.mutableCaps().insertOrAssign(Caps::Any, Value::Any{});
 
     // Bind it
-    in.setPushCallback<&Queue::onPush>(this);
-    in.setEventCallback<&Queue::onEvent>(this);
+    in.setPushCallback<&Queue::onPadPush>(this);
+    in.setEventCallback<&Queue::onPadEvent>(this);
 
     d->in = &in;
     d->out = &out;
@@ -57,16 +57,16 @@ auto Queue::onPause() -> IoTask<void> {
     co_return {};
 }
 
-auto Queue::onPush(Pad &, Sample sample) -> IoTask<void> {
+auto Queue::onPadPush(Pad &, Sample sample) -> IoTask<void> {
     while (d->queue.size() >= d->queueCapacity) { // Wait for space
         co_await d->queueHasSpace;
     }
     d->queue.emplace_back(std::move(sample));
-    d->queueHasSample.set();
+    d->queueHasItem.set();
     co_return {};
 }
 
-auto Queue::onEvent(Pad &, Event event) -> IoTask<void> {
+auto Queue::onPadEvent(Pad &, Event event) -> IoTask<void> {
     // TODO: Maybe we need mutex with push?
     if (event.isFlushBegin()) {
         NEKOAV_INFO("[Queue] '{}' flush begin", name());
@@ -76,7 +76,19 @@ auto Queue::onEvent(Pad &, Event event) -> IoTask<void> {
         NEKOAV_INFO("[Queue] '{}' flush end", name());
         d->queueHasSpace.set();
     }
-    co_return co_await d->out->pushEvent(event); // Forward the event
+    // Forward the event
+    if (event.isSerialzed()) { // The event is serialized, push it to the queue
+        while (d->queue.size() >= d->queueCapacity) { // Wait for space
+            co_await d->queueHasSpace;
+        }
+        d->queue.emplace_back(std::move(event));
+        d->queueHasItem.set();
+        NEKOAV_INFO("[Queue] '{}' pushed event to the queue", name());
+        co_return {};
+    }
+    else {
+        co_return co_await d->out->pushEvent(event); 
+    }
 }
 
 auto Queue::onStop() -> IoTask<void> {
@@ -86,7 +98,7 @@ auto Queue::onStop() -> IoTask<void> {
 }
 
 auto Queue::doPull() -> Task<void> {
-    // Maek the queue name
+    // Mark the queue name
     co_await ilias::this_coro::setName(name());
     
     while (true) {
@@ -94,22 +106,32 @@ auto Queue::doPull() -> Task<void> {
             break;
         }
         while (d->queue.empty()) { // Wait for sample
-            d->queueHasSample.clear();
-            auto [_, pause] = co_await ilias::whenAny(d->queueHasSample.wait(), d->pauseRequested.wait());
+            d->queueHasItem.clear();
+            auto [_, pause] = co_await ilias::whenAny(d->queueHasItem.wait(), d->pauseRequested.wait());
             if (pause) { // The queue is paused or something, return immediately
                 NEKOAV_INFO("[Queue] '{}' paused got, pull worker quiting", name());
                 co_return;
             }
         }
-        auto sample = std::move(d->queue.front());
+        auto item = std::move(d->queue.front());
         d->queue.pop_front();
         d->queueHasSpace.set();
 
         // Push it to the pad
-        if (auto res = co_await d->out->push(std::move(sample)); !res) {
-            NEKOAV_INFO("[Queue] '{}' failed to push sample to the pad => {}", name(), res.error().message());
-            setErrorState(res.error());
-            co_return;
+        if (auto sample = std::get_if<Sample>(&item); sample) {
+            if (auto res = co_await d->out->push(std::move(*sample)); !res) {
+                NEKOAV_INFO("[Queue] '{}' failed to push sample to the pad => {}", name(), res.error().message());
+                setErrorState(res.error());
+                co_return;
+            }
+        }
+        else {
+            auto &event = std::get<Event>(item);
+            if (auto res = co_await d->out->pushEvent(event); !res) {
+                NEKOAV_INFO("[Queue] '{}' failed to push event to the pad => {}", name(), res.error().message());
+                setErrorState(res.error());
+                co_return;
+            }
         }
     }
 }
