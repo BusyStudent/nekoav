@@ -2,6 +2,7 @@
 #include <nekoav/element.hpp>
 #include <nekoav/format.hpp>
 #include <nekoav/sample.hpp>
+#include <nekoav/error.hpp>
 #include <nekoav/caps.hpp>
 #include <ilias/task.hpp>
 #include <ilias/sync.hpp>
@@ -122,7 +123,7 @@ auto UrlSource::onPrepare() -> IoTask<void> {
                     { std::string{Caps::SampleRate},  stream->codecpar->sample_rate },
                     { std::string{Caps::Channels},    stream->codecpar->ch_layout.nb_channels },
                     { std::string{Caps::Codec},       avcodec_get_name(stream->codecpar->codec_id) },
-                    { std::string{Caps::CodecTag}, static_cast<int64_t>(stream->codecpar->codec_tag) },
+                    { std::string{Caps::CodecTag},    static_cast<int64_t>(stream->codecpar->codec_tag) },
                     { std::string{Caps::CodecExtraData}, std::vector<std::byte>{extraData, extraData + stream->codecpar->extradata_size} },
                     { std::string{Caps::SampleFormat}, sample_fmt::fromFFmpeg(AVSampleFormat(stream->codecpar->format)) },
                     { std::string{Caps::Bitrate}, stream->codecpar->bit_rate },
@@ -231,7 +232,7 @@ auto UrlSource::readWorker() -> Task<void> {
                     if (!pad.isLinked()) {
                         continue;
                     }
-                    if (auto res = co_await ilias::unstoppable(pad.pushEvent(EosEvent{})); !res) {
+                    if (auto res = co_await ilias::unstoppable(pad.pushEvent(EosEvent{})); !res && res != Err(Error::Flushing)) {
                         setErrorState(res.error());
                         co_return;
                     }
@@ -266,7 +267,7 @@ auto UrlSource::readWorker() -> Task<void> {
 
 
         Packet sample {pak, timeBase};
-        if (auto res = co_await ilias::unstoppable(pad->push(std::move(sample))); !res) {
+        if (auto res = co_await ilias::unstoppable(pad->push(std::move(sample))); !res && res != Err(Error::Flushing)) {
             NEKOAV_ERROR("[UrlSource] '{}' push {} packet failed: {}", name(), pad->name(), res.error().message());
             co_return;
         }

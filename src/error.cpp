@@ -25,6 +25,7 @@ auto ErrorCategory::message(int code) const -> std::string {
         arr[static_cast<size_t>(Error::NotLinked)]               = "Pad is not linked";
         arr[static_cast<size_t>(Error::NoPushCallback)]          = "Pad push callback is not set";
         arr[static_cast<size_t>(Error::InvalidTopology)]         = "Invalid pipeline topology";
+        arr[static_cast<size_t>(Error::Flushing)]                = "Pad is flushing";
 
         arr[static_cast<size_t>(Error::NotNegotiated)]           = "Pad is not negotiated";
 

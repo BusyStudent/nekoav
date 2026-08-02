@@ -328,12 +328,12 @@ struct std::formatter<nekoav::Packet> {
     }
 
     template <typename FormatContext>
-    auto format(const nekoav::Sample &sample, FormatContext &ctxt) const {
+    auto format(const nekoav::Packet &packet, FormatContext &ctxt) const {
         return std::format_to(
             ctxt.out(),
             "Packet(pts: {}, dts: {})",
-            sample.pts().value_or(nekoav::Timestamp{}),
-            sample.dts().value_or(nekoav::Timestamp{})
+            packet.pts().value_or(nekoav::Timestamp{}),
+            packet.dts().value_or(nekoav::Timestamp{})
         );
     }
 };

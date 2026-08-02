@@ -1,13 +1,14 @@
 #include <nekoav/elements/bin.hpp>
 #include <nekoav/element.hpp>
 #include <nekoav/error.hpp>
-#include "log.hpp"
+#include <nekoav/pad.hpp>
 #include <ilias/task.hpp>
 #include <unordered_map>
 #include <algorithm>
 #include <ranges>
 #include <queue>
 #include <print>
+#include "log.hpp"
 
 namespace nekoav {
 
@@ -58,6 +59,13 @@ static_assert(std::to_underlying(State::Null) < std::to_underlying(State::Runnin
 
 } // namespace
 
+// Store some link state on here
+class PadLink {
+public:
+    ilias::Mutex mutex;
+    bool flushing = false;
+};
+
 // MARK: Pad
 Pad::~Pad() {
     if (!unlink()) {
@@ -73,8 +81,12 @@ auto Pad::unlink() -> bool {
         NEKOAV_ERROR("[Pad] Topology changed while element '{}' is running, this may cause undefined behavior", mElement.name());
         return false;
     }
+
+    // Clear the data
     mPeer->mPeer = nullptr;
+    mPeer->mLink = nullptr;
     mPeer = nullptr;
+    mLink = nullptr;
 
     // Mark Topology is changed
     if (mElement.mParent) {
@@ -92,8 +104,13 @@ auto Pad::link(Pad &peer) -> bool {
     if (mType == peer.mType) {
         return false;
     }
+
+    // Set the data
+    auto link = std::make_shared<PadLink>();
     mPeer = &peer;
+    mLink = link;
     peer.mPeer = this;
+    peer.mLink = link;
     
     // Mark Topology is changed
     if (mElement.mParent) {
@@ -111,24 +128,44 @@ auto Pad::push(Sample sample) -> IoTask<void> {
     if (!isLinked()) {
         co_return Err(Error::NotLinked);
     }
+    if (isFlushing()) {
+        NEKOAV_WARN("Pad '{}' is flushing, drop sample {}", name(), sample);
+        co_return Err(Error::Flushing);
+    }
     if (!mPeer->mPushCallback) {
-        NEKOAV_DEBUG("No push callback set on pad '{}'", mPeer->name());
+        NEKOAV_WARN("No push callback set on pad '{}'", mPeer->name());
         co_return Err(Error::NoPushCallback);
     }
-    auto guard = co_await mMutex.lock();
+    auto guard = co_await mLink->mutex.lock();
     co_return co_await mPeer->mPushCallback(*mPeer, std::move(sample));
 }
 
 auto Pad::pushEvent(Event event) -> IoTask<void> {
-    auto cur = peer();
-    if (!cur) {
+    if (!isLinked()) {
         co_return Err(Error::NotLinked);
     }
-    auto &element = cur->mElement;
+
+    // Check flushing...
+    if (event.isFlushEnd()) {
+        mLink->flushing = false;
+    }
+    if (isFlushing()) {
+        NEKOAV_WARN("Pad '{}' is flushing, drop event {}", name(), event);
+        co_return Err(Error::Flushing);
+    }
+    if (event.isFlushBegin()) { // Set the flushing
+        mLink->flushing = true;
+    }
+
+    // Serialze guard
     auto guard = std::optional<ilias::MutexGuard>{};
     if (event.isSerialzed()) { // We need serialized with push
-        guard.emplace(co_await mMutex.lock());
+        guard.emplace(co_await mLink->mutex.lock());
     }
+
+    // Push
+    auto cur = peer();
+    auto &element = cur->mElement;
     NEKOAV_INFO("[Pad] push event '{}' to element '{}', pad '{}'", event, element.name(), cur->name());
     if (cur->mEventCallback) { 
         if (auto res = co_await cur->mEventCallback(*cur, event); !res) {
@@ -172,6 +209,13 @@ auto Pad::sendQuery(Query query) -> std::optional<Reply> {
         }
     }
     return std::nullopt;
+}
+
+auto Pad::isFlushing() const -> bool {
+    if (isLinked()) {
+        return mLink->flushing;
+    }   
+    return false;
 }
 
 // MARK: Element

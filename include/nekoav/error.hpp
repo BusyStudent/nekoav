@@ -12,6 +12,7 @@ enum class Error : int {
     NotLinked,               //< Pad is not linked
     NoPushCallback,          //< Pad push callback is not set
     InvalidTopology,         //< Invalid pipeline topology
+    Flushing,                //< Pad is flushing
 
     // Negotiate
     NotNegotiated,           //< Pad failed to negotiate

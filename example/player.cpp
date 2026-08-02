@@ -6,6 +6,7 @@
 #include <ilias/platform/qt.hpp>
 #include <ilias/console.hpp>
 #include <ilias/signal.hpp>
+#include <ilias/task.hpp>
 #include <QApplication>
 #include <QMessageBox>
 #include <QMainWindow>

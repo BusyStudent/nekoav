@@ -1,4 +1,5 @@
 #include <nekoav/elements/queue.hpp>
+#include <nekoav/error.hpp>
 #include <ilias/task.hpp>
 #include <ilias/sync.hpp>
 #include <deque>
@@ -119,7 +120,7 @@ auto Queue::doPull() -> Task<void> {
 
         // Push it to the pad
         if (auto sample = std::get_if<Sample>(&item); sample) {
-            if (auto res = co_await d->out->push(std::move(*sample)); !res) {
+            if (auto res = co_await d->out->push(std::move(*sample)); !res && res != Err(Error::Flushing)) {
                 NEKOAV_INFO("[Queue] '{}' failed to push sample to the pad => {}", name(), res.error().message());
                 setErrorState(res.error());
                 co_return;
@@ -127,7 +128,7 @@ auto Queue::doPull() -> Task<void> {
         }
         else {
             auto &event = std::get<Event>(item);
-            if (auto res = co_await d->out->pushEvent(event); !res) {
+            if (auto res = co_await d->out->pushEvent(event); !res && res != Err(Error::Flushing)) {
                 NEKOAV_INFO("[Queue] '{}' failed to push event to the pad => {}", name(), res.error().message());
                 setErrorState(res.error());
                 co_return;

@@ -7,12 +7,14 @@
 #include <concepts>
 #include <variant>
 #include <string>
+#include <memory>
 #include <bit>
 
 namespace nekoav {
 
 // Forward declare
 class Element;
+class PadLink;
 
 /**
  * @brief The type of the Pad
@@ -50,6 +52,9 @@ public:
     auto isLinked() const -> bool {
         return mPeer != nullptr;
     }
+
+    // Check the pad is flushing?
+    auto isFlushing() const -> bool;
 
     /**
      * @brief Unlink the peer pad, if the pad is already unlink (no-op, return true)
@@ -252,7 +257,6 @@ private:
     std::string mName;
     Pad        *mPeer = nullptr; // The peer pad this pad is linked to.
     Caps        mCaps;
-    ilias::Mutex mMutex;
 
     // Callbacks
     PushCallback mPushCallback = nullptr;
@@ -263,6 +267,9 @@ private:
 
     QueryCallback mQueryCallback = nullptr;
     UserData      mQueryUser = {};
+
+    // State
+    std::shared_ptr<PadLink> mLink;
 };
 
 } // namespace nekoav

@@ -23,8 +23,10 @@ namespace nekoav {
  */
 enum class EventFlags : uint8_t {
     None       = 0,
-    Serialized = 1 << 0, // The event is serialized with sample (in-bound)
-    Sticky     = 1 << 1, // The event is sticky
+    Upstream   = 1 << 0,
+    Downstream = 1 << 1,
+    Serialized = 1 << 2, // The event is serialized with sample (in-bound)
+    Sticky     = 1 << 3, // The event is sticky
 };
 
 // Operator for flags
@@ -49,12 +51,12 @@ public:
 
 class FlushBeginEvent {
 public:
-    static auto flags() { return EventFlags::None; }
+    static auto flags() { return EventFlags::Downstream; }
 };
 
 class FlushEndEvent {
 public:
-    static auto flags() { return EventFlags::Serialized; }
+    static auto flags() { return EventFlags::Downstream | EventFlags::Serialized; }
 };
 
 /**
@@ -63,7 +65,7 @@ public:
  */
 class EosEvent {
 public:
-    static auto flags() { return EventFlags::Serialized | EventFlags::Sticky;  }
+    static auto flags() { return EventFlags::Downstream | EventFlags::Serialized | EventFlags::Sticky;  }
 };
 
 /**
@@ -72,7 +74,7 @@ public:
  */
 class CapsEvent {
 public:
-    static auto flags() { return EventFlags::Serialized | EventFlags::Sticky; }
+    static auto flags() { return EventFlags::Downstream | EventFlags::Serialized | EventFlags::Sticky;; }
 
     Caps caps;
 };

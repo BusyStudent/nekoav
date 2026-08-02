@@ -46,7 +46,8 @@ target("nekoav")
     
     add_includedirs("src")
     add_defines("_NEKOAV_SOURCE")
-    add_files("src/**.cpp")
+    add_files("src/elements/*.cpp")
+    add_files("src/*.cpp")
 
     -- Check log
     if has_config("log") then
