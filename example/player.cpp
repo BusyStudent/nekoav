@@ -13,6 +13,7 @@
 #include <QFileDialog>
 #include <QInputDialog>
 #include <QKeyEvent>
+#include <QDebug>
 #include "ui_player.h"
 
 #if defined(_MSC_VER)
@@ -175,5 +176,6 @@ auto main(int argc, char** argv) -> int {
 
     Player player;
     player.show();
+    qDebug() << "ilias version: " << ILIAS_VERSION_STRING;
     return app.exec();
 }

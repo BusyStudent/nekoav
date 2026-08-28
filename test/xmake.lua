@@ -30,6 +30,7 @@ target("test_unit_core")
 
 add_nekoav_test_target("test_unit_runtime", "unit", 10)
 target("test_unit_runtime")
+    add_packages("ffmpeg")
     add_files("unit/runtime.cpp")
 
 add_nekoav_test_target("test_integration", "integration", 30)

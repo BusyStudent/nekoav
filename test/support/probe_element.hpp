@@ -4,20 +4,18 @@
  * @file probe_element.hpp
  * @brief Test double for Element: records lifecycle, samples, events, and queries.
  *
- * ProbeElement is the main fixture used by unit and integration tests. It can
- * act as Source / Transform / Sink (or bare Other), inject one-shot failures,
- * and wait asynchronously for samples or EOS.
+ * ProbeElement can act as Source / Transform / Sink (or bare Other),
+ * inject one-shot failures, and wait asynchronously for samples or EOS.
  */
 
 #include <nekoav/element.hpp>
 #include <nekoav/error.hpp>
 #include <ilias/sync.hpp>
-#include <atomic>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace nekoav::testing {
@@ -73,7 +71,6 @@ enum class Operation {
  * @brief Lightweight snapshot of a Sample (avoids holding FFmpeg buffers in asserts).
  */
 struct SampleObservation {
-    bool isNull = false;
     bool isPacket = false;
     bool isAudioFrame = false;
     bool isVideoFrame = false;
@@ -92,11 +89,10 @@ struct SampleObservation {
  * - Source / Transform → output pad "out"
  * - Other → no pads
  *
- * Caps on created pads accept Caps::Any so linkElement always succeeds unless
- * the peer rejects.
+ * Caps on created pads accept Caps::Any so linkElement always succeeds.
  *
- * Failure injection (failStateChange / failOperation):
- * - Fires on the N-th matching call (default N=1), then marks *Triggered().
+ * Failure injection (failOn):
+ * - Fires on the first matching call, then marks failureTriggered().
  * - Used to verify Result error paths without real broken media.
  */
 class ProbeElement final : public Element {
@@ -127,7 +123,9 @@ public:
         return mOutput;
     }
 
-    /** @brief Push a sample out of this Source/Transform (requires output pad). */
+    // -- Data operations (require output pad) --
+
+    /** @brief Push a sample out of this Source/Transform. */
     auto push(Sample sample) -> IoTask<void> {
         if (!mOutput) {
             co_return Err(Error::InvalidState);
@@ -151,52 +149,29 @@ public:
         return mOutput->sendQuery(std::move(query));
     }
 
-    /**
-     * @brief Fail the N-th occurrence of a lifecycle hook with @p error.
-     * @param occurrence 1-based; default fails the first time.
-     */
-    auto failStateChange(
-        StateChange change,
-        std::error_code error = Error::Internal,
-        size_t occurrence = 1
-    ) -> void {
-        mStateFailure = StateFailure {
-            .change = change,
-            .error = error,
-            .occurrence = occurrence,
-        };
+    // -- Failure injection --
+
+    /** @brief Inject a one-shot failure on a specific state change. */
+    auto failOn(StateChange change, std::error_code error = Error::Internal) -> void {
+        mFailure = Failure { .target = change, .error = error };
     }
 
-    /**
-     * @brief Fail the N-th Push/Event/Query with @p error.
-     * @param occurrence 1-based; default fails the first time.
-     */
-    auto failOperation(
-        Operation operation,
-        std::error_code error = Error::Internal,
-        size_t occurrence = 1
-    ) -> void {
-        mOperationFailure = OperationFailure {
-            .operation = operation,
-            .error = error,
-            .occurrence = occurrence,
-        };
+    /** @brief Inject a one-shot failure on a specific pad operation. */
+    auto failOn(Operation op, std::error_code error = Error::Internal) -> void {
+        mFailure = Failure { .target = op, .error = error };
     }
 
-    auto clearFailures() -> void {
-        mStateFailure.reset();
-        mOperationFailure.reset();
+    auto failureTriggered() const -> bool {
+        return mFailure && mFailure->triggered;
     }
 
-    auto stateFailureTriggered() const -> bool {
-        return mStateFailure && mStateFailure->triggered;
+    auto clearFailure() -> void {
+        mFailure.reset();
     }
 
-    auto operationFailureTriggered() const -> bool {
-        return mOperationFailure && mOperationFailure->triggered;
-    }
+    // -- Observation --
 
-    /** @brief Fixed Reply returned from sendQuery / pad query callbacks. */
+    /** @brief Fixed Reply returned from query callbacks. */
     auto setQueryReply(std::optional<Reply> reply) -> void {
         mQueryReply.reset();
         if (reply) {
@@ -204,8 +179,8 @@ public:
         }
     }
 
-    auto sampleCount() const -> size_t {
-        return mSampleCount;
+    auto samples() const -> const std::vector<SampleObservation> & {
+        return mSamples;
     }
 
     auto eventCount() const -> size_t {
@@ -216,26 +191,23 @@ public:
         return mQueryCount;
     }
 
-    auto samples() const -> std::vector<SampleObservation> {
-        return mSamples;
-    }
+    // -- Async waiting --
 
     /** @brief Suspend until at least @p count samples have been observed on input. */
     auto waitForSamples(size_t count) -> Task<void> {
-        while (sampleCount() < count) {
+        while (mSamples.size() < count) {
             co_await mSampleArrived;
         }
     }
 
-    /**
-     * @brief Suspend until a null Sample (EOS) is pushed to the input pad.
-     * @note Null sample is the pipeline end-of-stream convention used here.
-     */
+    /** @brief Suspend until an EosEvent is received on the input pad. */
     auto waitForEndOfStream() -> Task<void> {
         while (!mEndOfStream) {
             co_await mEndOfStreamArrived;
         }
     }
+
+    // -- Element overrides for direct query/event --
 
     auto sendQuery(Query query) -> std::optional<Reply> override {
         mQueryCount += 1;
@@ -248,7 +220,7 @@ public:
     auto sendEvent(Event event) -> IoTask<void> override {
         mEventCount += 1;
         if (shouldFail(Operation::Event)) {
-            co_return Err(mOperationFailure->error);
+            co_return Err(mFailure->error);
         }
         co_return {};
     }
@@ -279,19 +251,12 @@ protected:
     }
 
 private:
-    struct StateFailure {
-        StateChange change;
+    /**
+     * @brief Unified failure descriptor for both state changes and pad operations.
+     */
+    struct Failure {
+        std::variant<StateChange, Operation> target;
         std::error_code error;
-        size_t occurrence = 1;
-        size_t seen = 0;
-        bool triggered = false;
-    };
-
-    struct OperationFailure {
-        Operation operation;
-        std::error_code error;
-        size_t occurrence = 1;
-        size_t seen = 0;
         bool triggered = false;
     };
 
@@ -299,49 +264,54 @@ private:
         if (mTrace) {
             mTrace->push(name(), change);
         }
-        if (mStateFailure && mStateFailure->change == change) {
-            mStateFailure->seen += 1;
-            if (mStateFailure->seen == mStateFailure->occurrence) {
-                mStateFailure->triggered = true;
-                co_return Err(mStateFailure->error);
-            }
+        if (shouldFail(change)) {
+            co_return Err(mFailure->error);
         }
         co_return {};
     }
 
-    auto shouldFail(Operation operation) -> bool {
-        if (!mOperationFailure || mOperationFailure->operation != operation) {
+    /** @brief Check if the failure should fire for a state change. */
+    auto shouldFail(StateChange change) -> bool {
+        if (!mFailure || mFailure->triggered) {
             return false;
         }
-        mOperationFailure->seen += 1;
-        if (mOperationFailure->seen != mOperationFailure->occurrence) {
+        auto *target = std::get_if<StateChange>(&mFailure->target);
+        if (!target || *target != change) {
             return false;
         }
-        mOperationFailure->triggered = true;
+        mFailure->triggered = true;
         return true;
     }
 
+    /** @brief Check if the failure should fire for a pad operation. */
+    auto shouldFail(Operation operation) -> bool {
+        if (!mFailure || mFailure->triggered) {
+            return false;
+        }
+        auto *target = std::get_if<Operation>(&mFailure->target);
+        if (!target || *target != operation) {
+            return false;
+        }
+        mFailure->triggered = true;
+        return true;
+    }
+
+    // -- Pad callbacks --
+
     auto onInputPush(Pad &, Sample sample) -> IoTask<void> {
-        mSampleCount += 1;
-        auto isEndOfStream = sample.isNull();
-        {
-            mSamples.push_back({
-                .isNull = sample.isNull(),
-                .isPacket = sample.isPacket(),
-                .isAudioFrame = sample.isAudioFrame(),
-                .isVideoFrame = sample.isVideoFrame(),
-                .pts = sample.pts(),
-            });
-        }
+        // Watch sample arrive
+        mSamples.push_back({
+            .isPacket = sample.isPacket(),
+            .isAudioFrame = sample.isAudioFrame(),
+            .isVideoFrame = sample.isVideoFrame(),
+            .pts = sample.pts(),
+        });
         mSampleArrived.set();
-        if (isEndOfStream) {
-            mEndOfStream = true;
-            mEndOfStreamArrived.set();
-        }
+
         if (shouldFail(Operation::Push)) {
-            co_return Err(mOperationFailure->error);
+            co_return Err(mFailure->error);
         }
-        // Transform: forward to output when linked; Sink: drop after recording.
+        // Transform: forward downstream when linked
         if (mOutput && mOutput->isLinked()) {
             co_return co_await mOutput->push(std::move(sample));
         }
@@ -350,9 +320,17 @@ private:
 
     auto onInputEvent(Pad &, Event event) -> IoTask<void> {
         mEventCount += 1;
-        if (shouldFail(Operation::Event)) {
-            co_return Err(mOperationFailure->error);
+
+        // EOF by event
+        if (event.isEos()) {
+            mEndOfStream = true;
+            mEndOfStreamArrived.set();
         }
+
+        if (shouldFail(Operation::Event)) {
+            co_return Err(mFailure->error);
+        }
+        // Forward downstream when linked
         if (mOutput && mOutput->isLinked()) {
             co_return co_await mOutput->pushEvent(std::move(event));
         }
@@ -367,15 +345,14 @@ private:
         return mQueryReply;
     }
 
+    // -- Members --
     Pad *mInput = nullptr;
     Pad *mOutput = nullptr;
     std::shared_ptr<StateTrace> mTrace;
-    std::optional<StateFailure> mStateFailure;
-    std::optional<OperationFailure> mOperationFailure;
+    std::optional<Failure> mFailure;
 
     std::optional<Reply> mQueryReply;
     std::vector<SampleObservation> mSamples;
-    size_t mSampleCount = 0;
     size_t mEventCount = 0;
     size_t mQueryCount = 0;
     bool mEndOfStream = false;

@@ -122,7 +122,7 @@ protected:
 
         // Begin draw
         cb->beginPass(renderTarget(), Qt::black, { 1.0f, 0 }, updates);
-        if (mPipeline && mTexture) {
+        if (mPipeline && mTexture && mFrame) {
             const auto size = renderTarget()->pixelSize();
 
             cb->setGraphicsPipeline(mPipeline.get());

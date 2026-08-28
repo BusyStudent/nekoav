@@ -1,0 +1,11 @@
+target("player")
+    add_rules("qt.widgetapp")
+    add_packages("ilias")
+    add_deps("nekoav")
+
+    add_files("player.cpp")
+    add_files("player.ui")
+    add_files("shaders.qrc")
+    add_includedirs("./")
+    add_frameworks("QtGui", "QtGuiPrivate")
+target_end()

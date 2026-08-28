@@ -170,7 +170,7 @@ public:
         requires (std::is_base_of_v<Element, Object>)
     auto setEventCallback(Object *obj, Args ...args) -> void {
         assert(&mElement == obj && "The obj must be the element this pad belongs to");
-        auto callable = [args...](Pad &self, Event &event) -> IoTask<void> {
+        auto callable = [args...](Pad &self, Event event) -> IoTask<void> {
             auto &obj = static_cast<Object &>(self.mElement);
             return (obj.*Method)(self, event, args...);
         };
@@ -182,7 +182,7 @@ public:
         requires (std::is_base_of_v<Element, Object>)
     auto setQueryCallback(Object *obj, Args ...args) -> void {
         assert(&mElement == obj && "The obj must be the element this pad belongs to");
-        auto callable = [args...](Pad &self, Query &query) -> std::optional<Reply> {
+        auto callable = [args...](Pad &self, Query query) -> std::optional<Reply> {
             auto &obj = static_cast<Object &>(self.mElement);
             return (obj.*Method)(self, query, args...);
         };
@@ -210,8 +210,8 @@ public:
     }
 private:
     // The callback when the pad is pushed or event happened
-    using QueryCallback = auto (*)(Pad &self, Query &query) -> std::optional<Reply>;
-    using EventCallback = auto (*)(Pad &self, Event &event) -> IoTask<void>;
+    using QueryCallback = auto (*)(Pad &self, Query query) -> std::optional<Reply>;
+    using EventCallback = auto (*)(Pad &self, Event event) -> IoTask<void>;
     using PushCallback = auto (*)(Pad &self, Sample sample) -> IoTask<void>;
     using UserData = std::array<std::byte, sizeof(void*) * 3>; // Small size optimization for the callback
 
@@ -240,13 +240,13 @@ private:
 
     // Proxy for event callback
     template <typename Callable>
-    static auto eventProxy(Pad &self, Event &event) -> IoTask<void> {
+    static auto eventProxy(Pad &self, Event event) -> IoTask<void> {
         auto callable = typeUnerase<Callable>(self.mEventUser);
         return callable(self, event);
     }
 
     template <typename Callable>
-    static auto queryProxy(Pad &self, Query &query) -> std::optional<Reply> {
+    static auto queryProxy(Pad &self, Query query) -> std::optional<Reply> {
         auto callable = typeUnerase<Callable>(self.mQueryUser);
         return callable(self, query);
     }

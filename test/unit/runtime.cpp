@@ -15,6 +15,7 @@
 #include <ilias/testing.hpp>
 #include <gtest/gtest.h>
 #include "support/probe_element.hpp"
+#include "support/sample_factory.hpp"
 
 using namespace std::literals;
 using namespace nekoav;
@@ -47,7 +48,7 @@ ILIAS_TEST(ElementStateTest, CallsEachLifecycleHookInOrder) {
 ILIAS_TEST(ElementStateTest, RollbackOnFailure) {
     // If state change fails, it should rollback to the original state.
     auto element = std::make_shared<ProbeElement>(ElementType::Other, "element");
-    element->failStateChange(StateChange::Prepare, Error::Internal);
+    element->failOn(StateChange::Prepare, Error::Internal);
 
     auto origin = element->state();
     auto result = co_await element->setState(State::Running);
@@ -56,7 +57,7 @@ ILIAS_TEST(ElementStateTest, RollbackOnFailure) {
 
     EXPECT_FALSE(result);
     EXPECT_EQ(result.error(), Error::Internal);
-    EXPECT_TRUE(element->stateFailureTriggered());
+    EXPECT_TRUE(element->failureTriggered());
     EXPECT_EQ(element->state(), State::Null);
 
     EXPECT_TRUE(co_await element->setState(State::Null));
@@ -73,12 +74,12 @@ ILIAS_TEST(PadTest, DeliversPushEventAndQueryToPeer) {
     sink->setQueryReply(Reply::Duration {42ms});
 
     EXPECT_TRUE(linkElement(*source, *sink));
-    EXPECT_TRUE(co_await source->push(Sample {}));
+    EXPECT_TRUE(co_await source->push(makePacketSample(0ms)));
     EXPECT_TRUE(co_await source->pushEvent(Event::FlushBegin {}));
 
     auto reply = source->queryPeer(Query::Duration {});
 
-    EXPECT_EQ(sink->sampleCount(), 1);
+    EXPECT_EQ(sink->samples().size(), 1u);
     EXPECT_EQ(sink->eventCount(), 1);
     EXPECT_EQ(sink->queryCount(), 1);
     EXPECT_EQ(reply, std::optional<Reply> {Reply::Duration {42ms}});
@@ -95,13 +96,14 @@ ILIAS_TEST(PadTest, PropagatesInjectedPushAndEventFailures) {
     auto sink = std::make_shared<ProbeElement>(ElementType::Sink, "sink");
     EXPECT_TRUE(linkElement(*source, *sink));
 
-    sink->failOperation(Operation::Push, Error::Internal);
-    auto pushResult = co_await source->push(Sample {});
+    sink->failOn(Operation::Push, Error::Internal);
+    auto pushResult = co_await source->push(makePacketSample(0ms));
     EXPECT_FALSE(pushResult);
     EXPECT_EQ(pushResult.error(), make_error_code(Error::Internal));
-    EXPECT_TRUE(sink->operationFailureTriggered());
+    EXPECT_TRUE(sink->failureTriggered());
 
-    sink->failOperation(Operation::Event, Error::InvalidState);
+    sink->clearFailure();
+    sink->failOn(Operation::Event, Error::InvalidState);
     auto eventResult = co_await source->pushEvent(Event::FlushBegin {});
     EXPECT_FALSE(eventResult);
     EXPECT_EQ(eventResult.error(), make_error_code(Error::InvalidState));

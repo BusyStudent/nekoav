@@ -18,13 +18,19 @@ add_requires("gtest")
 add_includedirs("include")
 
 -- update the compile_commands.json for clangd
-add_rules("plugin.compile_commands.autoupdate", {lsp = "clangd", outputdir = ".vscode"})
+add_rules("plugin.compile_commands.autoupdate", {lsp = "clangd", outputdir = "./build"})
 set_encodings("utf-8")
 
 -- Optional requires
 option("log")
     set_default(false)
     set_description("Enable logging")
+    set_showmenu(true)
+option_end()
+
+option("dev")
+    set_default(false)
+    set_description("Enable development mode")
     set_showmenu(true)
 option_end()
 
@@ -62,15 +68,7 @@ target("nekoav")
 target_end()
 
 -- Testing
-includes("./test")
-
-target("player")
-    add_rules("qt.widgetapp")
-    add_packages("ilias")
-    add_deps("nekoav")
-
-    add_files("example/player.cpp")
-    add_files("example/player.ui")
-    add_files("example/shaders.qrc")
-    add_includedirs("example")
-    add_frameworks("QtGui", "QtGuiPrivate")
+if has_config("dev") then
+    includes("./test")
+    includes("./example")
+end
