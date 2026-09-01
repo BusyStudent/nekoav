@@ -103,7 +103,6 @@ public:
 
     // Other...
     auto audioCallback(ma_device *device, std::byte *output, const std::byte *input, ma_uint32 frameCount) -> void;
-    auto audioUpdateClock() -> void;
     auto audioNotifyEOS() -> void;
 };
 
@@ -214,6 +213,11 @@ auto AudioSink::onEvent(Pad &pad, Event event) -> IoTask<void> {
         auto sampleRate = audio[Caps::SampleRate].toInteger();
         co_return initDevice(fmt, channels, sampleRate);
     }
+    if (event.isSegment()) {
+        auto segment = event.toSegment();
+        d->callback.currentPts.store(segment.start.count()); // Sync clock immediately after seek
+        co_return {};
+    }
     if (event.isFlushBegin()) {
         if (!d->device) { // Did we mutex with d->device?
             co_return {};
@@ -274,7 +278,6 @@ auto AudioSink::Impl::audioCallback(ma_device *device, std::byte *output, const 
                 state.currentPtsInternal = state.currentFrame->pts().value_or(Timestamp {});
                 state.currentPts = state.currentPtsInternal.count();
                 // NEKOAV_INFO("[AudioSink] Got a new frame with {} samples, pts {}", currentFrame->samples(), currentPts.load());
-                audioUpdateClock();
             }
             else if (auto eos = state.endOfStream.exchange(false); eos) {
                 audioNotifyEOS();
@@ -337,16 +340,9 @@ auto AudioSink::Impl::audioCallback(ma_device *device, std::byte *output, const 
     }
 }
 
-auto AudioSink::Impl::audioUpdateClock() -> void {
-    self->postMessage(Message::ClockUpdate {
-        .clock = Clock::Ptr { self->shared_from_this(), this },
-        .time = Timestamp { callback.currentPts.load() },
-    });
-}
-
 auto AudioSink::Impl::audioNotifyEOS() -> void {
     NEKOAV_INFO("[AudioSink] End of stream");
-    self->postMessage(Message::EndOfStream {
+    self->postMessage(Message::Eos {
         .element = self->shared_from_this(),
     });
 }

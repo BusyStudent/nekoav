@@ -115,7 +115,7 @@ private:
 
         // Then, start it
         co_await ilias::finally(
-            ilias::whenAll(main(pipeline), watchMessage(pipeline)),
+            ilias::whenAll(main(pipeline), watchMessage(pipeline), pollClock(pipeline)),
             [&]() -> ilias::Task<void> { // Finally stop it
                 auto _ = co_await pipeline->setState(nekoav::State::Null); 
                 ui.playButton->setText("Play");
@@ -135,13 +135,6 @@ private:
     auto watchMessage(nekoav::Pipeline::Ptr pipeline) -> ilias::Task<void> {
         while (true) {
             auto msg = co_await pipeline->readMessage();
-            if (msg.isClockUpdate()) {
-                auto clock = msg.toClockUpdate();
-                auto s = std::chrono::duration_cast<std::chrono::milliseconds>(clock.time);
-                if (!mSliderPressing) {
-                    ui.progressSlider->setValue(s.count());
-                }
-            }
             if (msg.isMediaLoaded()) {
                 auto media = msg.toMediaLoaded();
                 auto startTime = std::chrono::duration_cast<std::chrono::milliseconds>(media.startTime);
@@ -152,11 +145,21 @@ private:
                 auto error = msg.toError();
                 ui.statusbar->showMessage(error.message.c_str());
             }
-            if (msg.isEndOfStream()) {
+            if (msg.isEos()) {
                 // Done
                 if (mHandle) {
                     mHandle.stop();
                 }
+            }
+        }
+    }
+
+    auto pollClock(nekoav::Pipeline::Ptr pipeline) -> ilias::Task<void> {
+        while (true) {
+            co_await ilias::sleep(std::chrono::milliseconds{200});
+            if (auto time = pipeline->position(); time && !mSliderPressing) {
+                auto s = std::chrono::duration_cast<std::chrono::milliseconds>(*time);
+                ui.progressSlider->setValue(s.count());
             }
         }
     }

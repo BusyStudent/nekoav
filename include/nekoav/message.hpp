@@ -28,16 +28,6 @@ public:
 };
 
 /**
- * @brief The time of the clock has been updated
- * 
- */
-class ClockUpdateMessage {
-public:
-    std::shared_ptr<const Clock> clock;
-    Timestamp time;
-};
-
-/**
  * @brief The media has been loaded
  * 
  */
@@ -49,10 +39,10 @@ public:
 };
 
 /**
- * @brief The 
+ * @brief The element has received EOS
  * 
  */
-class EndOfStreamMessage {
+class EosMessage {
 public:
     std::shared_ptr<Element> element; // Which element has finished?
 };
@@ -76,12 +66,11 @@ class SeekEndMessage {};
 class Message final {
 public:
     using Error       = ErrorMessage;
-    using ClockUpdate = ClockUpdateMessage;
     using MediaLoaded = MediaLoadedMessage;
     using SeekBegin   = SeekBeginMessage;
     using SeekEnd     = SeekEndMessage;
-    using EndOfStream = EndOfStreamMessage;
-    using Storage = std::variant<Error, ClockUpdate, MediaLoaded, SeekBegin, SeekEnd, EndOfStream>;
+    using Eos         = EosMessage;
+    using Storage = std::variant<Error, MediaLoaded, SeekBegin, SeekEnd, Eos>;
 
     Message(const Message &) = default;
     Message(Message &&) = default;
@@ -92,16 +81,14 @@ public:
     Message(T &&message) : mStorage(std::forward<T>(message)), mTimestamp(std::chrono::steady_clock::now()) {}
 
     auto isError() const noexcept { return std::holds_alternative<Error>(mStorage); }
-    auto isClockUpdate() const noexcept { return std::holds_alternative<ClockUpdate>(mStorage); }
     auto isMediaLoaded() const noexcept { return std::holds_alternative<MediaLoaded>(mStorage); }
     auto isSeekBegin() const noexcept { return std::holds_alternative<SeekBegin>(mStorage); }
     auto isSeekEnd() const noexcept { return std::holds_alternative<SeekEnd>(mStorage); }
-    auto isEndOfStream() const noexcept { return std::holds_alternative<EndOfStream>(mStorage); }
+    auto isEos() const noexcept { return std::holds_alternative<Eos>(mStorage); }
 
     auto toError() const noexcept { return std::get<Error>(mStorage); }
-    auto toClockUpdate() const noexcept { return std::get<ClockUpdate>(mStorage); }
     auto toMediaLoaded() const noexcept { return std::get<MediaLoaded>(mStorage); }
-    auto toEndOfStream() const noexcept { return std::get<EndOfStream>(mStorage); }
+    auto toEos() const noexcept { return std::get<Eos>(mStorage); }
 
     // Get the timestamp when the message was created
     auto timestamp() const noexcept { return mTimestamp; }

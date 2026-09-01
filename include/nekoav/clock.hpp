@@ -30,6 +30,7 @@ public:
 
     /**
      * @brief Get the current time of the clock (the epoch is 0)
+     * @note This method should be implemented in MT-safe way
      * 
      * @return Timestamp 
      */

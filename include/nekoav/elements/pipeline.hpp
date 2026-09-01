@@ -2,7 +2,7 @@
 
 #include <nekoav/elements/bin.hpp>
 #include <nekoav/element.hpp>
-#include <ilias/sync/mpsc.hpp>
+#include <atomic> // std::atomic
 
 namespace nekoav {
 
@@ -19,6 +19,14 @@ public:
     ~Pipeline();
 
     /**
+     * @brief Send an control event to the pipeline
+     * 
+     * @param event 
+     * @return IoTask<void> 
+     */
+    auto sendEvent(Event event) -> IoTask<void> override;
+
+    /**
      * @brief Read the message from the pipeline bus
      * @note This method can be called in any thread, MT-SAFE
      * 
@@ -27,12 +35,12 @@ public:
     auto readMessage() -> Task<Message>;
 
     /**
-     * @brief Send an control event to the pipeline
+     * @brief Get the current clock position of the pipeline
+     * @note This method can be called in any thread, MT-SAFE
      * 
-     * @param event 
-     * @return IoTask<void> 
+     * @return std::optional<Timestamp> (nullptr on non clock exist)
      */
-    auto sendEvent(Event event) -> IoTask<void> override;
+    auto position() const -> std::optional<Timestamp>;
 private:
     // Collect clock before run
     auto onInitialize() -> IoTask<void> override;
@@ -47,8 +55,8 @@ private:
 
     // All clocks in the pipeline, sort by priority
     std::vector<Clock::Ptr> mClocks;
+    std::atomic<Clock::Ptr> mMasterClock; // For MT-Safe position()
     std::unique_ptr<Impl>   d;
-friend class Element;
 };
 
 } // namespace nekoav

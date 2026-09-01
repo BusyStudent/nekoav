@@ -185,7 +185,7 @@ auto VideoSink::onPadQuery(Pad &pad, Query query) -> std::optional<Reply> {
 
 auto VideoSink::onPadEvent(Pad &pad, Event event) -> IoTask<void> {
     if (event.isEos()) { // EOS
-        postMessage(Message::EndOfStream {
+        postMessage(Message::Eos {
             .element = shared_from_this(),
         });
         NEKOAV_INFO("[VideoSink] '{}', End of stream", name());
