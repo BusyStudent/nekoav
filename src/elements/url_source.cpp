@@ -196,6 +196,7 @@ auto UrlSource::onPadQuery(Pad &pad, Query query) -> std::optional<Reply> {
 auto UrlSource::readWorker() -> Task<void> {
     NEKOAV_DEBUG("[UrlSource] '{}' read worker started", name());
 
+    bool segmentSent = false;
     // Packet
     auto packet = av_packet_alloc();
     struct Guard {
@@ -210,6 +211,7 @@ auto UrlSource::readWorker() -> Task<void> {
         UrlSource *self;
     } guard { packet, this };
 
+
     while (true) {
         // TODO: Maybe we put doSeek onSeekEvent arrive?
         if (d->seekEvent.isSet() && d->seekTime) {
@@ -220,10 +222,24 @@ auto UrlSource::readWorker() -> Task<void> {
                 setErrorState(res.error());
                 co_return;
             }
+            segmentSent = true; // doSeek already sent segment
         }
 
         // Only run on the running state
         co_await d->runningEvent;
+
+        // Send initial segment before first sample
+        if (!segmentSent) {
+            auto duration = time::fromFFmpeg(d->ctxt->duration, AV_TIME_BASE_Q);
+            for (auto &pad : outputs()) {
+                auto _ = co_await ilias::unstoppable(pad.pushEvent(Event::Segment {
+                    .rate  = 1.0,
+                    .start = Timestamp {0},
+                    .stop  = duration,
+                }));
+            }
+            segmentSent = true;
+        }
         
         // Do the job
         av_packet_unref(packet);
@@ -238,7 +254,7 @@ auto UrlSource::readWorker() -> Task<void> {
                     if (!pad.isLinked()) {
                         continue;
                     }
-                    if (auto res = co_await ilias::unstoppable(pad.pushEvent(EosEvent{})); !res && res != Err(Error::Flushing)) {
+                    if (auto res = co_await ilias::unstoppable(pad.pushEvent(Event::Eos{})); !res && res != Err(Error::Flushing)) {
                         setErrorState(res.error());
                         co_return;
                     }
@@ -308,10 +324,21 @@ auto UrlSource::doSeek() -> IoTask<void> {
     
     // Notify all the downstream that flush the buffer
     for (auto &pad : outputs()) {
-        auto _ = co_await pad.pushEvent(Event::FlushBegin {});
+        auto _ = co_await pad.pushEvent(Event::FlushBegin{});
     }
     for (auto &pad : outputs()) {
-        auto _ = co_await pad.pushEvent(Event::FlushEnd {});
+        auto _ = co_await pad.pushEvent(Event::FlushEnd{});
+    }
+
+    // Send new segment after seek
+    auto duration = time::fromFFmpeg(d->ctxt->duration, AV_TIME_BASE_Q);
+    for (auto &pad : outputs()) {
+        if (!pad.isLinked()) continue;
+        auto _ = co_await pad.pushEvent(Event::Segment {
+            .rate  = 1.0,
+            .start = ts,
+            .stop  = duration,
+        });
     }
 
     // Notify the pipeline that seek done

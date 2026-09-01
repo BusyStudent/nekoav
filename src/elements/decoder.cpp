@@ -74,7 +74,8 @@ struct Decoder::Impl {
     AVCodecContext *ctxt = nullptr;
     AVFrame        *frame = nullptr;
     AVPixelFormat   hwfmt = AV_PIX_FMT_NONE; // Use for HW decoding
-    bool            flush = false; // Need for flaush ?
+    bool            flush = false; // Need for flush ?
+    std::optional<Segment> segment; // The Segment to decode (we need to skip the range)
 
     Impl() {
         frame = av_frame_alloc();
@@ -153,6 +154,14 @@ auto Decoder::onPadPush(Pad &pad, Sample sample) -> IoTask<void> {
             co_return Err(error::fromFFmpeg(res));
         }
 
+        // Check the frame in the segment range?
+        auto pts = time::fromFFmpeg(d->frame->pts, packet->timeBase());
+        if (d->segment && pts < d->segment->start) {
+            NEKOAV_DEBUG("[Decoder] '{}' Skip frame {} not in segment", name(), pts);
+            continue;
+        }
+
+
         // Create new frame
         if (d->ctxt->codec_type == AVMEDIA_TYPE_VIDEO) {
             ILIAS_CO_TRYV(co_await mOutput.push(
@@ -179,13 +188,7 @@ auto Decoder::onPadPush(Pad &pad, Sample sample) -> IoTask<void> {
 }
 
 auto Decoder::onPadEvent(Pad &pad, Event event) -> IoTask<void> {
-    if (event.isFlushEnd()) {
-        NEKOAV_INFO("[Decoder] '{}' flush end", name());
-        if (d) {
-            d->flush = true;
-        }
-    }
-    else if (event.isCaps()) {
+    if (event.isCaps()) {
         NEKOAV_INFO("[Decoder] '{}' caps event arrive, begin init", name());
         assert(!d); // Not initialize
         auto [caps] = event.toCaps();
@@ -199,6 +202,17 @@ auto Decoder::onPadEvent(Pad &pad, Event event) -> IoTask<void> {
             .caps = mOutput.caps()
         });
     }
+    else if (event.isFlushEnd()) {
+        NEKOAV_INFO("[Decoder] '{}' flush end", name());
+        if (d) {
+            d->flush = true;
+        }
+    }
+    else if (event.isSegment()) {
+        NEKOAV_INFO("[Decoder] '{}' segment arrive", name());
+        d->segment = event.toSegment();
+    }
+
     // Forward
     co_return co_await mOutput.pushEvent(std::move(event));
 }

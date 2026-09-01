@@ -80,6 +80,7 @@ auto NullVideoRenderer::pixelFormats() const -> std::vector<PixelFormat> {
 // MARK: VideoSink
 struct VideoSink::Impl {
     Timestamp renderDuration {};
+    std::optional<SegmentEvent> segment; // Current segment for frame clipping
 };
 
 VideoSink::VideoSink(std::string_view name) : Sink(name), mInput(createInputPad("in")) {
@@ -143,13 +144,20 @@ auto VideoSink::onPadPush(Pad &, Sample sample) -> IoTask<void> {
     }
     auto frame = sample.toVideoFrame();
     auto pts = frame->pts().value_or(Timestamp {});
+
+    // Drop frames before segment start
+    if (d->segment && pts < d->segment->start) {
+        NEKOAV_DEBUG("[VideoSink] '{}' Drop pre-segment frame pts={}", name(), pts);
+        co_return {};
+    }
+
     auto time = clock()->time(); // Get the master clock time
 
     // Sync here
     if (pts > time) {
         auto waitTime = pts - time;
         if (waitTime > 1ms && waitTime < 500ms) {
-            NEKOAV_DEBUG("[VideoSink] Waiting for {}", std::chrono::duration_cast<std::chrono::milliseconds>(waitTime));
+            NEKOAV_DEBUG("[VideoSink] '{}' Waiting for {}", name(), std::chrono::duration_cast<std::chrono::milliseconds>(waitTime));
             co_await ilias::sleep(waitTime);
         }
         if (waitTime > 500ms) { // What, we are too fast?
@@ -181,6 +189,10 @@ auto VideoSink::onPadEvent(Pad &pad, Event event) -> IoTask<void> {
             .element = shared_from_this(),
         });
         NEKOAV_INFO("[VideoSink] '{}', End of stream", name());
+        co_return {};
+    }
+    else if (event.isSegment()) { // Segement
+        d->segment = event.toSegment();
         co_return {};
     }
     co_return {};

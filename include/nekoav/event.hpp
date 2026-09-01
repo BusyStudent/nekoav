@@ -71,12 +71,28 @@ public:
 /**
  * @brief The upstream element has decided to send new caps
  * 
+ * @note Sent before the first sample
  */
 class CapsEvent {
 public:
     static constexpr auto flags() { return EventFlags::Downstream | EventFlags::Serialized | EventFlags::Sticky; }
 
     Caps caps;
+};
+
+/**
+ * @brief Timing info for the following samples.
+ *
+ * @note Sent before the first sample and after each seek.
+ * Downstream elements use it for running-time calculation and sync.
+ */
+class SegmentEvent {
+public:
+    static constexpr auto flags() { return EventFlags::Downstream | EventFlags::Serialized | EventFlags::Sticky; }
+
+    double                   rate  = 1.0;   // Playback rate (1.0 = normal, 2.0 = 2x speed)
+    Timestamp                start = {};    // Segment start time
+    std::optional<Timestamp> stop  = {};    // Segment end time (nullopt = unbounded)
 };
 
 /**
@@ -90,7 +106,8 @@ public:
     using FlushEnd     = FlushEndEvent;
     using Eos          = EosEvent;
     using Caps         = CapsEvent;
-    using Storage      = std::variant<Seek, FlushBegin, FlushEnd, Eos, Caps>;
+    using Segment      = SegmentEvent;
+    using Storage      = std::variant<Seek, FlushBegin, FlushEnd, Eos, Caps, Segment>;
     using Ref          = Event &;
 
     Event(const Event &) = default;
@@ -107,11 +124,13 @@ public:
     auto isFlushEnd() const noexcept { return std::holds_alternative<FlushEnd>(mStorage); }
     auto isCaps () const noexcept { return std::holds_alternative<Caps>(mStorage); }
     auto isEos() const noexcept { return std::holds_alternative<Eos>(mStorage); }
+    auto isSegment() const noexcept { return std::holds_alternative<Segment>(mStorage); }
 
     auto toSeek() const noexcept { return std::get<Seek>(mStorage); }
     auto toFlushBegin() const noexcept { return std::get<FlushBegin>(mStorage); }
     auto toFlushEnd() const noexcept { return std::get<FlushEnd>(mStorage); }
     auto toCaps() const noexcept { return std::get<Caps>(mStorage); }
+    auto toSegment() const noexcept { return std::get<Segment>(mStorage); }
 
     // Flags
     auto flags() const noexcept -> EventFlags {
@@ -122,6 +141,8 @@ public:
     }
     auto isSerialzed() const noexcept { return hasFlag(flags(), EventFlags::Serialized); }
     auto isSticky() const noexcept { return hasFlag(flags(), EventFlags::Sticky); }
+    auto isDownstream() const noexcept { return hasFlag(flags(), EventFlags::Downstream); }
+    auto isUpstream() const noexcept { return !isDownstream(); }
 
     // Index (used internally)
     auto index() const noexcept -> size_t {
@@ -139,6 +160,9 @@ public:
 private:
     Storage mStorage;
 };
+
+// Alias
+using Segment = SegmentEvent;
 
 } // namespace nekoav
 
@@ -158,6 +182,7 @@ struct std::formatter<nekoav::Event> {
             [&](const nekoav::Event::FlushEnd &) { return std::format_to(ctxt.out(), "Event(FlushEnd)"); },
             [&](const nekoav::Event::Eos &eos) { return std::format_to(ctxt.out(), "Event(Eos)"); },
             [&](const nekoav::Event::Caps &caps) { return std::format_to(ctxt.out(), "Event(Caps({}))", caps.caps); },
+            [&](const nekoav::Event::Segment &seg) { return std::format_to(ctxt.out(), "Event(Segment(rate={}, start={}, stop={}))", seg.rate, seg.start, seg.stop.value_or(nekoav::Timestamp::max())); },
             // [&](const nekoav::Event::Error &error) { return std::format_to(ctxt.out(), "Event(Error({}))", error.message); },
             // [&](const nekoav::Event::ClockUpdate &clock) { return std::format_to(ctxt.out(), "Event(ClockUpdate({}: {}))", clock.clock->category(), clock.time); },
             // [&](const nekoav::Event::MediaLoaded &loaded) { return std::format_to(ctxt.out(), "Event(MediaLoaded({}))", loaded.duration); },

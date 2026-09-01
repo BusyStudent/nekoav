@@ -13,7 +13,7 @@ auto Frame::free(AVFrame *frame) -> void {
 // Setters
 auto Frame::setPts(std::optional<Timestamp> pts) -> void {
     if (pts) {
-        mFrame->pts = time::toFFmpeg(*pts, AVRational{mTimeBase.num, mTimeBase.den});
+        mFrame->pts = time::toFFmpeg(*pts, mTimeBase);
     }
     else {
         mFrame->pts = AV_NOPTS_VALUE;
@@ -22,7 +22,7 @@ auto Frame::setPts(std::optional<Timestamp> pts) -> void {
 
 auto Frame::setDts(std::optional<Timestamp> dts) -> void {
     if (dts) {
-        mFrame->pkt_dts = time::toFFmpeg(*dts, AVRational{mTimeBase.num, mTimeBase.den});
+        mFrame->pkt_dts = time::toFFmpeg(*dts, mTimeBase);
     }
     else {
         mFrame->pkt_dts = AV_NOPTS_VALUE;
@@ -31,7 +31,7 @@ auto Frame::setDts(std::optional<Timestamp> dts) -> void {
 
 auto Frame::setDuration(std::optional<Duration> duration) -> void {
     if (duration) {
-        mFrame->duration = time::toFFmpeg(*duration, AVRational{mTimeBase.num, mTimeBase.den});
+        mFrame->duration = time::toFFmpeg(*duration, mTimeBase);
     }
     else {
         mFrame->duration = 0;
@@ -43,21 +43,21 @@ auto Frame::pts() const -> std::optional<Timestamp> {
     if (mFrame->pts == AV_NOPTS_VALUE) {
         return std::nullopt;
     }
-    return time::fromFFmpeg(mFrame->pts, AVRational{.num = mTimeBase.num, .den = mTimeBase.den});
+    return time::fromFFmpeg(mFrame->pts, mTimeBase);
 }
 
 auto Frame::dts() const -> std::optional<Timestamp> {
     if (mFrame->pkt_dts == AV_NOPTS_VALUE) {
         return std::nullopt;
     }
-    return time::fromFFmpeg(mFrame->pkt_dts, AVRational{.num = mTimeBase.num, .den = mTimeBase.den});
+    return time::fromFFmpeg(mFrame->pkt_dts, mTimeBase);
 }
 
 auto Frame::duration() const -> std::optional<Duration> {
     if (mFrame->duration == 0) {
         return std::nullopt;
     }
-    return time::fromFFmpeg(mFrame->duration, AVRational{.num = mTimeBase.num, .den = mTimeBase.den});
+    return time::fromFFmpeg(mFrame->duration, mTimeBase);
 }
 
 auto Frame::data(int plane) -> void * {
@@ -126,7 +126,7 @@ auto Packet::free(AVPacket *packet) -> void {
 // Setters
 auto Packet::setPts(std::optional<Timestamp> pts) -> void {
     if (pts) {
-        mPacket->pts = time::toFFmpeg(*pts, AVRational{mTimeBase.num, mTimeBase.den});
+        mPacket->pts = time::toFFmpeg(*pts, mTimeBase);
     }
     else {
         mPacket->pts = AV_NOPTS_VALUE;
@@ -135,7 +135,7 @@ auto Packet::setPts(std::optional<Timestamp> pts) -> void {
 
 auto Packet::setDts(std::optional<Timestamp> dts) -> void {
     if (dts) {
-        mPacket->dts = time::toFFmpeg(*dts, AVRational{mTimeBase.num, mTimeBase.den});
+        mPacket->dts = time::toFFmpeg(*dts, mTimeBase);
     }
     else {
         mPacket->dts = AV_NOPTS_VALUE;
@@ -147,14 +147,14 @@ auto Packet::pts() const -> std::optional<Timestamp> {
     if (mPacket->pts == AV_NOPTS_VALUE) {
         return std::nullopt;
     }
-    return time::fromFFmpeg(mPacket->pts, AVRational {.num = mTimeBase.num, .den = mTimeBase.den});
+    return time::fromFFmpeg(mPacket->pts, mTimeBase);
 }
 
 auto Packet::dts() const -> std::optional<Timestamp> {
     if (mPacket->dts == AV_NOPTS_VALUE) {
         return std::nullopt;
     }
-    return time::fromFFmpeg(mPacket->dts, AVRational {.num = mTimeBase.num, .den = mTimeBase.den});
+    return time::fromFFmpeg(mPacket->dts, mTimeBase);
 }
 
 auto Packet::data() const -> std::span<std::byte> {

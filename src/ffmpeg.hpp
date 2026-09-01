@@ -27,6 +27,15 @@ namespace time {
     inline auto fromFFmpeg(int64_t ts, AVRational timebase) -> std::chrono::nanoseconds {
         return std::chrono::nanoseconds(av_rescale_q(ts, timebase, NANO_TIME_BASE));
     }
+
+    // Override for our timebase type
+    inline auto toFFmpeg(std::chrono::nanoseconds ns, Rational timebase) -> int64_t {
+        return toFFmpeg(ns, AVRational {timebase.num, timebase.den});
+    }
+
+    inline auto fromFFmpeg(int64_t ts, Rational timebase) -> std::chrono::nanoseconds {
+        return fromFFmpeg(ts, AVRational {timebase.num, timebase.den});
+    }
 } // namespace time
 
 namespace pixfmt {
