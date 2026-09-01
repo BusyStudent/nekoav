@@ -1,5 +1,6 @@
 add_rules("mode.debug", "mode.release")
 set_languages("c++23")
+set_encodings("utf-8")
 
 -- import async runtime
 add_repositories("btk-repo https://github.com/Btk-Project/xmake-repo.git")

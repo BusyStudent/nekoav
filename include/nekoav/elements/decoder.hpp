@@ -35,12 +35,13 @@ private:
 
     // Query / Event from Pad
     auto onPadPush(Pad &pad, Sample sample) -> IoTask<void>;
-    auto onPadQuery(Pad &pad, const Query &query) -> std::optional<Reply>;
-    auto onPadEvent(Pad &pad, const Event &event) -> IoTask<void>;
+    auto onPadQuery(Pad &pad, Query query) -> std::optional<Reply>;
+    auto onPadEvent(Pad &pad, Event event) -> IoTask<void>;
 
     // Initialize the decoder
     auto init(const Caps &caps) -> IoTask<void>;
     auto open(Impl *inner) -> IoResult<void>;
+    auto makeOutputCaps() -> Caps; // Generate the caps by current ctxt
 
     std::unique_ptr<Impl> d;
     Pad                  &mInput;

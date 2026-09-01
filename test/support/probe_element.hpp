@@ -337,7 +337,7 @@ private:
         co_return {};
     }
 
-    auto onInputQuery(Pad &, Query &query) -> std::optional<Reply> {
+    auto onInputQuery(Pad &, Query query) -> std::optional<Reply> {
         mQueryCount += 1;
         if (shouldFail(Operation::Query)) {
             return std::nullopt;

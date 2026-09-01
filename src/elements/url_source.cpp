@@ -143,6 +143,12 @@ auto UrlSource::onPrepare() -> IoTask<void> {
         d->padsMapping[idx] = pad;
         pad->setEventCallback<&UrlSource::onPadEvent>(this);
         pad->setQueryCallback<&UrlSource::onPadQuery>(this);
+
+        // Event
+        auto _ = co_await pad->pushEvent(Event::Caps {
+            .caps = pad->caps(),
+        });
+        assert(_); // Should not fail
     }
 
     // Notify the bus, media is ready
@@ -170,11 +176,11 @@ auto UrlSource::onPause() -> IoTask<void> {
     co_return {};
 }
 
-auto UrlSource::onPadEvent(Pad &pad, const Event &event) -> IoTask<void> {
+auto UrlSource::onPadEvent(Pad &pad, Event event) -> IoTask<void> {
     co_return {};
 }
 
-auto UrlSource::onPadQuery(Pad &pad, const Query &query) -> std::optional<Reply> {
+auto UrlSource::onPadQuery(Pad &pad, Query query) -> std::optional<Reply> {
     if (query.isDuration()) { // QueryDuration
         if (!d) {
             return std::nullopt;

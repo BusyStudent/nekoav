@@ -44,19 +44,19 @@ constexpr auto hasFlag(EventFlags value, EventFlags flag) -> bool {
  */
 class SeekEvent {
 public:
-    static auto flags() { return EventFlags::None; }
+    static constexpr auto flags() { return EventFlags::None; }
 
     Timestamp timestamp;
 };
 
 class FlushBeginEvent {
 public:
-    static auto flags() { return EventFlags::Downstream; }
+    static constexpr auto flags() { return EventFlags::Downstream; }
 };
 
 class FlushEndEvent {
 public:
-    static auto flags() { return EventFlags::Downstream | EventFlags::Serialized; }
+    static constexpr auto flags() { return EventFlags::Downstream | EventFlags::Serialized; }
 };
 
 /**
@@ -65,7 +65,7 @@ public:
  */
 class EosEvent {
 public:
-    static auto flags() { return EventFlags::Downstream | EventFlags::Serialized | EventFlags::Sticky;  }
+    static constexpr auto flags() { return EventFlags::Downstream | EventFlags::Serialized | EventFlags::Sticky;  }
 };
 
 /**
@@ -74,7 +74,7 @@ public:
  */
 class CapsEvent {
 public:
-    static auto flags() { return EventFlags::Downstream | EventFlags::Serialized | EventFlags::Sticky;; }
+    static constexpr auto flags() { return EventFlags::Downstream | EventFlags::Serialized | EventFlags::Sticky; }
 
     Caps caps;
 };
@@ -122,6 +122,11 @@ public:
     }
     auto isSerialzed() const noexcept { return hasFlag(flags(), EventFlags::Serialized); }
     auto isSticky() const noexcept { return hasFlag(flags(), EventFlags::Sticky); }
+
+    // Index (used internally)
+    auto index() const noexcept -> size_t {
+        return mStorage.index();
+    }
 
     // Visit
     template <typename Fn>

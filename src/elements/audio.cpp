@@ -1,6 +1,6 @@
 #include <nekoav/elements/audio.hpp>
 #include <nekoav/clock.hpp>
-#include <ilias/sync/mpsc.hpp>
+#include <ilias/sync.hpp>
 #include <queue>
 #include <mutex>
 #include "ffmpeg.hpp"
@@ -188,14 +188,15 @@ auto AudioSink::onPush(Pad &pad, Sample sample) -> IoTask<void> {
 
     // Lazy init the device
     if (!d->device) {
-        if (auto res = initDevice(frame); !res) {
-            co_return res;
-        }
-        auto _ = ma_device_start(&*d->device);
+        NEKOAV_ERROR("[AudioSink] '{}' Device is not initialized, did you forget to push caps event before push sample ?");
+        co_return Err(Error::InvalidState);
     }
 
     // Ok, push the frame to the queue
     // assert(ma_device_is_started(&d->device));
+    if (!ma_device_is_started(&*d->device)) {
+        auto _ = ma_device_start(&*d->device);
+    }
     auto _ = co_await d->callback.frameSender.send(std::move(*frame));
     co_return {};
 }
@@ -205,41 +206,49 @@ auto AudioSink::onEvent(Pad &pad, Event event) -> IoTask<void> {
         d->callback.endOfStream = true; // Let the audioCallback generate the eos message to it
         co_return {};
     }
-    if (!event.isFlushBegin()) {
-        co_return {};
+    if (event.isCaps()) { // Caps arrive, intiDevice
+        auto [caps] = event.toCaps();
+        auto &audio = caps.find(Caps::AudioRaw);
+        auto fmt = audio[Caps::SampleFormat].toSampleFormat();
+        auto channels = audio[Caps::Channels].toInteger();
+        auto sampleRate = audio[Caps::SampleRate].toInteger();
+        co_return initDevice(fmt, channels, sampleRate);
     }
-    if (!d->device) { // Did we mutex with d->device?
-        co_return {};
-    }
-    // Do flush
-    // Pause the device
-    bool started = ma_device_is_started(&*d->device);
-    if (started) {
-        ma_device_stop(&*d->device);
-    }
+    if (event.isFlushBegin()) {
+        if (!d->device) { // Did we mutex with d->device?
+            co_return {};
+        }
+        // Do flush
+        // Pause the device
+        bool started = ma_device_is_started(&*d->device);
+        if (started) {
+            ma_device_stop(&*d->device);
+        }
 
-    // Drain the queue
-    while (d->callback.frameReceiver.tryRecv()) {}
+        // Drain the queue
+        while (d->callback.frameReceiver.tryRecv()) {}
 
-    // Restore if needed
-    if (started) {
-        ma_device_start(&*d->device);
+        // Restore if needed
+        if (started) {
+            ma_device_start(&*d->device);
+        }
+        co_return {};
     }
     co_return {};
 }
 
-auto AudioSink::initDevice(AudioFrame *frame) -> IoResult<void> {
+auto AudioSink::initDevice(SampleFormat fmt, int channels, int sampleRate) -> IoResult<void> {
     auto config = ma_device_config_init(ma_device_type_playback);
     config.pUserData = d.get();
-    config.sampleRate = frame->sampleRate();
-    config.playback.channels = frame->channels();
-    switch (frame->sampleFormat()) {
+    config.sampleRate = sampleRate;
+    config.playback.channels = channels;
+    switch (fmt) {
         case SampleFormat::U8: case SampleFormat::U8P: config.playback.format = ma_format_u8; break;
         case SampleFormat::S16: case SampleFormat::S16P: config.playback.format = ma_format_s16; break;
         case SampleFormat::S32: case SampleFormat::S32P: config.playback.format = ma_format_s32; break;
         case SampleFormat::FLT: case SampleFormat::FLTP: config.playback.format = ma_format_f32; break;
         default: {
-            NEKOAV_ERROR("[AudioSink] '{}' Unsupported sample format: {}", name(), toString(frame->sampleFormat()));
+            NEKOAV_ERROR("[AudioSink] '{}' Unsupported sample format: {}", name(), toString(fmt));
             return Err(Error::AudioFormatNotSupported);
         }
     }

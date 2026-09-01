@@ -3,14 +3,75 @@
 #include <nekoav/sample.hpp>
 #include <nekoav/query.hpp>
 #include <nekoav/caps.hpp>
-#include <ilias/sync/mutex.hpp>
 #include <concepts>
-#include <variant>
-#include <string>
-#include <memory>
-#include <bit>
+#include <cstring> // std::memcpy
+#include <string> // std::string_view
+#include <memory> // std::shared_ptr
+#include <array> // std::array
+#include <new> // std::launder
 
 namespace nekoav {
+namespace detail {
+
+template <typename T, size_t N>
+class SmallFunc;
+
+/**
+ * @brief The small function wrapper, only store pod callable
+ * 
+ * @tparam R 
+ * @tparam Args 
+ * @tparam N 
+ */
+template <typename R, typename ...Args, size_t N> requires(N > 0)
+class SmallFunc<R(Args...), N> {
+public:
+    SmallFunc(SmallFunc &&) = default;
+    SmallFunc(std::nullptr_t) {}
+    SmallFunc() = default;
+
+    template <typename Fn> requires(std::is_invocable_v<Fn, Args...>)
+    SmallFunc(Fn fn) noexcept {
+        static_assert(sizeof(fn) <= N, "The function is too large");
+        static_assert(std::is_trivially_copyable_v<Fn>, "The function is not trivially copyable");
+        static_assert(std::is_trivially_destructible_v<Fn>, "The function is not trivially destructible");
+        static_assert(alignof(Fn) <= alignof(decltype(mUser)), "The function is not aligned");
+        new (mUser.data()) Fn{std::move(fn)}; // Put into the buffer
+        mFn = &proxy<Fn>;
+    }
+
+    // Operator
+    auto operator <=>(const SmallFunc &) const = default;
+    auto operator =(SmallFunc &&) -> SmallFunc & = default;
+    auto operator =(std::nullptr_t) -> SmallFunc & {
+        mFn = nullptr;
+        mUser.fill(std::byte{});
+        return *this;
+    }
+
+    // Call
+    template <typename ...Ts>
+    auto operator ()(Ts &&...args) -> R {
+        assert(mFn);
+        return mFn(mUser.data(), std::forward<Ts>(args)...);
+    }
+
+    // Check the empty
+    explicit operator bool() const noexcept { return mFn != nullptr; }
+private:
+    template <typename Fn>
+    static auto proxy(std::byte *user, Args ...args) -> R {
+        // Get fn
+        auto fn = std::launder(reinterpret_cast<Fn *>(user));
+        return (*fn)(std::forward<Args>(args)...);
+    }
+
+    R                      (*mFn)(std::byte *user, Args...) = nullptr;
+    std::array<std::byte, N> mUser = {};
+};
+
+} // namespace detail
+
 
 // Forward declare
 class Element;
@@ -148,16 +209,7 @@ public:
      * @param args 
      */
     template <auto Method, typename Object, typename ...Args>
-        requires (std::is_base_of_v<Element, Object>)
-    auto setPushCallback(Object *obj, Args ...args) -> void {
-        assert(&mElement == obj && "The obj must be the element this pad belongs to");
-        auto callable = [args...](Pad &self, Sample sample) -> IoTask<void> {
-            auto &obj = static_cast<Object &>(self.mElement);
-            return (obj.*Method)(self, std::move(sample), args...);
-        };
-        typeEraseTo(callable, mPushUser);
-        mPushCallback = &Pad::pushProxy<decltype(callable)>;
-    }
+    auto setPushCallback(Object *obj, Args ...args) -> void;
 
     /**
      * @brief Set the callback when the event happened
@@ -167,89 +219,38 @@ public:
      * @tparam Args 
      */
     template <auto Method, typename Object, typename ...Args>
-        requires (std::is_base_of_v<Element, Object>)
-    auto setEventCallback(Object *obj, Args ...args) -> void {
-        assert(&mElement == obj && "The obj must be the element this pad belongs to");
-        auto callable = [args...](Pad &self, Event event) -> IoTask<void> {
-            auto &obj = static_cast<Object &>(self.mElement);
-            return (obj.*Method)(self, event, args...);
-        };
-        typeEraseTo(callable, mEventUser);
-        mEventCallback = &Pad::eventProxy<decltype(callable)>;
-    }
+    auto setEventCallback(Object *obj, Args ...args) -> void;
 
+    /**
+     * @brief Set the callback when the pad is queried
+     * 
+     * @tparam Method 
+     * @tparam Object 
+     * @tparam Args 
+     * @param obj 
+     * @param args 
+     */
     template <auto Method, typename Object, typename ...Args>
-        requires (std::is_base_of_v<Element, Object>)
-    auto setQueryCallback(Object *obj, Args ...args) -> void {
-        assert(&mElement == obj && "The obj must be the element this pad belongs to");
-        auto callable = [args...](Pad &self, Query query) -> std::optional<Reply> {
-            auto &obj = static_cast<Object &>(self.mElement);
-            return (obj.*Method)(self, query, args...);
-        };
-        typeEraseTo(callable, mQueryUser);
-        mQueryCallback = &Pad::queryProxy<decltype(callable)>;
-    }
+    auto setQueryCallback(Object *obj, Args ...args) -> void;
 
     /**
      * @brief Set the callback to nullptr, disable the callback
      * 
      */
-    auto setPushCallback(std::nullptr_t) -> void {
-        mPushCallback = nullptr;
-        mPushUser.fill(std::byte{0});
-    }
-
-    auto setEventCallback(std::nullptr_t) -> void {
-        mEventCallback = nullptr;
-        mEventUser.fill(std::byte{0});
-    }
-
-    auto setQueryCallback(std::nullptr_t) -> void {
-        mQueryCallback = nullptr;
-        mQueryUser.fill(std::byte{0});
-    }
+    auto setPushCallback(std::nullptr_t) -> void;
+    auto setEventCallback(std::nullptr_t) -> void;
+    auto setQueryCallback(std::nullptr_t) -> void;
 private:
+    auto sendStickyEvents() -> IoTask<void>; // Sticky events are sent before any sample and event
+    auto pushEventInternal(Event event) -> IoTask<void>; // It doesn't process the sticky...
+
+    template <typename T>
+    using Fn = detail::SmallFunc<T, sizeof(void*) * 3>;
+
     // The callback when the pad is pushed or event happened
-    using QueryCallback = auto (*)(Pad &self, Query query) -> std::optional<Reply>;
-    using EventCallback = auto (*)(Pad &self, Event event) -> IoTask<void>;
-    using PushCallback = auto (*)(Pad &self, Sample sample) -> IoTask<void>;
-    using UserData = std::array<std::byte, sizeof(void*) * 3>; // Small size optimization for the callback
-
-    // Type erase utils
-    template <typename Callable>
-    static auto typeEraseTo(const Callable &callable, UserData &array) -> void {
-        static_assert(sizeof(callable) <= sizeof(UserData), "The callable is too large");
-        static_assert(std::is_trivially_copyable_v<Callable>, "The callable must be trivially copyable");
-        static_assert(std::is_trivially_destructible_v<Callable>, "The callable must be trivially destructible");
-        ::memcpy(array.data(), &callable, sizeof(Callable));
-    }
-
-    template <typename Callable>
-    static auto typeUnerase(const UserData &data) -> Callable {
-        std::array<std::byte, sizeof(Callable)> array{};
-        ::memcpy(array.data(), data.data(), sizeof(Callable));
-        return std::bit_cast<Callable>(array);
-    }
-
-    // Proxy for push callback
-    template <typename Callable>
-    static auto pushProxy(Pad &self, Sample sample) -> IoTask<void> {
-        auto callable = typeUnerase<Callable>(self.mPushUser);
-        return callable(self, std::move(sample));
-    }
-
-    // Proxy for event callback
-    template <typename Callable>
-    static auto eventProxy(Pad &self, Event event) -> IoTask<void> {
-        auto callable = typeUnerase<Callable>(self.mEventUser);
-        return callable(self, event);
-    }
-
-    template <typename Callable>
-    static auto queryProxy(Pad &self, Query query) -> std::optional<Reply> {
-        auto callable = typeUnerase<Callable>(self.mQueryUser);
-        return callable(self, query);
-    }
+    using QueryCallback = Fn<auto (Pad &self, Query query) -> std::optional<Reply> >;
+    using EventCallback = Fn<auto (Pad &self, Event event) -> IoTask<void> >;
+    using PushCallback = Fn<auto (Pad &self, Sample sample) -> IoTask<void> >;
 
     // Datas
     Element    &mElement; // The element this pad belongs to.
@@ -259,17 +260,55 @@ private:
     Caps        mCaps;
 
     // Callbacks
-    PushCallback mPushCallback = nullptr;
-    UserData     mPushUser = {};
+    PushCallback mPushCallback;
+    EventCallback mEventCallback;
+    QueryCallback mQueryCallback;
 
-    EventCallback mEventCallback = nullptr;
-    UserData      mEventUser = {};
+    // Event
+    std::vector<Event> mStickyEvents;
+    bool mStickyEventsSent = false; // Did we sent the sticky events to the peer?, this value will be reset when unlinked
 
-    QueryCallback mQueryCallback = nullptr;
-    UserData      mQueryUser = {};
-
-    // State
+    // State of the linked
     std::shared_ptr<PadLink> mLink;
+friend class Element;
 };
+
+// Impl
+template <auto Method, typename Object, typename ...Args>
+inline auto Pad::setPushCallback(Object *obj, Args ...args) -> void {
+    static_assert(std::is_base_of_v<Element, Object>, "The obj must be a subclass of Element");
+    assert(&mElement == obj && "The obj must be the element this pad belongs to");
+
+    // Bind
+    mPushCallback = [args...](Pad &self, Sample sample) -> IoTask<void> {
+        auto &obj = static_cast<Object &>(self.mElement);
+        return (obj.*Method)(self, std::move(sample), args...);
+    };
+}
+
+template <auto Method, typename Object, typename ...Args>
+inline auto Pad::setEventCallback(Object *obj, Args ...args) -> void {
+    static_assert(std::is_base_of_v<Element, Object>, "The obj must be a subclass of Element");
+    assert(&mElement == obj && "The obj must be the element this pad belongs to");
+
+    // Bind
+    mEventCallback = [args...](Pad &self, Event event) -> IoTask<void> {
+        auto &obj = static_cast<Object &>(self.mElement);
+        return (obj.*Method)(self, std::move(event), args...);
+    };
+}
+
+template <auto Method, typename Object, typename ...Args>
+inline auto Pad::setQueryCallback(Object *obj, Args ...args) -> void {
+    static_assert(std::is_base_of_v<Element, Object>, "The obj must be a subclass of Element");
+    assert(&mElement == obj && "The obj must be the element this pad belongs to");
+
+    // Bind
+    mQueryCallback = [args...](Pad &self, Query query) -> std::optional<Reply> {
+        auto &obj = static_cast<Object &>(self.mElement);
+        return (obj.*Method)(self, std::move(query), args...);
+    };
+}
+
 
 } // namespace nekoav

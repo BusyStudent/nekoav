@@ -58,8 +58,8 @@ private:
     auto onPrepare() -> IoTask<void> override;
 
     // Query / Event from Pad
-    auto onPadQuery(Pad &pad, const Query &query) -> std::optional<Reply>;
-    auto onPadEvent(Pad &pad, const Event &event) -> IoTask<void>;
+    auto onPadQuery(Pad &pad, Query query) -> std::optional<Reply>;
+    auto onPadEvent(Pad &pad, Event event) -> IoTask<void>;
 
     // FFmpeg
     auto doSeek() -> IoTask<void>;

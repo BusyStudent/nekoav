@@ -43,7 +43,7 @@ private:
     auto onStop() -> IoTask<void> override;
     auto onPush(Pad &, Sample sample) -> IoTask<void>;
     auto onEvent(Pad &, Event event) -> IoTask<void>;
-    auto initDevice(AudioFrame *frame) -> IoResult<void>;
+    auto initDevice(SampleFormat fmt, int channels, int sampleRate) -> IoResult<void>;
 
     struct Impl;
     std::unique_ptr<Impl> d;

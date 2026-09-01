@@ -91,14 +91,8 @@ Decoder::Decoder(std::string_view name) :
     mOutput(createOutputPad("out")) 
 {
     // Input accept both audio and video
-    mInput.mutableCaps().insertOrAssign(Caps::AudioPacket, {});
-    mInput.mutableCaps().insertOrAssign(Caps::VideoPacket, {});
     mInput.setPushCallback<&Decoder::onPadPush>(this);
     mInput.setEventCallback<&Decoder::onPadEvent>(this);
-
-    // Output
-    mOutput.mutableCaps().insertOrAssign(Caps::AudioRaw, {});
-    mOutput.mutableCaps().insertOrAssign(Caps::VideoRaw, {});
 }
 
 Decoder::~Decoder() {
@@ -110,11 +104,6 @@ auto Decoder::setPolicy(Policy policy) -> void {
 }
 
 auto Decoder::onPrepare() -> IoTask<void> {
-    // Init codec here (fast path)
-    auto reply = mInput.sendQuery(Query::Caps{});
-    if (reply) {
-        co_return co_await init(reply->toCaps().caps);   
-    }
     co_return {};
 }
 
@@ -124,16 +113,9 @@ auto Decoder::onTeardown() -> IoTask<void> {
 }
 
 auto Decoder::onPadPush(Pad &pad, Sample sample) -> IoTask<void> {
-    // if (!sample) { // Forward EOS
-    //     // TODO: We maybe need to flush the decoder
-    //     co_return co_await mOutput.push(std::move(sample));
-    // }
-    if (!d) { // The decoder is not initialize, try init now
-        auto reply =  mInput.sendQuery(Query::Caps{});
-        if (!reply) {
-            co_return Err(Error::InvalidState);
-        }
-        ILIAS_CO_TRYV(co_await init(reply->toCaps().caps));
+    if (!d) { // The decoder is not initialize
+        NEKOAV_ERROR("[Decoder] '{}' Not initialized, did upstream forget to send caps events?", name());
+        co_return Err(Error::InvalidState);
     }
     if (!sample.isPacket()) {
         co_return Err(Error::SampleTypeNotSupported);
@@ -196,11 +178,28 @@ auto Decoder::onPadPush(Pad &pad, Sample sample) -> IoTask<void> {
     co_return {};
 }
 
-auto Decoder::onPadEvent(Pad &pad, const Event &event) -> IoTask<void> {
+auto Decoder::onPadEvent(Pad &pad, Event event) -> IoTask<void> {
     if (event.isFlushEnd()) {
         NEKOAV_INFO("[Decoder] '{}' flush end", name());
-        d->flush = true;
+        if (d) {
+            d->flush = true;
+        }
     }
+    else if (event.isCaps()) {
+        NEKOAV_INFO("[Decoder] '{}' caps event arrive, begin init", name());
+        assert(!d); // Not initialize
+        auto [caps] = event.toCaps();
+
+        // Init and assign the output 
+        ILIAS_CO_TRYV(co_await init(caps));
+        mOutput.mutableCaps() = makeOutputCaps();
+
+        // We should use our caps to forward to downstream
+        co_return co_await mOutput.pushEvent(Event::Caps {
+            .caps = mOutput.caps()
+        });
+    }
+    // Forward
     co_return co_await mOutput.pushEvent(std::move(event));
 }
 
@@ -286,6 +285,33 @@ auto Decoder::init(const Caps &caps) -> IoTask<void> {
     }
     d.swap(inner);
     co_return {};
+}
+
+auto Decoder::makeOutputCaps() -> Caps {
+    Caps output;
+    if (d->ctxt->codec_type == AVMEDIA_TYPE_VIDEO) { // AVMEDIA_TYPE_VIDEO
+        output.insertOrAssign(Caps::VideoRaw, Value::Map {
+            { std::string{Caps::Width}, d->ctxt->width },
+            { std::string{Caps::Height}, d->ctxt->height },
+            { std::string{Caps::PixelFormat}, pixfmt::fromFFmpeg(d->ctxt->pix_fmt) },
+            { std::string{Caps::ColorRange}, color_range::fromFFmpeg(d->ctxt->color_range) },
+            { std::string{Caps::ColorPrimaries}, color_primaries::fromFFmpeg(d->ctxt->color_primaries) },
+            { std::string{Caps::ColorTransfer}, color_transfer::fromFFmpeg(d->ctxt->color_trc) },
+            { std::string{Caps::ColorSpace}, color_space::fromFFmpeg(d->ctxt->colorspace) },
+        });
+    }
+    else if (d->ctxt->codec_type == AVMEDIA_TYPE_AUDIO) { // AVMEDIA_TYPE_AUDIO
+        output.insertOrAssign(Caps::AudioRaw, Value::Map {
+            { std::string{Caps::SampleFormat}, sample_fmt::fromFFmpeg(d->ctxt->sample_fmt) },
+            { std::string{Caps::SampleRate}, d->ctxt->sample_rate },
+            { std::string{Caps::Channels}, d->ctxt->ch_layout.nb_channels },
+        });
+    }
+    else {
+        NEKOAV_ERROR("[Decoder] Unknown codec type '{}'", name()); // ???
+        std::abort();
+    }
+    return output;
 }
 
 auto Decoder::open(Impl *inner) -> IoResult<void> {

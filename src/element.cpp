@@ -70,6 +70,7 @@ public:
 Pad::~Pad() {
     if (!unlink()) {
         NEKOAV_ERROR("Failed to unlink pad '{}'", name());
+        std::abort();
     }
 }
 
@@ -87,6 +88,7 @@ auto Pad::unlink() -> bool {
     mPeer->mLink = nullptr;
     mPeer = nullptr;
     mLink = nullptr;
+    mStickyEventsSent = false;
 
     // Mark Topology is changed
     if (mElement.mParent) {
@@ -136,11 +138,50 @@ auto Pad::push(Sample sample) -> IoTask<void> {
         NEKOAV_WARN("No push callback set on pad '{}'", mPeer->name());
         co_return Err(Error::NoPushCallback);
     }
+    // Send sticky events before any sample
+    if (!mStickyEventsSent) [[unlikely]] {
+        ILIAS_CO_TRYV(co_await sendStickyEvents());
+    }
+
     auto guard = co_await mLink->mutex.lock();
     co_return co_await mPeer->mPushCallback(*mPeer, std::move(sample));
 }
 
 auto Pad::pushEvent(Event event) -> IoTask<void> {
+    // Handle sticky events here
+    if (event.isSticky()) {
+        auto it = std::ranges::find_if(mStickyEvents, [&](auto &val) {
+            return val.index() == event.index(); // Same type
+        });
+        if (it != mStickyEvents.end()) {
+            *it = event; // Overwrite
+        }
+        else {
+            NEKOAV_INFO("Pad '{}' add new sticky event '{}'", name(), event);
+            mStickyEvents.emplace_back(event); // Append
+        }
+        
+        // Check is flushing and not linked
+        if (!isLinked() || isFlushing()) { // We are cached, so ok
+            co_return {};
+        }
+
+        if (!mStickyEventsSent) [[unlikely]] {
+            co_return co_await sendStickyEvents();
+        }
+    }
+    else {
+        // State...
+        if (!mStickyEventsSent && isLinked()) [[unlikely]] {
+            ILIAS_CO_TRYV(co_await sendStickyEvents());
+        }
+    }
+
+    co_return co_await pushEventInternal(std::move(event));
+}
+
+auto Pad::pushEventInternal(Event event) -> IoTask<void> {
+    // Check link
     if (!isLinked()) {
         co_return Err(Error::NotLinked);
     }
@@ -148,6 +189,11 @@ auto Pad::pushEvent(Event event) -> IoTask<void> {
     // Check flushing...
     if (event.isFlushEnd()) {
         mLink->flushing = false;
+
+        // Clear some events...
+        std::erase_if(mStickyEvents, [](auto &event) {
+            return event.isEos();
+        });
     }
     if (isFlushing()) {
         NEKOAV_WARN("Pad '{}' is flushing, drop event {}", name(), event);
@@ -158,7 +204,7 @@ auto Pad::pushEvent(Event event) -> IoTask<void> {
     }
 
     // Serialze guard
-    auto guard = std::optional<ilias::MutexGuard>{};
+    std::optional<ilias::MutexGuard> guard{};
     if (event.isSerialzed()) { // We need serialized with push
         guard.emplace(co_await mLink->mutex.lock());
     }
@@ -168,16 +214,17 @@ auto Pad::pushEvent(Event event) -> IoTask<void> {
     auto &element = cur->mElement;
     NEKOAV_INFO("[Pad] push event '{}' to element '{}', pad '{}'", event, element.name(), cur->name());
     if (cur->mEventCallback) { 
-        if (auto res = co_await cur->mEventCallback(*cur, event); !res) {
+        if (auto res = co_await cur->mEventCallback(*cur, std::move(event)); !res) {
             NEKOAV_ERROR("Failed to push event to pad '{}': {}", cur->name(), res.error().message());
             co_return Err(res.error());
         }
         co_return {};
     }
     else { // fallback to the default implementation
-        co_return co_await element.forwardEvent(*cur, event);
+        co_return co_await element.forwardEvent(*cur, std::move(event));
     }
 }
+
 
 auto Pad::sendQuery(Query query) -> std::optional<Reply> {
     auto walkToUp = mType == PadType::Input; // If self is input pad, we walk upstream
@@ -218,6 +265,19 @@ auto Pad::isFlushing() const -> bool {
     return false;
 }
 
+auto Pad::sendStickyEvents() -> IoTask<void> {
+    if (!isLinked() || isFlushing() || mStickyEventsSent) { // Choose another time
+        co_return {};
+    }
+    mStickyEventsSent = true; // Avoid duplicate call
+
+    for (auto &event : mStickyEvents) {
+        NEKOAV_INFO("Repaly Sticky event: {}", event);
+        ILIAS_CO_TRYV(co_await pushEventInternal(event));
+    }
+    co_return {};
+}
+
 // MARK: Element
 Element::Element(ElementType type, std::string_view name) : mType(type), mName(name) {
     if (mName.empty()) {
@@ -234,6 +294,15 @@ Element::~Element() {
 }
 
 auto Element::setState(State targetState) -> IoTask<void> {
+    auto beforeStop = [&]() {
+        for (auto &pad : inputs()) {
+            pad.mStickyEvents.clear();
+        }
+        for (auto &pad : outputs()) {
+            pad.mStickyEvents.clear();
+        }
+    };
+
     // Accquire the lock
     const auto guard = co_await mStateMutex.lock();
 
@@ -249,17 +318,26 @@ auto Element::setState(State targetState) -> IoTask<void> {
         const auto nextState = nextStateOf(mState, targetState);
         const auto selectTask = [&]() {
             switch (stateChangeOf(mState, nextState)) {
-                case StateChange::Initialize: return onInitialize();
-                case StateChange::Prepare:    return onPrepare();
-                case StateChange::Run:        return onRun();
-                case StateChange::Pause:      return onPause();
-                case StateChange::Stop:       return onStop();
-                case StateChange::Teardown:   return onTeardown();
-                default: NEKOAV_ERROR("???"); ::abort();
+                case StateChange::Initialize: 
+                    return onInitialize();
+                case StateChange::Prepare:    
+                    return onPrepare();
+                case StateChange::Run:        
+                    return onRun();
+                case StateChange::Pause:      
+                    return onPause();
+                case StateChange::Stop:       
+                    beforeStop();
+                    return onStop();
+                case StateChange::Teardown:   
+                    return onTeardown();
+                default: 
+                    NEKOAV_ERROR("???"); 
+                    std::abort();
             }
         };
 
-        NEKOAV_INFO("[Element] '{}' change state from {} to {}", name(), mState, nextState);
+        NEKOAV_DEBUG("[Element] '{}' change state from {} to {}", name(), mState, nextState);
 
         // Try execute it
         if (auto res = co_await selectTask(); !res && isSetStateForward(mState, targetState)) { // Forward..., must rollback
@@ -406,6 +484,7 @@ auto Element::dumpInfoInternal(FILE *where, int level) -> void {
         std::string_view linkState = pad.isLinked() ? "[Linked]" : "[Unlinked]";
         
         std::println(where, "{:{}}{} '{}' {}", "", lv, arrow, pad.name(), linkState);
+        std::println(where, "{:{}} StickyEvents: {}", "", lv + 2, pad.mStickyEvents);
         dumpCaps(pad.caps(), lv + 3); 
     };
 
@@ -416,7 +495,7 @@ auto Element::dumpInfoInternal(FILE *where, int level) -> void {
     std::println(where, "{:{}}Clock: {}", "", level + 2, static_cast<const void*>(mClock.get()));
     std::println(where, "{:{}}Context: {}", "", level + 2, static_cast<const void*>(mContext.get()));
 
-    //   Caps
+    //  Pads
     if (!mInputs.empty()) {
         std::println(where, "{:{}}Inputs:", "", level + 2);
         for (auto &pad : mInputs) {
